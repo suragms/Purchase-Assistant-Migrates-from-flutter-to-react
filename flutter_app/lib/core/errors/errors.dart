@@ -12,3 +12,6 @@ export '../auth/auth_error_messages.dart'
         friendlyGoogleSignInError;
 export '../widgets/friendly_load_error.dart'
     show FriendlyLoadError, kFriendlyLoadNetworkSubtitle;
+export '../widgets/hexa_error_card.dart'
+    show HexaErrorCard, InlineLoadError;
+export 'load_state_error.dart' show loadStateErrorSubtitle;

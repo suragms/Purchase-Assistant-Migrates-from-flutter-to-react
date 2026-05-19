@@ -30,6 +30,7 @@ import 'party_inline_suggest_field.dart';
 import '../../pricing/purchase_tax_prefs.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/providers/stock_providers.dart';
+import '../../state/purchase_smart_defaults.dart';
 
 String _stripKgSuffixForCatalogDisplay(String name) => name
     .replaceAll(RegExp(r'\s*\d+(\.\d+)?\s*KG\s*$', caseSensitive: false), '')
@@ -101,6 +102,7 @@ class PurchaseItemEntrySheet extends ConsumerStatefulWidget {
     /// When set, user can save missing kg/bag to the server from a blocking sheet.
     this.persistCatalogBagWeight,
     this.preferredSupplierId,
+    this.priorityCatalogItemIds = const [],
     /// Reserved for future line-level prefs; rates are always entered **before** GST (Tax % applies on top).
     this.gstPrefs,
   });
@@ -119,6 +121,7 @@ class PurchaseItemEntrySheet extends ConsumerStatefulWidget {
   final Future<Map<String, dynamic>?> Function()? navigateCatalogQuickAddItem;
   final PersistCatalogBagWeight? persistCatalogBagWeight;
   final String? preferredSupplierId;
+  final List<String> priorityCatalogItemIds;
   final SharedPreferences? gstPrefs;
 
   @override
@@ -296,7 +299,10 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     }
   }
 
-  void _schedulePreviewRebuild() {}
+  void _schedulePreviewRebuild() {
+    if (!mounted) return;
+    setState(() {});
+  }
 
   void _onFocusChange() {
     // Proactively check FocusScope for any focused descendant.
@@ -1351,9 +1357,17 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
 
   void _rebuildCatalogSearchItems() {
     final pref = widget.preferredSupplierId?.trim();
+    final priority = widget.priorityCatalogItemIds;
     final out = <InlineSearchItem>[];
     for (final row in widget.catalog) {
       var boost = 0;
+      final rowId = row['id']?.toString() ?? '';
+      if (rowId.isNotEmpty && priority.isNotEmpty) {
+        final idx = priority.indexOf(rowId);
+        if (idx >= 0) {
+          boost += 400 - (idx * 20);
+        }
+      }
       if (pref != null && pref.isNotEmpty) {
         final ls = row['last_supplier_id']?.toString().trim();
         if (ls == pref) boost += 120;
@@ -1389,6 +1403,8 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
       row['item_code']?.toString().trim() ?? '',
       row['hsn_code']?.toString().trim() ?? '',
       row['hsn']?.toString().trim() ?? '',
+      row['category_name']?.toString().trim() ?? '',
+      row['subcategory_name']?.toString().trim() ?? '',
     ].where((s) => s.isNotEmpty);
     return parts.join(' ').toLowerCase();
   }
@@ -1397,7 +1413,8 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
   void didUpdateWidget(covariant PurchaseItemEntrySheet oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.catalog != widget.catalog ||
-        oldWidget.preferredSupplierId != widget.preferredSupplierId) {
+        oldWidget.preferredSupplierId != widget.preferredSupplierId ||
+        oldWidget.priorityCatalogItemIds != widget.priorityCatalogItemIds) {
       _rebuildCatalogSearchItems();
     }
   }
@@ -1962,6 +1979,17 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
       return;
     }
     widget.onCommitted(line);
+    final itemId = _selectedCatalogItemId;
+    final rate = _parseD(_landingCtrl.text);
+    final qty = _parseD(_qtyCtrl.text);
+    if (itemId != null && itemId.isNotEmpty) {
+      if (rate != null && rate > 0) {
+        unawaited(PurchaseSmartDefaults.saveLastRateForItem(itemId, rate));
+      }
+      if (qty != null && qty > 0) {
+        unawaited(PurchaseSmartDefaults.recordQtyForItem(itemId, qty));
+      }
+    }
     if (!widget.fullPage) {
       if (closeSheet) {
         if (context.canPop()) {
@@ -2127,9 +2155,9 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
 
   Widget _buildTaxModeChips(ThemeData theme) {
     String chipLabel(TaxMode m) => switch (m) {
-          TaxMode.exclusive => 'Base + GST',
-          TaxMode.inclusive => 'Incl. GST',
-          TaxMode.none => 'No Tax',
+          TaxMode.exclusive => 'Excl GST',
+          TaxMode.inclusive => 'Incl GST',
+          TaxMode.none => 'No GST',
         };
 
     Future<void> onPick(TaxMode m) async {
@@ -2609,11 +2637,36 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     return buf.toString();
   }
 
+  Future<void> _applyPrefsSmartDefaults(String itemId) async {
+    if (itemId.isEmpty || !mounted) return;
+    final rate = await PurchaseSmartDefaults.loadLastRateForItem(itemId);
+    final hist = await PurchaseSmartDefaults.loadQtyHistoryForItem(itemId);
+    if (!mounted) return;
+    setState(() {
+      if (rate != null &&
+          rate > 0 &&
+          _landingCtrl.text.trim().isEmpty) {
+        _landingCtrl.text = _fmtMoney(rate);
+        _lastPurchaseAutofillHint =
+            'Filled from your last entry on this device.';
+      }
+      if (_qtyCtrl.text.trim().isEmpty && hist.isNotEmpty) {
+        _qtyCtrl.text = _fmtQty(
+          PurchaseSmartDefaults.suggestQty(hist).toDouble(),
+        );
+      }
+    });
+  }
+
   void _applyLastDefaults(Map<String, dynamic> d) {
     final src = d['source']?.toString();
     if (d.isEmpty || src == null || src == 'none') {
       if (mounted) {
         setState(() => _lastPurchaseAutofillHint = null);
+      }
+      final itemId = _selectedCatalogItemId;
+      if (itemId != null && itemId.isNotEmpty) {
+        unawaited(_applyPrefsSmartDefaults(itemId));
       }
       return;
     }
@@ -2868,6 +2921,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
             _hintFromClassification(classification, wLow);
       });
       _scheduleLastDefaultsFetch(it.id, seq);
+    unawaited(_applyPrefsSmartDefaults(it.id));
       return;
     }
     _applyCatalogRowToLineState(
@@ -2876,6 +2930,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
       nameFallback: it.label,
     );
     _scheduleLastDefaultsFetch(it.id, seq);
+    unawaited(_applyPrefsSmartDefaults(it.id));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || seq != _catalogPickSeq) return;
       unawaited(_offerCatalogKgPerBagSheetIfNeeded(_catalogRowById(it.id)));
@@ -3048,6 +3103,34 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
 
   @override
   Widget build(BuildContext context) {
+    if (widget.catalog.isEmpty && !widget.isEdit) {
+      final loadingBody = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(strokeWidth: 2),
+            const SizedBox(height: 12),
+            Text(
+              'Loading catalog…',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
+        ),
+      );
+      if (widget.fullPage) {
+        return Scaffold(
+          appBar: AppBar(title: const Text('Add item')),
+          body: loadingBody,
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+        child: loadingBody,
+      );
+    }
+
     final theme = Theme.of(context);
     final k = _kgPer();
     final cRow = _activeClassification();

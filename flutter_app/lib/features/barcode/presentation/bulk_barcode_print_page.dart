@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
@@ -6,6 +8,8 @@ import '../../../core/auth/session_notifier.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/theme/hexa_colors.dart';
+import '../../../core/errors/user_facing_errors.dart';
+import '../../../core/widgets/hexa_error_card.dart';
 import '../services/barcode_pdf_service.dart';
 
 class BulkBarcodePrintPage extends ConsumerStatefulWidget {
@@ -43,48 +47,92 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
     super.dispose();
   }
 
-  Future<void> _print() async {
-    if (_selected.isEmpty) return;
+  Future<List<BarcodeLabelData>> _fetchLabels() async {
     final session = ref.read(sessionProvider);
-    if (session == null) return;
+    if (session == null || _selected.isEmpty) return [];
+    final labels = await ref.read(hexaApiProvider).barcodeLabelBatch(
+          businessId: session.primaryBusiness.id,
+          itemIds: _selected.toList(),
+        );
+    final batch = <BarcodeLabelData>[];
+    for (final j in labels) {
+      final label = BarcodeLabelData.fromApiMap(j);
+      if (label != null) batch.add(label);
+    }
+    return batch;
+  }
+
+  Future<Uint8List?> _buildPdf() async {
+    final batch = await _fetchLabels();
+    if (batch.isEmpty) return null;
+    return BarcodePdfService.generateBatch(
+      items: batch,
+      size: _size,
+      copiesPerItem: _copies,
+      labelsPerRow: _perRow,
+    );
+  }
+
+  Future<void> _preview() async {
+    if (_selected.isEmpty || _busy) return;
     setState(() => _busy = true);
     try {
-      final api = ref.read(hexaApiProvider);
-      final labels = await api.barcodeLabelBatch(
-        businessId: session.primaryBusiness.id,
-        itemIds: _selected.toList(),
-      );
-      final batch = <BarcodeLabelData>[];
-      for (final j in labels) {
-        final code = j['item_code']?.toString() ?? '';
-        if (code.isEmpty) continue;
-        batch.add(
-          BarcodeLabelData(
-            itemCode: code,
-            itemName: j['item_name']?.toString() ?? code,
-            unit: j['unit']?.toString(),
-            currentStock: (j['current_stock'] as num?)?.toDouble(),
-          ),
-        );
-      }
-      if (batch.isEmpty) {
+      final pdf = await _buildPdf();
+      if (pdf == null) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No printable labels')),
         );
         return;
       }
-      final pdf = await BarcodePdfService.generateBatch(
-        items: batch,
-        size: _size,
-        copiesPerItem: _copies,
+      if (!mounted) return;
+      final count = _selected.length * _copies;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          builder: (ctx) => Scaffold(
+            appBar: AppBar(
+              title: Text('Preview ($count labels)'),
+            ),
+            body: PdfPreview(
+              build: (_) async => pdf,
+              canChangeOrientation: false,
+              canChangePageFormat: false,
+              canDebug: false,
+            ),
+          ),
+        ),
       );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(userFacingError(e)),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _print() async {
+    if (_selected.isEmpty || _busy) return;
+    setState(() => _busy = true);
+    try {
+      final pdf = await _buildPdf();
+      if (pdf == null) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No printable labels')),
+        );
+        return;
+      }
       await Printing.layoutPdf(onLayout: (_) async => pdf);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Print failed: $e'),
+          content: Text(userFacingError(e)),
           backgroundColor: Colors.red.shade700,
         ),
       );
@@ -211,7 +259,11 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
           Expanded(
             child: listAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('$e')),
+              error: (e, _) => HexaErrorCard.fromError(
+                    error: e,
+                    title: 'Could not load items',
+                    onRetry: () => ref.invalidate(stockListProvider),
+                  ),
               data: (data) {
                 final raw = (data['items'] as List?) ?? const [];
                 final items = [
@@ -349,30 +401,67 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    FilledButton.icon(
-                      onPressed:
-                          (_selected.isEmpty || _busy) ? null : _print,
-                      icon: _busy
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                    Row(
+                      children: [
+                        Text(
+                          'Copies per item',
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const Spacer(),
+                        DropdownButton<int>(
+                          value: _copies,
+                          items: [
+                            for (final n in [1, 2, 3, 4, 5])
+                              DropdownMenuItem(
+                                value: n,
+                                child: Text('$n'),
                               ),
-                            )
-                          : const Icon(Icons.print_rounded),
-                      label: Text(
-                        _busy
-                            ? 'Generating…'
-                            : 'Print ${_selected.length} labels',
-                      ),
-                      style: FilledButton.styleFrom(
-                        backgroundColor: _selected.isEmpty
-                            ? Colors.grey
-                            : HexaColors.brandPrimary,
-                        minimumSize: const Size.fromHeight(48),
-                      ),
+                          ],
+                          onChanged: _busy
+                              ? null
+                              : (v) => setState(() => _copies = v ?? 1),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed:
+                                (_selected.isEmpty || _busy) ? null : _preview,
+                            icon: const Icon(Icons.preview_outlined),
+                            label: const Text('Preview'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          flex: 2,
+                          child: FilledButton.icon(
+                            onPressed:
+                                (_selected.isEmpty || _busy) ? null : _print,
+                            icon: _busy
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : const Icon(Icons.print_rounded),
+                            label: Text(
+                              _busy ? '…' : 'Print',
+                            ),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: _selected.isEmpty
+                                  ? Colors.grey
+                                  : HexaColors.brandPrimary,
+                              minimumSize: const Size.fromHeight(48),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

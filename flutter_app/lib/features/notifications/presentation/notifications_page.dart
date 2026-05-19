@@ -16,6 +16,7 @@ import '../../../core/providers/notifications_provider.dart'
         purchaseDueAlertItemsProvider;
 import '../../../core/providers/server_notifications_provider.dart';
 import '../../../core/router/navigation_ext.dart';
+import '../../../core/errors/load_state_error.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/theme/theme_context_ext.dart';
 
@@ -168,7 +169,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     color: Theme.of(context).colorScheme.error),
                 title: const Text('Could not refresh server notifications'),
                 subtitle: Text(
-                  serverAsync.error.toString(),
+                  loadStateErrorSubtitle(serverAsync.error),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall,

@@ -9,7 +9,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
-import '../../../core/models/trade_purchase_models.dart' show TradePurchaseLine;
+import '../../../core/models/trade_purchase_models.dart'
+    show TradePurchase, TradePurchaseLine;
 import '../../../core/router/navigation_ext.dart';
 import '../../../core/units/dynamic_unit_label_engine.dart' as unit_lbl;
 import '../../../core/utils/trade_purchase_rate_display.dart';
@@ -24,7 +25,6 @@ import '../../../core/providers/business_profile_provider.dart';
 import '../../../core/providers/business_write_revision.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/providers/suppliers_list_provider.dart';
-import '../../../core/providers/brokers_list_provider.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/services/reports_pdf.dart';
 import '../../../core/widgets/friendly_load_error.dart';
@@ -223,6 +223,54 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
     await ref.read(catalogItemDetailProvider(widget.itemId).future);
   }
 
+  /// Merges latest trade line into [item] for last-purchase UI (qty, rates, date).
+  static Map<String, dynamic> _itemWithLastTradeLine(
+    Map<String, dynamic> item,
+    List<TradePurchase>? purchases,
+    String itemId,
+  ) {
+    final hero = Map<String, dynamic>.from(item);
+    if (purchases == null || purchases.isEmpty) return hero;
+    TradePurchaseLine? last;
+    DateTime? lastAt;
+    for (final p in purchases) {
+      for (final ln in p.lines) {
+        if ((ln.catalogItemId ?? '') != itemId) continue;
+        if (lastAt == null || p.purchaseDate.isAfter(lastAt)) {
+          lastAt = p.purchaseDate;
+          last = ln;
+        }
+      }
+    }
+    if (last == null) return hero;
+    final ln = last;
+    if (lastAt != null) {
+      hero['last_purchase_date'] =
+          '${lastAt.year.toString().padLeft(4, '0')}-'
+          '${lastAt.month.toString().padLeft(2, '0')}-'
+          '${lastAt.day.toString().padLeft(2, '0')}';
+    }
+    hero['last_line_qty'] = ln.qty;
+    hero['last_line_unit'] = ln.unit;
+    final tw = ln.totalWeight;
+    final wk = (tw != null && tw > 0)
+        ? tw
+        : (ln.kgPerUnit != null && ln.kgPerUnit! > 0)
+            ? (ln.qty * ln.kgPerUnit!)
+            : null;
+    hero['last_line_weight_kg'] = wk;
+    hero['kg_per_unit'] = ln.kgPerUnit ?? ln.defaultKgPerBag;
+    if (ln.landingCostPerKg != null && ln.landingCostPerKg! > 0) {
+      hero['last_purchase_price'] = ln.landingCostPerKg;
+      hero['purchase_rate_dim'] = 'kg';
+    } else {
+      hero['last_purchase_price'] = ln.purchaseRate ?? ln.landingCost;
+      hero['purchase_rate_dim'] =
+          ln.unit.trim().isEmpty ? null : ln.unit.trim().toLowerCase();
+    }
+    return hero;
+  }
+
   String _pdfMoney(num? n) {
     if (n == null) return '-';
     return _inr(n).replaceAll('₹', 'Rs. ');
@@ -364,15 +412,15 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
         ),
         title: Text(
           _inlineEditing
-              ? 'Editing ${itemCodeTitle?.isNotEmpty == true ? itemCodeTitle! : 'item'}'
-              : (itemCodeTitle?.isNotEmpty == true
-                  ? itemCodeTitle!
-                  : (itemAsync.valueOrNull?['name']?.toString() ?? 'Item')),
+              ? 'Editing item'
+              : (itemAsync.valueOrNull?['name']?.toString().trim().isNotEmpty ==
+                      true
+                  ? itemAsync.valueOrNull!['name'].toString().trim()
+                  : (itemCodeTitle?.isNotEmpty == true
+                      ? itemCodeTitle!
+                      : 'Item')),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: itemCodeTitle?.isNotEmpty == true && !_inlineEditing
-              ? const TextStyle(fontFamily: 'monospace', fontSize: 15)
-              : null,
         ),
         actions: [
           if (_inlineEditing) ...[
@@ -387,40 +435,43 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
               child: const Text('Save'),
             ),
           ] else ...[
-            if ((itemAsync.valueOrNull?['item_code']?.toString().trim().isNotEmpty) ??
-                false)
-              IconButton(
-                tooltip: 'Print label',
-                icon: const Icon(Icons.print_rounded),
-                onPressed: () => context.push(
-                  '/barcode/print/${Uri.encodeComponent(widget.itemId)}',
-                ),
-              ),
-            IconButton(
-              tooltip: 'Item ledger & statement',
-              icon: const Icon(Icons.picture_as_pdf_outlined),
-              onPressed: () =>
-                  context.push('/catalog/item/${widget.itemId}/ledger'),
+            TextButton(
+              onPressed: itemAsync.valueOrNull == null
+                  ? null
+                  : () {
+                      final it = itemAsync.valueOrNull!;
+                      _inlineNameCtrl.text = it['name']?.toString() ?? '';
+                      setState(() => _inlineEditing = true);
+                    },
+              child: const Text('Edit'),
             ),
             PopupMenuButton<String>(
               onSelected: (v) {
                 final it = itemAsync.valueOrNull;
                 if (it == null) return;
                 switch (v) {
-                  case 'edit':
-                    _inlineNameCtrl.text = it['name']?.toString() ?? '';
-                    setState(() => _inlineEditing = true);
+                  case 'ledger':
+                    context.push('/catalog/item/${widget.itemId}/ledger');
                   case 'history':
                     context.push(
                       '/catalog/item/${widget.itemId}/purchase-history',
                     );
+                  case 'defaults':
+                    _editItemDefaults(it);
                 }
               },
-              itemBuilder: (ctx) => [
-                const PopupMenuItem(value: 'edit', child: Text('Quick edit')),
-                const PopupMenuItem(
+              itemBuilder: (ctx) => const [
+                PopupMenuItem(
+                  value: 'ledger',
+                  child: Text('Ledger & statement'),
+                ),
+                PopupMenuItem(
                   value: 'history',
                   child: Text('Purchase history'),
+                ),
+                PopupMenuItem(
+                  value: 'defaults',
+                  child: Text('Edit defaults'),
                 ),
               ],
             ),
@@ -538,6 +589,40 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
                   ),
                 ],
                 const SizedBox(height: 12),
+                _CatalogItemBarcodeSection(
+                  itemCode: item['item_code']?.toString(),
+                  itemName: item['name']?.toString() ?? 'Item',
+                  itemId: widget.itemId,
+                ),
+                const SizedBox(height: 12),
+                _CatalogItemCatalogInfoSection(item: item),
+                const SizedBox(height: 12),
+                _CatalogItemStockSection(
+                  itemId: widget.itemId,
+                  item: item,
+                ),
+                const SizedBox(height: 12),
+                Builder(
+                  builder: (ctx) {
+                    final enriched = _CatalogItemDetailPageState
+                        ._itemWithLastTradeLine(
+                      item,
+                      purchasesAsync.valueOrNull,
+                      widget.itemId,
+                    );
+                    return _CatalogItemLastPurchaseSection(
+                      item: enriched,
+                      inr: _inr,
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+                _CatalogItemSuppliersSection(
+                  itemId: widget.itemId,
+                  item: item,
+                  purchases: purchasesAsync.valueOrNull,
+                ),
+                const SizedBox(height: 12),
                 Builder(
                   builder: (context) {
                     final st =
@@ -551,9 +636,6 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _ItemQuickActionGrid(
-                          onNewPurchase: () => context.push(
-                            '/purchase/new?catalogItemId=${Uri.encodeComponent(widget.itemId)}',
-                          ),
                           onUpdateStock: () async {
                             final row = await ref.read(
                               stockItemDetailProvider(widget.itemId).future,
@@ -588,85 +670,14 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
                             label: const Text('Notify owner'),
                           ),
                         ],
-                        const SizedBox(height: 4),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: TextButton.icon(
-                            onPressed: () => _editItemDefaults(item),
-                            icon: const Icon(Icons.tune_outlined, size: 18),
-                            label: const Text('Full defaults editor'),
-                          ),
-                        ),
                       ],
                     );
                   },
                 ),
                 const SizedBox(height: 12),
-                _CatalogItemInfoGrid(item: item),
-                const SizedBox(height: 12),
-                _CatalogItemBarcodeSection(
-                  itemCode: item['item_code']?.toString(),
-                  itemName: item['name']?.toString() ?? 'Item',
-                  itemId: widget.itemId,
-                ),
-                const SizedBox(height: 12),
                 _RecentStockPurchasesSection(itemId: widget.itemId),
                 const SizedBox(height: 12),
                 _CatalogItemStockHistorySection(itemId: widget.itemId),
-                const SizedBox(height: 12),
-                // Enrich hero card with last-line qty/unit/kg from loaded purchases
-                // so "Last" shows bags/kg, not just rate.
-                Builder(builder: (ctx) {
-                  final pv = purchasesAsync.value;
-                  Map<String, dynamic> hero = Map<String, dynamic>.from(item);
-                  if (pv != null && pv.isNotEmpty) {
-                    TradePurchaseLine? last;
-                    DateTime? lastAt;
-                    for (final p in pv) {
-                      for (final ln in p.lines) {
-                        if ((ln.catalogItemId ?? '') != widget.itemId) continue;
-                        if (lastAt == null || p.purchaseDate.isAfter(lastAt)) {
-                          lastAt = p.purchaseDate;
-                          last = ln;
-                        }
-                      }
-                    }
-                    if (last != null) {
-                      final ln = last;
-                      if (lastAt != null) {
-                        hero['last_purchase_date'] =
-                            '${lastAt.year.toString().padLeft(4, '0')}-'
-                            '${lastAt.month.toString().padLeft(2, '0')}-'
-                            '${lastAt.day.toString().padLeft(2, '0')}';
-                      }
-                      hero['last_line_qty'] = ln.qty;
-                      hero['last_line_unit'] = ln.unit;
-                      final tw = ln.totalWeight;
-                      final wk = (tw != null && tw > 0)
-                          ? tw
-                          : (ln.kgPerUnit != null && ln.kgPerUnit! > 0)
-                              ? (ln.qty * ln.kgPerUnit!)
-                              : null;
-                      hero['last_line_weight_kg'] = wk;
-                      hero['kg_per_unit'] = ln.kgPerUnit ?? ln.defaultKgPerBag;
-                      if (ln.landingCostPerKg != null && ln.landingCostPerKg! > 0) {
-                        hero['last_purchase_price'] = ln.landingCostPerKg;
-                        hero['purchase_rate_dim'] = 'kg';
-                      } else {
-                        hero['last_purchase_price'] = ln.purchaseRate ?? ln.landingCost;
-                        hero['purchase_rate_dim'] =
-                            ln.unit.trim().isEmpty ? null : ln.unit.trim().toLowerCase();
-                      }
-                      if (ln.sellingRate != null && ln.sellingRate! > 0) {
-                        hero['last_selling_rate'] = ln.sellingRate;
-                        hero['selling_rate_dim'] = hero['purchase_rate_dim'];
-                      }
-                    }
-                  }
-                  return _ItemTradeHeroCard(item: hero);
-                }),
-                const SizedBox(height: 12),
-                _CatalogItemDefaultParties(item: item, ref: ref),
                 const SizedBox(height: 12),
                 purchasesAsync.when(
                   skipLoadingOnReload: true,
@@ -859,65 +870,280 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
           );
         },
       ),
+      bottomNavigationBar: itemAsync.hasValue && !_inlineEditing
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                child: SizedBox(
+                  height: 52,
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: () => context.push(
+                      '/purchase/new?catalogItemId=${Uri.encodeComponent(widget.itemId)}',
+                    ),
+                    child: Text(
+                      'Purchase this item →',
+                      style: HexaDsType.body(15, color: Colors.white)
+                          .copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 
 }
 
-class _CatalogItemInfoGrid extends ConsumerWidget {
-  const _CatalogItemInfoGrid({required this.item});
+class _CatalogItemCatalogInfoSection extends StatelessWidget {
+  const _CatalogItemCatalogInfoSection({required this.item});
 
   final Map<String, dynamic> item;
 
-  static String _fmtWhen(String iso) {
-    final d = DateTime.tryParse(iso);
-    if (d == null) return iso.split('T').first;
-    return DateFormat('d MMM yyyy').format(d.toLocal());
-  }
-
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-    final id = item['id']?.toString() ?? '';
-    final stockAsync = ref.watch(stockItemDetailProvider(id));
-    final st = stockAsync.valueOrNull ?? {};
-
+  Widget build(BuildContext context) {
     String cell(dynamic v) {
       if (v == null) return '—';
       final s = v.toString().trim();
       return s.isEmpty ? '—' : s;
     }
 
-    String? lastPurchaseDate;
-    final rp = st['recent_purchases'];
-    if (rp is List && rp.isNotEmpty) {
-      final first = rp.first;
-      if (first is Map) {
-        lastPurchaseDate = first['purchase_date']?.toString();
-      }
-    }
-
-    final rows = <(String, String)>[
-      if (st.isNotEmpty) ...[
-        ('Stock', cell(st['current_stock'])),
-        ('Reorder', cell(st['reorder_level'])),
-        ('Unit', cell(st['unit'] ?? item['default_unit'])),
-        ('Category', cell(st['category_name'] ?? item['category_name'])),
-        ('Subcategory', cell(st['subcategory_name'] ?? item['type_name'])),
-        ('Rack', cell(st['rack_location'])),
-        ('Supplier', cell(st['supplier_name'])),
-        ('Last purchase', lastPurchaseDate != null
-            ? _CatalogItemInfoGrid._fmtWhen(lastPurchaseDate)
-            : '—'),
-      ] else ...[
+    return _CatalogItemDetailPanel(
+      title: 'Catalog info',
+      rows: [
         ('HSN', cell(item['hsn_code'])),
         ('Tax %', cell(item['tax_percent'])),
         ('Item code', cell(item['item_code'])),
-        ('Default unit', cell(item['default_unit'])),
+        ('Unit', cell(item['default_unit'])),
       ],
-    ];
+    );
+  }
+}
 
+class _CatalogItemStockSection extends ConsumerWidget {
+  const _CatalogItemStockSection({
+    required this.itemId,
+    required this.item,
+  });
+
+  final String itemId;
+  final Map<String, dynamic> item;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stockAsync = ref.watch(stockItemDetailProvider(itemId));
+    return stockAsync.when(
+      loading: () => const _CatalogItemDetailPanel(
+        title: 'Stock',
+        rows: [('Current', '…'), ('Low threshold', '…')],
+      ),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (st) {
+        if (st.isEmpty) return const SizedBox.shrink();
+        String qty(dynamic v) {
+          if (v == null) return '—';
+          if (v is num) {
+            return v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+          }
+          return v.toString();
+        }
+
+        final unit =
+            (st['unit'] ?? item['default_unit'] ?? '').toString().trim();
+        final unitSuffix = unit.isNotEmpty ? ' $unit' : '';
+        return _CatalogItemDetailPanel(
+          title: 'Stock',
+          rows: [
+            ('Current', '${qty(st['current_stock'])}$unitSuffix'),
+            ('Low threshold', '${qty(st['reorder_level'])}$unitSuffix'),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CatalogItemLastPurchaseSection extends StatelessWidget {
+  const _CatalogItemLastPurchaseSection({
+    required this.item,
+    required this.inr,
+  });
+
+  final Map<String, dynamic> item;
+  final String Function(num? n) inr;
+
+  @override
+  Widget build(BuildContext context) {
+    final qty = tradeIntelQtySummaryLine(item);
+    final rates = tradeIntelRatePairLine(item);
+    final rawPd = item['last_purchase_date']?.toString() ?? '';
+    DateTime? parsedPd;
+    if (rawPd.length >= 10) {
+      parsedPd = DateTime.tryParse(rawPd.substring(0, 10));
+    }
+    if (parsedPd == null && qty.isEmpty && rates.isEmpty) {
+      return _CatalogItemDetailPanel(
+        title: 'Last purchase',
+        rows: const [('—', 'No purchases recorded yet')],
+      );
+    }
+
+    final dateStr = parsedPd != null
+        ? DateFormat('d MMM yyyy').format(parsedPd.toLocal())
+        : '—';
+    final detail = <String>[];
+    if (qty.isNotEmpty) detail.add(qty);
+    if (rates.isNotEmpty) detail.add(rates.replaceAll('₹', '').trim());
+
+    return _CatalogItemDetailPanel(
+      title: 'Last purchase',
+      rows: [
+        (
+          dateStr,
+          detail.isEmpty ? '—' : detail.join(' · '),
+        ),
+      ],
+    );
+  }
+}
+
+class _CatalogItemSuppliersSection extends ConsumerWidget {
+  const _CatalogItemSuppliersSection({
+    required this.itemId,
+    required this.item,
+    required this.purchases,
+  });
+
+  final String itemId;
+  final Map<String, dynamic> item;
+  final List<TradePurchase>? purchases;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final suppliersAsync = ref.watch(suppliersListProvider);
+    final defaultIds = (item['default_supplier_ids'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        <String>[];
+
+    final lastBySupplier = <String, DateTime>{};
+    final nameBySupplier = <String, String>{};
+    final purchaseList = purchases;
+    if (purchaseList != null) {
+      for (final p in purchaseList) {
+        final sid = p.supplierId?.trim();
+        if (sid == null || sid.isEmpty) continue;
+        for (final ln in p.lines) {
+          if ((ln.catalogItemId ?? '') != itemId) continue;
+          final cur = lastBySupplier[sid];
+          if (cur == null || p.purchaseDate.isAfter(cur)) {
+            lastBySupplier[sid] = p.purchaseDate;
+            final sn = p.supplierName?.trim();
+            if (sn != null && sn.isNotEmpty) nameBySupplier[sid] = sn;
+          }
+        }
+      }
+    }
+
+    final orderedIds = <String>[
+      ...defaultIds,
+      for (final id in lastBySupplier.keys)
+        if (!defaultIds.contains(id)) id,
+    ];
+    if (orderedIds.isEmpty) return const SizedBox.shrink();
+
+    return suppliersAsync.when(
+      loading: () => const LinearProgressIndicator(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (rows) {
+        final byId = {
+          for (final s in rows) s['id']?.toString(): s,
+        };
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const _ItemSectionLabel(label: 'Suppliers'),
+            const SizedBox(height: 8),
+            for (final id in orderedIds.take(8))
+              _SupplierAvatarRow(
+                name: nameBySupplier[id] ??
+                    byId[id]?['name']?.toString() ??
+                    id,
+                lastPurchase: lastBySupplier[id],
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SupplierAvatarRow extends StatelessWidget {
+  const _SupplierAvatarRow({required this.name, this.lastPurchase});
+
+  final String name;
+  final DateTime? lastPurchase;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?';
+    final lastLabel = lastPurchase != null
+        ? 'Last: ${DateFormat('d MMM').format(lastPurchase!.toLocal())}'
+        : null;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: HexaColors.primaryLight,
+            child: Text(
+              initial,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: HexaColors.brandPrimary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              name,
+              style: HexaDsType.listTitle(context),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (lastLabel != null)
+            Text(
+              lastLabel,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CatalogItemDetailPanel extends StatelessWidget {
+  const _CatalogItemDetailPanel({
+    required this.title,
+    required this.rows,
+  });
+
+  final String title;
+  final List<(String, String)> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     return Material(
       color: cs.surfaceContainerLowest.withValues(alpha: 0.35),
       borderRadius: BorderRadius.circular(12),
@@ -927,89 +1153,39 @@ class _CatalogItemInfoGrid extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              st.isNotEmpty ? 'Warehouse info' : 'Catalog info',
+              title,
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w800,
               ),
             ),
             const SizedBox(height: 8),
-            LayoutBuilder(
-          builder: (context, c) {
-            final wide = c.maxWidth > 420;
-            final child = wide
-                ? Table(
-                    columnWidths: const {
-                      0: FlexColumnWidth(1.1),
-                      1: FlexColumnWidth(1.4),
-                    },
-                    children: [
-                      for (final r in rows)
-                        TableRow(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 6,
-                                horizontal: 4,
-                              ),
-                              child: Text(
-                                r.$1,
-                                style: theme.textTheme.labelSmall?.copyWith(
-                                  color: cs.onSurfaceVariant,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 6,
-                                horizontal: 4,
-                              ),
-                              child: Text(
-                                r.$2,
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ),
-                          ],
+            for (final r in rows)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 110,
+                      child: Text(
+                        r.$1,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                          fontWeight: FontWeight.w700,
                         ),
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      for (final r in rows)
-                        Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              SizedBox(
-                                width: 118,
-                                child: Text(
-                                  r.$1,
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: cs.onSurfaceVariant,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: Text(
-                                  r.$2,
-                                  style: theme.textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        r.$2,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
                         ),
-                    ],
-                  );
-            return child;
-          },
-        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
@@ -1247,6 +1423,11 @@ class _CatalogItemBarcodeSection extends StatelessWidget {
                   icon: const Icon(Icons.share_outlined, size: 18),
                   label: const Text('Share barcode'),
                 ),
+                OutlinedButton.icon(
+                  onPressed: () => context.push('/barcode/bulk-print'),
+                  icon: const Icon(Icons.layers_outlined, size: 18),
+                  label: const Text('Bulk print'),
+                ),
               ],
             ),
           ],
@@ -1258,13 +1439,11 @@ class _CatalogItemBarcodeSection extends StatelessWidget {
 
 class _ItemQuickActionGrid extends StatelessWidget {
   const _ItemQuickActionGrid({
-    required this.onNewPurchase,
     required this.onUpdateStock,
     required this.onHistory,
     required this.onReorderList,
   });
 
-  final VoidCallback onNewPurchase;
   final VoidCallback onUpdateStock;
   final VoidCallback onHistory;
   final VoidCallback onReorderList;
@@ -1272,22 +1451,13 @@ class _ItemQuickActionGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GridView.count(
-      crossAxisCount: 2,
+      crossAxisCount: 3,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 8,
       crossAxisSpacing: 8,
-      childAspectRatio: 2.6,
+      childAspectRatio: 1.35,
       children: [
-        FilledButton.icon(
-          onPressed: onNewPurchase,
-          icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
-          label: const Text('Purchase'),
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF17A8A7),
-            foregroundColor: Colors.white,
-          ),
-        ),
         OutlinedButton.icon(
           onPressed: onUpdateStock,
           icon: const Icon(Icons.inventory_2_outlined, size: 18),
@@ -1733,170 +1903,6 @@ class _TradeHistoryLedgerTable extends StatelessWidget {
   }
 }
 
-class _ItemTradeHeroCard extends StatelessWidget {
-  const _ItemTradeHeroCard({required this.item});
-
-  final Map<String, dynamic> item;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    final qty = tradeIntelQtySummaryLine(item);
-    final rates = tradeIntelRatePairLine(item);
-    final src = tradeIntelSourceLine(item);
-    final rawPd = item['last_purchase_date']?.toString() ?? '';
-    DateTime? parsedPd;
-    if (rawPd.length >= 10) {
-      parsedPd = DateTime.tryParse(rawPd.substring(0, 10));
-    }
-    var dateLine = '';
-    if (parsedPd != null) {
-      final pd = parsedPd;
-      final days = DateTime.now().difference(pd).inDays;
-      final ago = days == 0
-          ? 'today'
-          : days == 1
-              ? 'yesterday'
-              : '$days days ago';
-      dateLine = 'Last buy ${DateFormat('MMM d').format(pd)} · $ago';
-    }
-    if (qty.isEmpty && rates.isEmpty && src.isEmpty && dateLine.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return Material(
-      color: cs.surfaceContainerHighest.withValues(alpha: 0.45),
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (dateLine.isNotEmpty) ...[
-              Text(
-                dateLine,
-                style: tt.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: cs.primary,
-                ),
-              ),
-              if (qty.isNotEmpty || rates.isNotEmpty || src.isNotEmpty)
-                const SizedBox(height: 8),
-            ],
-            if (qty.isNotEmpty)
-              Text(
-                qty,
-                style: tt.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  height: 1.2,
-                ),
-              ),
-            if (rates.isNotEmpty) ...[
-              if (qty.isNotEmpty) const SizedBox(height: 6),
-              Text(
-                rates,
-                style: tt.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
-                ),
-              ),
-            ],
-            if (src.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                src,
-                style: tt.bodySmall?.copyWith(
-                  color: cs.onSurfaceVariant,
-                  height: 1.25,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CatalogItemDefaultParties extends StatelessWidget {
-  const _CatalogItemDefaultParties({required this.item, required this.ref});
-
-  final Map<String, dynamic> item;
-  final WidgetRef ref;
-
-  @override
-  Widget build(BuildContext context) {
-    final supIds = (item['default_supplier_ids'] as List?)
-            ?.map((e) => e.toString())
-            .toList() ??
-        <String>[];
-    final brokIds = (item['default_broker_ids'] as List?)
-            ?.map((e) => e.toString())
-            .toList() ??
-        <String>[];
-    if (supIds.isEmpty && brokIds.isEmpty) return const SizedBox.shrink();
-
-    final sAsync = ref.watch(suppliersListProvider);
-    final bAsync = ref.watch(brokersListProvider);
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (supIds.isNotEmpty) ...[
-            const _ItemSectionLabel(label: 'Default suppliers'),
-            const SizedBox(height: 6),
-            sAsync.when(
-              loading: () => const LinearProgressIndicator(),
-              error: (_, __) => const SizedBox.shrink(),
-              data: (rows) {
-                final list =
-                    rows.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-                final byId = {for (final s in list) s['id']?.toString(): s};
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final id in supIds)
-                      _DefaultPartyLine(
-                        name: (byId[id]?['name'] ?? id).toString(),
-                        phone: byId[id]?['phone']?.toString(),
-                      ),
-                  ],
-                );
-              },
-            ),
-          ],
-          if (brokIds.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            const _ItemSectionLabel(label: 'Default brokers'),
-            const SizedBox(height: 6),
-            bAsync.when(
-              loading: () => const LinearProgressIndicator(),
-              error: (_, __) => const SizedBox.shrink(),
-              data: (rows) {
-                final list =
-                    rows.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-                final byId = {for (final b in list) b['id']?.toString(): b};
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final id in brokIds)
-                      _DefaultPartyLine(
-                        name: (byId[id]?['name'] ?? id).toString(),
-                        phone: byId[id]?['phone']?.toString(),
-                      ),
-                  ],
-                );
-              },
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 class _EditCatalogItemDefaultsSheet extends StatefulWidget {
   const _EditCatalogItemDefaultsSheet({
     required this.pickerContext,
@@ -2193,32 +2199,3 @@ class _EditCatalogItemDefaultsSheetState
   }
 }
 
-class _DefaultPartyLine extends StatelessWidget {
-  const _DefaultPartyLine({required this.name, this.phone});
-
-  final String name;
-  final String? phone;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Text(
-              name,
-              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-            ),
-          ),
-          if (phone != null && phone!.trim().isNotEmpty)
-            Text(
-              phone!,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-            ),
-        ],
-      ),
-    );
-  }
-}

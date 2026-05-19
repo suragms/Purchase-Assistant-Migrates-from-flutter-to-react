@@ -146,6 +146,8 @@ class TradeReportSupplierRow {
   final Set<String> dealIds = {};
   double bagQty = 0;
   double bagKg = 0;
+  double amountInr = 0;
+  DateTime? lastPurchaseDate;
 }
 
 class TradeReportBrokerRow {
@@ -318,6 +320,7 @@ TradeReportAgg buildTradeReportAgg(
 
   for (final p in active) {
     var purchaseTouchesClassified = false;
+    var purchaseClassifiedInr = 0.0;
 
     final bid = (p.brokerId ?? '').trim();
     final bnm = (p.brokerName ?? '').trim();
@@ -352,6 +355,7 @@ TradeReportAgg buildTradeReportAgg(
       sup.dealIds.add(p.id);
 
       final amt = reportLineAmountInr(l);
+      purchaseClassifiedInr += amt;
       sumInr += amt;
       sumKg += kg;
 
@@ -394,6 +398,11 @@ TradeReportAgg buildTradeReportAgg(
 
     if (purchaseTouchesClassified) {
       includedPurchases.add(p);
+      sup.amountInr += purchaseClassifiedInr;
+      if (sup.lastPurchaseDate == null ||
+          p.purchaseDate.isAfter(sup.lastPurchaseDate!)) {
+        sup.lastPurchaseDate = p.purchaseDate;
+      }
     }
   }
 
@@ -421,6 +430,8 @@ TradeReportAgg buildTradeReportAgg(
 
   final suppliers = supMap.values.where((s) => s.dealIds.isNotEmpty).toList()
     ..sort((a, b) {
+      final c = b.amountInr.compareTo(a.amountInr);
+      if (c != 0) return c;
       final d = b.dealIds.length.compareTo(a.dealIds.length);
       if (d != 0) return d;
       return a.name.compareTo(b.name);

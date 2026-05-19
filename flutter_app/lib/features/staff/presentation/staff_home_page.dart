@@ -167,6 +167,21 @@ class StaffHomePage extends ConsumerWidget {
                     style: HexaDsType.heading(16, color: HexaDsColors.textPrimary),
                   ),
                   const Spacer(),
+                  activityAsync.whenOrNull(
+                    data: (s) => s.total > 0
+                        ? Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: Text(
+                              '${s.total} today',
+                              style: HexaDsType.bodySm(context).copyWith(
+                                fontWeight: FontWeight.w700,
+                                color: HexaDsColors.textMuted,
+                              ),
+                            ),
+                          )
+                        : null,
+                  ) ??
+                      const SizedBox.shrink(),
                   TextButton(
                     onPressed: () => context.push('/staff/activity'),
                     child: const Text('See all'),
@@ -179,8 +194,9 @@ class StaffHomePage extends ConsumerWidget {
                   height: 88,
                   child: ListSkeleton(rowCount: 1, rowHeight: 72),
                 ),
-                error: (e, _) => FriendlyLoadError(
-                  message: '$e',
+                error: (_, __) => FriendlyLoadError(
+                  message: 'Could not load today\'s activity',
+                  subtitle: 'Please check your connection and try again.',
                   onRetry: () => ref.invalidate(staffTodayActivityProvider),
                 ),
                 data: (s) => Row(

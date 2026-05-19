@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// An overlay manager using OverlayPortal to display suggestions above or below
-/// the target text field depending on the screen position and keyboard height.
+/// Overlay suggestions anchored to the target field ([LayerLink]) so they paint
+/// above wizard fields and the keyboard instead of behind sibling inputs.
 class KeyboardAwareSuggestionOverlay extends StatefulWidget {
   const KeyboardAwareSuggestionOverlay({
     super.key,
@@ -21,6 +21,7 @@ class KeyboardAwareSuggestionOverlay extends StatefulWidget {
 
 class _KeyboardAwareSuggestionOverlayState
     extends State<KeyboardAwareSuggestionOverlay> {
+  final LayerLink _layerLink = LayerLink();
   final GlobalKey _fieldKey = GlobalKey();
 
   @override
@@ -41,50 +42,54 @@ class _KeyboardAwareSuggestionOverlayState
         final size = box.size;
         final fieldOffset = box.localToGlobal(Offset.zero);
         final fieldBottom = fieldOffset.dy + size.height;
-        final fieldTop = fieldOffset.dy;
 
         const overlayHeight = 240.0;
         const gap = 8.0;
 
-        // Prefer above when field sits in lower half of visible viewport or keyboard covers below-field placement.
-        final bool showAbove = fieldBottom > visibleHeight * 0.55 ||
+        final showAbove = fieldBottom > visibleHeight * 0.55 ||
             (fieldBottom + gap + overlayHeight > visibleHeight - gap);
-
-        double topPosition = showAbove
-            ? (fieldTop - overlayHeight - gap)
-            : (fieldBottom + 4.0);
-
-        // Keep overlay within visible area above keyboard.
-        topPosition = topPosition.clamp(
-          media.padding.top + 4.0,
-          (visibleHeight - overlayHeight - 4.0).clamp(0.0, double.infinity),
-        );
 
         return Stack(
           children: [
-            // Tap outside dismiss barrier
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onTap: () {
-                  widget.controller.hide();
-                },
-                child: Container(color: Colors.transparent),
+                onTap: widget.controller.hide,
+                child: const ColoredBox(color: Colors.transparent),
               ),
             ),
-            Positioned(
-              left: fieldOffset.dx,
-              top: topPosition,
-              width: size.width,
-              height: overlayHeight,
-              child: widget.overlayChild,
+            CompositedTransformFollower(
+              link: _layerLink,
+              showWhenUnlinked: false,
+              targetAnchor:
+                  showAbove ? Alignment.topLeft : Alignment.bottomLeft,
+              followerAnchor:
+                  showAbove ? Alignment.bottomLeft : Alignment.topLeft,
+              offset: Offset(0, showAbove ? -gap : gap),
+              child: Material(
+                elevation: 12,
+                shadowColor: Colors.black38,
+                borderRadius: BorderRadius.circular(10),
+                clipBehavior: Clip.antiAlias,
+                color: Theme.of(context).colorScheme.surface,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: size.width,
+                    maxHeight: overlayHeight,
+                  ),
+                  child: widget.overlayChild,
+                ),
+              ),
             ),
           ],
         );
       },
-      child: KeyedSubtree(
-        key: _fieldKey,
-        child: widget.child,
+      child: CompositedTransformTarget(
+        link: _layerLink,
+        child: KeyedSubtree(
+          key: _fieldKey,
+          child: widget.child,
+        ),
       ),
     );
   }

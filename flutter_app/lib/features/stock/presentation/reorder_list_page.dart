@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/providers/reorder_list_provider.dart';
 import '../../../core/theme/hexa_colors.dart';
+import '../../../core/widgets/friendly_load_error.dart';
 class ReorderListPage extends ConsumerStatefulWidget {
   const ReorderListPage({super.key});
 
@@ -114,7 +115,11 @@ class _ReorderTab extends ConsumerWidget {
 
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      error: (e, _) => Center(child: Text('Could not load: $e')),
+      error: (_, __) => FriendlyLoadError(
+        message: 'Could not load reorder list',
+        subtitle: 'Please check your connection and try again.',
+        onRetry: () => ref.invalidate(reorderListProvider(status)),
+      ),
       data: (rows) {
         if (rows.isEmpty) {
           return Center(

@@ -6,7 +6,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/session_notifier.dart';
+import '../notifications/local_notifications_service.dart';
 import '../providers/business_aggregates_invalidation.dart';
+import '../providers/prefs_provider.dart';
 import 'offline_store.dart';
 
 /// Background sync for queued offline writes (purchase saves).
@@ -54,6 +56,7 @@ class OfflineSyncService {
       final pending = OfflineStore.getPendingEntries();
       if (pending.isEmpty) return;
 
+      var syncedCount = 0;
       for (final e in pending) {
         final id = e['id']?.toString() ?? '';
         final data = e['data'];
@@ -71,11 +74,13 @@ class OfflineSyncService {
             body: Map<String, dynamic>.from(body),
           );
           await OfflineStore.markSynced(id);
+          syncedCount++;
           invalidatePurchaseWorkspace(container);
         } on DioException catch (ex) {
           // If server says duplicate, drop it (it likely synced elsewhere).
           if (ex.response?.statusCode == 409) {
             await OfflineStore.markSynced(id);
+            syncedCount++;
             continue;
           }
           if (_isNetworkError(ex)) {
@@ -89,6 +94,11 @@ class OfflineSyncService {
         } catch (_) {
           // Keep queued.
         }
+      }
+      if (syncedCount > 0 &&
+          container.read(localNotificationsOptInProvider)) {
+        unawaited(LocalNotificationsService.instance
+            .showOfflineSyncSuccess(count: syncedCount));
       }
     } finally {
       _running = false;

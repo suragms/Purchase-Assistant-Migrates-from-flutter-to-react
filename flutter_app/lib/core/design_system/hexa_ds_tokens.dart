@@ -234,4 +234,62 @@ abstract final class HexaDsType {
     color: HexaDsColors.textBody,
     height: 1.2,
   );
+
+  // —— Semantic scale (prefer over raw TextStyle(fontSize: …)) ——
+
+  static TextStyle h1(BuildContext ctx) => heading(
+        22,
+        color: HexaDsColors.textPrimary,
+      );
+
+  static TextStyle h2(BuildContext ctx) => GoogleFonts.plusJakartaSans(
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+        color: HexaDsColors.textPrimary,
+        height: 1.25,
+      );
+
+  static TextStyle h3(BuildContext ctx) => GoogleFonts.plusJakartaSans(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: HexaDsColors.textPrimary,
+        height: 1.3,
+      );
+
+  /// Semantic 14px body — use instead of raw [TextStyle] (not [body] with size).
+  static TextStyle bodyPrimary(BuildContext ctx) => GoogleFonts.plusJakartaSans(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        color: HexaDsColors.textPrimary,
+        height: 1.45,
+      );
+
+  static TextStyle bodySm(BuildContext ctx) => GoogleFonts.plusJakartaSans(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        color: HexaDsColors.textMuted,
+        height: 1.4,
+      );
+
+  static TextStyle labelCaps(BuildContext ctx) => GoogleFonts.plusJakartaSans(
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.5,
+        color: HexaDsColors.textMuted,
+        height: 1.25,
+      );
+
+  static TextStyle listTitle(BuildContext ctx) => GoogleFonts.plusJakartaSans(
+        fontSize: 15,
+        fontWeight: FontWeight.w500,
+        color: HexaDsColors.textPrimary,
+        height: 1.25,
+      );
+
+  static TextStyle listSubtitle(BuildContext ctx) => GoogleFonts.plusJakartaSans(
+        fontSize: 12,
+        fontWeight: FontWeight.w400,
+        color: HexaDsColors.textMuted,
+        height: 1.35,
+      );
 }

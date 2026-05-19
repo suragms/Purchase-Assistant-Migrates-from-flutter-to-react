@@ -711,6 +711,7 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
   final Map<String, TradePurchase> _optimisticPurchasePatches = {};
   String _lastRouteFilter = '';
   _HistPeriodPreset _preset = _HistPeriodPreset.month;
+  bool _isRefreshing = false;
 
   void _applyPreset(_HistPeriodPreset p) {
     final n = DateTime.now();
@@ -723,6 +724,16 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
       _HistPeriodPreset.custom => ref.read(analyticsDateRangeProvider),
     };
     setState(() => _preset = p);
+  }
+
+  Future<void> _refreshHistory() async {
+    if (_isRefreshing) return;
+    setState(() => _isRefreshing = true);
+    invalidatePurchaseWorkspace(ref);
+    try {
+      await ref.read(tradePurchasesListProvider.future);
+    } catch (_) {}
+    if (mounted) setState(() => _isRefreshing = false);
   }
 
   Future<void> _pickCustomRange() async {
@@ -1284,7 +1295,7 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
               ],
               onSelected: (v) {
                 if (v == 'refresh') {
-                  invalidatePurchaseWorkspace(ref);
+                  unawaited(_refreshHistory());
                 } else if (v == 'select') {
                   setState(() => _selectMode = true);
                 } else if (v == 'scan') {
@@ -1315,9 +1326,7 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
               skipLoadingOnRefresh: true,
               loading: () => const ListSkeleton(),
               error: (_, __) => FriendlyLoadError(
-                onRetry: () {
-                  invalidatePurchaseWorkspace(ref);
-                },
+                onRetry: () => unawaited(_refreshHistory()),
                 message: 'Showing saved purchases — reconnecting…',
                 subtitle: kFriendlyLoadNetworkSubtitle,
               ),
@@ -1555,13 +1564,26 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
                               ),
                         ),
                       ),
+                    if (_isRefreshing) const OperationalRefreshingBanner(),
                     Expanded(
-                      child: visible.isEmpty && !showLocalWipRow
-                          ? (items.isEmpty
-                              ? _HistoryEmpty(
-                                  onAdd: () => context.push('/purchase/new'),
-                                )
-                              : _HistoryFiltersHideAll(
+                      child: RefreshIndicator(
+                        onRefresh: _refreshHistory,
+                        child: visible.isEmpty && !showLocalWipRow
+                          ? ListView(
+                              physics: const AlwaysScrollableScrollPhysics(
+                                parent: BouncingScrollPhysics(),
+                              ),
+                              children: [
+                                SizedBox(
+                                  height:
+                                      MediaQuery.sizeOf(context).height * 0.22,
+                                ),
+                                if (items.isEmpty)
+                                  _HistoryEmpty(
+                                    onAdd: () => context.push('/purchase/new'),
+                                  )
+                                else
+                                  _HistoryFiltersHideAll(
                                   loadedCount: items.length,
                                   onClearAll: () {
                                     ref
@@ -1613,7 +1635,9 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
                                         .state = null;
                                     context.go('/purchase');
                                   },
-                                ))
+                                ),
+                              ],
+                            )
                           : Builder(
                               builder: (context) {
                                 final grouped =
@@ -1711,6 +1735,7 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
                             );
                               },
                             ),
+                      ),
                     ),
                   ],
                 );

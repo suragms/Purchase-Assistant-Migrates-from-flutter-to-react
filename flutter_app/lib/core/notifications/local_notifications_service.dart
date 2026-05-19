@@ -432,6 +432,112 @@ class LocalNotificationsService {
   }
 
   static const _stockAlertId = 93001;
+  static const _purchaseSavedId = 93002;
+  static const _staffAuthId = 93003;
+  static const _offlineSyncId = 93004;
+
+  static const _immediateDetails = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'stock_alerts',
+      'Stock & alerts',
+      channelDescription: 'Purchases, stock, staff, and sync alerts.',
+      importance: Importance.high,
+      priority: Priority.high,
+    ),
+    iOS: DarwinNotificationDetails(),
+    windows: WindowsNotificationDetails(),
+  );
+
+  Future<void> _showImmediate({
+    required int id,
+    required String title,
+    required String body,
+    String payload = 'notifications',
+  }) async {
+    if (kIsWeb || !_inited) return;
+    await _p.show(
+      id: id,
+      title: title,
+      body: body,
+      notificationDetails: _immediateDetails,
+      payload: payload,
+    );
+  }
+
+  /// Shown right after a purchase is saved (not the due-date reminder).
+  Future<void> showPurchaseSaved({
+    required String humanId,
+    String? totalFormatted,
+  }) async {
+    final body = totalFormatted != null && totalFormatted.isNotEmpty
+        ? 'Purchase $humanId saved · $totalFormatted'
+        : 'Purchase $humanId saved';
+    await _showImmediate(
+      id: _purchaseSavedId,
+      title: AppConfig.appName,
+      body: body,
+      payload: 'purchase_history',
+    );
+  }
+
+  Future<void> showStaffSignedIn({required String businessName}) async {
+    await _showImmediate(
+      id: _staffAuthId,
+      title: 'Staff signed in',
+      body: businessName,
+      payload: 'staff_home',
+    );
+  }
+
+  Future<void> showStaffSignedOut({required String businessName}) async {
+    await _showImmediate(
+      id: _staffAuthId,
+      title: 'Staff signed out',
+      body: businessName,
+      payload: 'staff_home',
+    );
+  }
+
+  Future<void> showLowStockItem({
+    required String itemName,
+    required String detail,
+  }) async {
+    await _showImmediate(
+      id: _stockAlertId,
+      title: 'Low stock',
+      body: '$itemName — $detail',
+      payload: 'stock',
+    );
+  }
+
+  /// Owner alert when a staff member records a purchase (polled from activity log).
+  Future<void> showStaffPurchase({
+    required String staffName,
+    String? amountFormatted,
+  }) async {
+    final body = amountFormatted != null && amountFormatted.isNotEmpty
+        ? '$staffName added a purchase of $amountFormatted'
+        : '$staffName added a purchase';
+    await _showImmediate(
+      id: _staffAuthId + 1,
+      title: AppConfig.appName,
+      body: body,
+      payload: 'purchase_history',
+    );
+  }
+
+  Future<void> showOfflineSyncSuccess({required int count}) async {
+    if (count <= 0) return;
+    final body = count == 1
+        ? '1 purchase synced successfully'
+        : '$count purchases synced successfully';
+    await _showImmediate(
+      id: _offlineSyncId,
+      title: AppConfig.appName,
+      body: body,
+      payload: 'purchase_history',
+    );
+  }
 
   /// Immediate alert (e.g. new in-app notification while app is backgrounded).
   Future<void> showStockOrInAppAlert({
@@ -439,24 +545,6 @@ class LocalNotificationsService {
     required String body,
     String payload = 'notifications',
   }) async {
-    if (kIsWeb || !_inited) return;
-    const details = NotificationDetails(
-      android: AndroidNotificationDetails(
-        'stock_alerts',
-        'Stock & alerts',
-        channelDescription: 'Low stock and owner alerts.',
-        importance: Importance.high,
-        priority: Priority.high,
-      ),
-      iOS: DarwinNotificationDetails(),
-      windows: WindowsNotificationDetails(),
-    );
-    await _p.show(
-      id: _stockAlertId,
-      title: title,
-      body: body,
-      notificationDetails: details,
-      payload: payload,
-    );
+    await _showImmediate(id: _stockAlertId, title: title, body: body, payload: payload);
   }
 }

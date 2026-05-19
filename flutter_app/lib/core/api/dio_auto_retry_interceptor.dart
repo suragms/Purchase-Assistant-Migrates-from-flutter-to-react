@@ -22,9 +22,22 @@ class DioAutoRetryInterceptor extends Interceptor {
         t == DioExceptionType.receiveTimeout) {
       return true;
     }
-  final sc = err.response?.statusCode;
-    // 503 here is usually local DB/schema outage — retrying multiplies console noise.
-    return sc == 502 || sc == 504 || sc == 500;
+    final sc = err.response?.statusCode;
+    // 503: short backoff only (local DB cold start / transient outage).
+    return sc == 502 || sc == 503 || sc == 504 || sc == 500;
+  }
+
+  int _delayMs(DioException err, int attempt) {
+    final sc = err.response?.statusCode;
+    if (sc == 503) {
+      return const [2000, 4000][math.min(attempt - 1, 1)];
+    }
+    return const [100, 300, 900][math.min(attempt - 1, 2)];
+  }
+
+  int _maxAttemptsFor(DioException err) {
+    if (err.response?.statusCode == 503) return 2;
+    return maxAttempts;
   }
 
   @override
@@ -34,15 +47,11 @@ class DioAutoRetryInterceptor extends Interceptor {
     }
     var current = err;
     var n = (current.requestOptions.extra['dio_auto_retry'] as int?) ?? 0;
-    while (n < maxAttempts) {
+    final cap = _maxAttemptsFor(current);
+    while (n < cap) {
       n += 1;
       current.requestOptions.extra['dio_auto_retry'] = n;
-      await Future<void>.delayed(
-        Duration(
-          milliseconds:
-              const [100, 300, 900][math.min(n - 1, 2)],
-        ),
-      );
+      await Future<void>.delayed(Duration(milliseconds: _delayMs(current, n)));
       try {
         final res = await _dio.fetch(current.requestOptions);
         return handler.resolve(res);
@@ -51,7 +60,7 @@ class DioAutoRetryInterceptor extends Interceptor {
           return handler.next(e);
         }
         current = e;
-        if (n >= maxAttempts) {
+        if (n >= _maxAttemptsFor(e)) {
           return handler.next(e);
         }
       }

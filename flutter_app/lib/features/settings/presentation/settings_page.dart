@@ -558,9 +558,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (pb == null) return;
       if (previous?.primaryBusiness.id != pb.id) {
         _brandingTitleCtrl.text = pb.brandingTitle ?? '';
-        if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
           setState(() => _pendingLogoBytes = null);
-        }
+        });
       }
     });
     final isOwner = session?.primaryBusiness.role == 'owner';

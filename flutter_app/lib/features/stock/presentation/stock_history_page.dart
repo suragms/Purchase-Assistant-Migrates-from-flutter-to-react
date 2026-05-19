@@ -90,7 +90,8 @@ class _StockHistoryPageState extends ConsumerState<StockHistoryPage> {
             child: auditAsync.when(
               loading: () => const ListSkeleton(rowCount: 8),
               error: (e, _) => FriendlyLoadError(
-                message: '$e',
+                message: 'Could not load stock history',
+                subtitle: 'Please check your connection and try again.',
                 onRetry: () => ref.invalidate(stockItemAuditProvider(widget.itemId)),
               ),
               data: (rows) {

@@ -117,7 +117,7 @@ class ReportsPage extends ConsumerStatefulWidget {
 
 class _ReportsPageState extends ConsumerState<ReportsPage> {
   _DatePreset _preset = _DatePreset.month;
-  ReportsMainTab _mainTab = ReportsMainTab.items;
+  ReportsMainTab _mainTab = ReportsMainTab.overview;
   ReportsPackFilter _packFilter = ReportsPackFilter.all;
   TradeReportItemSort _itemSort = TradeReportItemSort.highQty;
 
@@ -602,11 +602,30 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     );
   }
 
-  Widget _supplierTile(String name, String line2) {
+  Widget _supplierTile(
+    String name,
+    String line2, {
+    String? amountLine,
+    String? lastDateLine,
+  }) {
+    final t = name.trim();
+    final initial = t.isEmpty ? '?' : t[0].toUpperCase();
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       child: Row(
         children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: HexaColors.brandPrimary.withValues(alpha: 0.1),
+            child: Text(
+              initial,
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                color: HexaColors.brandPrimary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -627,9 +646,28 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         height: 1.15,
                       ),
                 ),
+                if (lastDateLine != null && lastDateLine.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    lastDateLine,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontSize: 11,
+                          color: HexaColors.textBody,
+                        ),
+                  ),
+                ],
               ],
             ),
           ),
+          if (amountLine != null && amountLine.isNotEmpty)
+            Text(
+              amountLine,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: HexaColors.brandPrimary,
+              ),
+            ),
         ],
       ),
     );
@@ -742,9 +780,14 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         final ch = <Widget>[];
         for (var i = 0; i < cap; i++) {
           final s = all[i];
+          final last = s.lastPurchaseDate;
           ch.add(_supplierTile(
             s.name,
-            '${_qtyReadable(s.bagQty)} bags · ${_kgReadable(s.bagKg)} kg',
+            '${_qtyReadable(s.bagQty)} bags · ${_kgReadable(s.bagKg)} kg · ${s.dealIds.length} deals',
+            amountLine: _inr0(s.amountInr.round()),
+            lastDateLine: last != null
+                ? 'Last: ${DateFormat('d MMM yyyy').format(last)}'
+                : null,
           ));
           if (i < cap - 1) ch.add(Divider(height: 1, color: HexaColors.brandBorder));
         }
@@ -1158,7 +1201,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         onChanged: (_) => setState(() {}),
                         scrollPadding: const EdgeInsets.only(bottom: 280),
                         decoration: InputDecoration(
-                          hintText: 'Search…',
+                          hintText: _mainTab == ReportsMainTab.items
+                              ? 'Search items…'
+                              : 'Search…',
                           isDense: true,
                           prefixIcon:
                               const Icon(Icons.search_rounded, size: 20),
@@ -1185,44 +1230,38 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                       chrome: _summaryHeader(aggAll.totals, rangeFmt),
                     ),
                     const SizedBox(height: 4),
-                    SizedBox(
-                      height: 36,
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            for (final tab in ReportsMainTab.values) ...[
-                              ChoiceChip(
-                                label: Text(
-                                  switch (tab) {
-                                    ReportsMainTab.overview => 'Overview',
-                                    ReportsMainTab.items => 'Items',
-                                    ReportsMainTab.suppliers => 'Suppliers',
-                                    ReportsMainTab.brokers => 'Brokers',
-                                  },
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                selected: _mainTab == tab,
-                                onSelected: (_) {
-                                  HapticFeedback.selectionClick();
-                                  setState(() {
-                                    _mainTab = tab;
-                                    _visibleCap = 40;
-                                  });
-                                },
-                                showCheckmark: false,
-                                visualDensity: VisualDensity.compact,
-                                materialTapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (final tab in ReportsMainTab.values)
+                          ChoiceChip(
+                            label: Text(
+                              switch (tab) {
+                                ReportsMainTab.overview => 'Overview',
+                                ReportsMainTab.items => 'Items',
+                                ReportsMainTab.suppliers => 'Suppliers',
+                                ReportsMainTab.brokers => 'Brokers',
+                              },
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
                               ),
-                              const SizedBox(width: 6),
-                            ],
-                          ],
-                        ),
-                      ),
+                            ),
+                            selected: _mainTab == tab,
+                            onSelected: (_) {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _mainTab = tab;
+                                _visibleCap = 40;
+                              });
+                            },
+                            showCheckmark: false,
+                            visualDensity: VisualDensity.compact,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                          ),
+                      ],
                     ),
                     if (_mainTab == ReportsMainTab.items) ...[
                       const SizedBox(height: 6),
@@ -1325,10 +1364,6 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         onMatchHome: _syncRangeWithHome,
                         onPickRange: () => unawaited(_pickCustomRange()),
                       ),
-                      if (!showEmpty && !showSkeleton) ...[
-                        const SizedBox(height: 6),
-                        _overviewBody(aggAll.totals),
-                      ],
                     ] else ...[
                       if (showSkeleton)
                         const ListSkeleton(

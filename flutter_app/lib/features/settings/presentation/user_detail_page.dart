@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/router/navigation_ext.dart';
+import '../../../core/errors/user_facing_errors.dart';
+import '../../../core/widgets/hexa_error_card.dart';
 
 final businessUserDetailProvider =
     FutureProvider.autoDispose.family<Map<String, dynamic>, String>(
@@ -40,7 +42,12 @@ class UserDetailPage extends ConsumerWidget {
         padding: const EdgeInsets.all(20),
         child: async.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
+          error: (e, _) => HexaErrorCard.fromError(
+                error: e,
+                title: 'Could not load user',
+                onRetry: () =>
+                    ref.invalidate(businessUserDetailProvider(userId)),
+              ),
           data: (u) {
             if (u.isEmpty) {
               return const Center(child: Text('User not found.'));
@@ -88,7 +95,7 @@ class UserDetailPage extends ConsumerWidget {
                     } catch (e) {
                       if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Reset failed: $e')),
+                        SnackBar(content: Text(userFacingError(e))),
                       );
                     }
                   },

@@ -1,12 +1,12 @@
 import 'dart:typed_data';
 
+import 'package:dio/dio.dart';
 import 'package:intl/intl.dart';
-
-import '../json_coerce.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../json_coerce.dart';
 import '../models/business_profile.dart';
 import '../models/trade_purchase_models.dart';
 import '../reporting/trade_report_aggregate.dart';
@@ -17,6 +17,83 @@ final _df = DateFormat('dd MMM yyyy');
 final _genDf = DateFormat('dd MMM yyyy, h:mm a');
 
 String _rs(num n) => 'Rs. ${_money.format(n)}';
+
+Future<pw.ImageProvider?> _tryLogo(String? url) async {
+  final u = url?.trim();
+  if (u == null || u.isEmpty) return null;
+  try {
+    final r = await Dio().get<List<int>>(
+      u,
+      options: Options(
+        responseType: ResponseType.bytes,
+        receiveTimeout: const Duration(seconds: 8),
+      ),
+    );
+    final data = r.data;
+    if (data == null || data.isEmpty) return null;
+    return pw.MemoryImage(Uint8List.fromList(data));
+  } catch (_) {
+    return null;
+  }
+}
+
+String _businessTitle(BusinessProfile business) => safePdfText(
+      business.displayTitle.trim().isNotEmpty
+          ? business.displayTitle
+          : (business.legalName.trim().isNotEmpty
+              ? business.legalName
+              : 'NEW HARISREE AGENCY'),
+    );
+
+Future<pw.Widget> _businessPdfHeader(
+  BusinessProfile business, {
+  String? headline,
+  String? subline,
+}) async {
+  final logo = await _tryLogo(business.logoUrl);
+  final title = _businessTitle(business);
+  return pw.Row(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      if (logo != null) ...[
+        pw.Image(logo, width: 48, height: 48),
+        pw.SizedBox(width: 10),
+      ],
+      pw.Expanded(
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              title.toUpperCase(),
+              style: pw.TextStyle(
+                fontSize: 14,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+            if (headline != null && headline.isNotEmpty)
+              pw.Text(
+                safePdfText(headline),
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            if (subline != null && subline.isNotEmpty)
+              pw.Text(
+                safePdfText(subline),
+                style: const pw.TextStyle(fontSize: 9, color: _muted),
+              ),
+            pw.SizedBox(height: 2),
+            pw.Text(
+              'Generated on: ${_genDf.format(DateTime.now())}',
+              style: const pw.TextStyle(fontSize: 7.5, color: _muted),
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
 
 const _border = PdfColor.fromInt(0xFFD1D5DB);
 const _muted = PdfColor.fromInt(0xFF475569);
@@ -145,12 +222,12 @@ Future<void> shareReportsSummaryPdf({
   // Optional per-supplier rows: [{supplier_name, purchase_count, total_purchase}]
   List<Map<String, dynamic>>? supplierRows,
 }) async {
-  final bizTitle = safePdfText(
-    business.displayTitle.trim().isNotEmpty
-        ? business.displayTitle
-        : 'NEW HARISREE AGENCY',
-  );
   final modeSafe = safePdfText(modeLabel);
+  final header = await _businessPdfHeader(
+    business,
+    headline: 'Purchase Report · $modeSafe',
+    subline: '${_df.format(from)} – ${_df.format(to)}',
+  );
 
   final doc = pw.Document();
   doc.addPage(
@@ -158,18 +235,8 @@ Future<void> shareReportsSummaryPdf({
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(28),
       build: (ctx) => [
-        // ── HEADER ────────────────────────────────────────────────────────
-        pw.Text(bizTitle.toUpperCase(),
-            style: pw.TextStyle(
-                fontSize: 15, fontWeight: pw.FontWeight.bold)),
-        pw.Text('Purchase Report · $modeSafe',
-            style: pw.TextStyle(
-                fontSize: 10, fontWeight: pw.FontWeight.bold)),
-        pw.Text(
-          '${_df.format(from)} - ${_df.format(to)}',
-            style: const pw.TextStyle(fontSize: 9, color: _muted),
-        ),
-        pw.SizedBox(height: 3),
+        header,
+        pw.SizedBox(height: 6),
         pw.Text(
           'Total purchases is the sum of trade line amounts for deals in this range (same method as the in-app reports). A single purchase PDF invoice total can differ because it includes header terms (discount, freight, etc.).',
           style: const pw.TextStyle(
@@ -256,29 +323,9 @@ Future<void> shareReportsSummaryPdf({
           _divider(),
         ],
 
-        // ── FOOTER ────────────────────────────────────────────────────────
-        pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(
-              'Period: ${_df.format(from)} – ${_df.format(to)}',
-              style: const pw.TextStyle(fontSize: 7.5, color: _muted),
-            ),
-            pw.SizedBox(height: 3),
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text(
-                  'Generated by Harisree Exp&Pur',
-                  style: const pw.TextStyle(fontSize: 7.5, color: _muted),
-                ),
-                pw.Text(
-                  'Generated on: ${_genDf.format(DateTime.now())}',
-                  style: const pw.TextStyle(fontSize: 7.5, color: _muted),
-                ),
-              ],
-            ),
-          ],
+        pw.Text(
+          'Period: ${_df.format(from)} – ${_df.format(to)} · Generated by Harisree Exp&Pur',
+          style: const pw.TextStyle(fontSize: 7.5, color: _muted),
         ),
       ],
     ),
@@ -331,29 +378,18 @@ Future<void> shareItemPurchaseTradeHistoryPdf({
       'got ${rows.map((r) => r.length).toSet()}',
     );
   }
+  final header = await _businessPdfHeader(
+    business,
+    headline: 'Item statement — $cleanItem',
+    subline: 'Period: ${safePdfText(periodLine)}',
+  );
   final doc = pw.Document();
   doc.addPage(
     pw.MultiPage(
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(32),
       build: (context) => [
-        pw.Text(
-          safePdfText(
-            business.legalName.trim().isNotEmpty
-                ? business.legalName.trim()
-                : (business.displayTitle.trim().isNotEmpty
-                    ? business.displayTitle.trim()
-                    : 'NEW HARISREE AGENCY'),
-          ),
-          style: pw.TextStyle(
-              fontSize: 13, fontWeight: pw.FontWeight.bold, color: PdfColors.black),
-        ),
-        pw.SizedBox(height: 6),
-        pw.Text('Item statement - $cleanItem',
-            style: const pw.TextStyle(fontSize: 10, color: PdfColors.black)),
-        pw.SizedBox(height: 4),
-        pw.Text('Period: ${safePdfText(periodLine)}',
-            style: const pw.TextStyle(fontSize: 8.5, color: _muted)),
+        header,
         pw.SizedBox(height: 10),
         pw.Table(
           border: pw.TableBorder.all(color: _border, width: 0.5),
@@ -438,10 +474,11 @@ Future<Uint8List> buildTradeStatementSsotPdfBytes({
   required List<TradePurchase> purchases,
 }) async {
   final lines = buildTradeStatementLines(purchases);
-  final bizTitle = safePdfText(
-    business.displayTitle.trim().isNotEmpty
-        ? business.displayTitle
-        : 'Business',
+  final header = await _businessPdfHeader(
+    business,
+    headline: 'Trade purchases statement',
+    subline:
+        'Period: ${_df.format(from)} → ${_df.format(to)} · ${purchases.length} purchases',
   );
   final money2 = NumberFormat('#,##,##0.00', 'en_IN');
 
@@ -502,15 +539,7 @@ Future<Uint8List> buildTradeStatementSsotPdfBytes({
       pageFormat: PdfPageFormat.a4,
       margin: const pw.EdgeInsets.all(26),
       build: (_) => [
-        pw.Text(bizTitle,
-            style:
-                pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-        pw.Text('Trade purchases statement',
-            style: const pw.TextStyle(fontSize: 10, color: _muted)),
-        pw.Text(
-          'Period: ${_df.format(from)} → ${_df.format(to)}   |   ${purchases.length} purchases',
-          style: const pw.TextStyle(fontSize: 9, color: _muted),
-        ),
+        header,
         pw.SizedBox(height: 8),
         pw.Table(
           border: pw.TableBorder.all(color: _border, width: 0.4),

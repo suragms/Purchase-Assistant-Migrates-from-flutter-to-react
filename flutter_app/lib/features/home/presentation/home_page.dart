@@ -11,10 +11,13 @@ import '../../../core/json_coerce.dart';
 import '../../../core/models/session.dart';
 import '../../../core/models/trade_purchase_models.dart';
 import '../../../core/providers/home_dashboard_provider.dart'
-    show HomeDashboardData, bustHomeDashboardVolatileCaches, homeDashboardDataProvider;
+    show bustHomeDashboardVolatileCaches, homeDashboardDataProvider;
 import '../../../core/providers/home_owner_dashboard_providers.dart'
     show
         activeSessionsCountProvider,
+        activeStaffSessionsProvider,
+        homeMonthDashboardDataProvider,
+        homeRecentActivityFeedProvider,
         homeRecentPurchasesCompactProvider,
         homeTodayDashboardDataProvider,
         stockAlertCountsProvider,
@@ -23,6 +26,7 @@ import '../../../core/providers/home_owner_dashboard_providers.dart'
         stockLowCountProvider,
         stockLowTopHomeProvider,
         stockVariancesTodayProvider;
+import 'widgets/home_owner_dashboard_sections.dart';
 import 'widgets/daily_stock_report_sheet.dart';
 import 'widgets/stock_health_score.dart';
 import '../../stock/presentation/widgets/stock_today_feed.dart';
@@ -74,8 +78,11 @@ class _HomePageState extends ConsumerState<HomePage>
   Timer? _resumeRefreshDebounce;
   bool _handlingPurchasePostSave = false;
   int _lastUnread = 0;
+  int _lastNotifiedLowCount = 0;
+  final _notifiedStaffPurchaseIds = <String>{};
   AppLifecycleState _lifecycle = AppLifecycleState.resumed;
   late final AnimationController _livePulse;
+  DateTime? _lastRefreshedAt;
 
   @override
   void initState() {
@@ -84,6 +91,7 @@ class _HomePageState extends ConsumerState<HomePage>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
+    _lastRefreshedAt = DateTime.now();
     WidgetsBinding.instance.addObserver(this);
     _poll = Timer.periodic(const Duration(minutes: 5), (_) {
       if (!mounted) return;
@@ -95,7 +103,10 @@ class _HomePageState extends ConsumerState<HomePage>
       ref.invalidate(stockAuditDayProvider(_todayDate()));
       ref.invalidate(stockVariancesTodayProvider);
       ref.invalidate(activeSessionsCountProvider);
+      ref.invalidate(activeStaffSessionsProvider);
+      ref.invalidate(homeMonthDashboardDataProvider);
       ref.invalidate(homeRecentPurchasesCompactProvider);
+      ref.invalidate(homeRecentActivityFeedProvider);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
@@ -104,6 +115,7 @@ class _HomePageState extends ConsumerState<HomePage>
     });
     _rtPoll = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted) return;
+      setState(() => _lastRefreshedAt = DateTime.now());
       ref.invalidate(stockListProvider);
       invalidateTradePurchaseCaches(ref);
       ref.invalidate(homeTodayDashboardDataProvider);
@@ -112,9 +124,56 @@ class _HomePageState extends ConsumerState<HomePage>
       ref.invalidate(stockAuditDayProvider(_todayDate()));
       ref.invalidate(stockVariancesTodayProvider);
       ref.invalidate(homeRecentPurchasesCompactProvider);
+      ref.invalidate(homeMonthDashboardDataProvider);
+      ref.invalidate(homeRecentActivityFeedProvider);
+      ref.invalidate(activeStaffSessionsProvider);
       ref.invalidate(appNotificationUnreadCountProvider);
       _maybePushBackgroundAlert();
+      _maybeNotifyStaffPurchases();
     });
+  }
+
+  void _maybeNotifyStaffPurchases() {
+    final session = ref.read(sessionProvider);
+    if (session == null || !_sessionIsOwner(session)) return;
+    if (!ref.read(localNotificationsOptInProvider)) return;
+    final bg = _lifecycle == AppLifecycleState.paused ||
+        _lifecycle == AppLifecycleState.hidden ||
+        _lifecycle == AppLifecycleState.inactive;
+    if (!bg) return;
+
+    ref
+        .read(hexaApiProvider)
+        .listActivityLog(
+          businessId: session.primaryBusiness.id,
+          period: 'today',
+          perPage: 12,
+        )
+        .then((rows) {
+      if (!mounted) return;
+      for (final r in rows) {
+        final a = (r['action_type'] ?? '').toString();
+        if (a != 'PURCHASE_CREATE') continue;
+        final id = r['id']?.toString() ?? '';
+        if (id.isEmpty || _notifiedStaffPurchaseIds.contains(id)) continue;
+        _notifiedStaffPurchaseIds.add(id);
+        if (_notifiedStaffPurchaseIds.length > 40) {
+          _notifiedStaffPurchaseIds.remove(_notifiedStaffPurchaseIds.first);
+        }
+        final user = r['user_name']?.toString() ?? 'Staff';
+        final details = r['details'];
+        String? amount;
+        if (details is Map) {
+          amount = details['total_formatted']?.toString();
+        }
+        unawaited(
+          LocalNotificationsService.instance.showStaffPurchase(
+            staffName: user,
+            amountFormatted: amount,
+          ),
+        );
+      }
+    }).catchError((_) {});
   }
 
   @override
@@ -170,15 +229,32 @@ class _HomePageState extends ConsumerState<HomePage>
     bustHomeDashboardVolatileCaches();
     ref.invalidate(homeDashboardDataProvider);
     ref.invalidate(homeTodayDashboardDataProvider);
+    ref.invalidate(homeMonthDashboardDataProvider);
     ref.invalidate(stockLowCountProvider);
     ref.invalidate(stockCriticalCountProvider);
     ref.invalidate(stockLowTopHomeProvider);
     ref.invalidate(stockAuditDayProvider(_todayDate()));
     ref.invalidate(stockVariancesTodayProvider);
     ref.invalidate(activeSessionsCountProvider);
+    ref.invalidate(activeStaffSessionsProvider);
     ref.invalidate(homeRecentPurchasesCompactProvider);
+    ref.invalidate(homeRecentActivityFeedProvider);
     invalidateTradePurchaseCaches(ref);
     ref.invalidate(reportsPurchasesPayloadProvider);
+    if (mounted) setState(() => _lastRefreshedAt = DateTime.now());
+  }
+
+  String _liveStatsLine(int lowCount) {
+    final at = _lastRefreshedAt;
+    final ago = at == null
+        ? 'just now'
+        : () {
+            final d = DateTime.now().difference(at);
+            if (d.inSeconds < 60) return 'just now';
+            if (d.inMinutes < 60) return '${d.inMinutes}m ago';
+            return '${d.inHours}h ago';
+          }();
+    return 'Updated $ago · $lowCount low stock';
   }
 
   @override
@@ -188,13 +264,46 @@ class _HomePageState extends ConsumerState<HomePage>
       _handlingPurchasePostSave = true;
       unawaited(_doHandlePurchasePostSave(next));
     });
+    ref.listen(stockLowCountProvider, (prev, next) {
+      if (!ref.read(localNotificationsOptInProvider)) return;
+      next.whenData((count) {
+        if (count <= _lastNotifiedLowCount) {
+          _lastNotifiedLowCount = count;
+          return;
+        }
+        _lastNotifiedLowCount = count;
+        final rows = ref.read(stockLowTopHomeProvider).valueOrNull;
+        if (rows != null && rows.isNotEmpty) {
+          final r = rows.first;
+          final name =
+              r['name']?.toString() ?? r['item_name']?.toString() ?? 'Item';
+          final qty = r['stock_qty'] ?? r['quantity'] ?? r['on_hand'];
+          final unit =
+              r['unit']?.toString() ?? r['stock_unit']?.toString() ?? '';
+          final qtyLabel = qty != null
+              ? '${qty.toString()} ${unit.trim()} left'.trim()
+              : 'running low';
+          unawaited(LocalNotificationsService.instance.showLowStockItem(
+            itemName: name,
+            detail: qtyLabel,
+          ));
+        } else {
+          unawaited(LocalNotificationsService.instance.showLowStockItem(
+            itemName: 'Inventory',
+            detail: count == 1
+                ? '1 item running low'
+                : '$count items running low',
+          ));
+        }
+      });
+    });
 
     final session = ref.watch(sessionProvider);
     final isOwner = session != null && _sessionIsOwner(session);
     final todayAsync = ref.watch(homeTodayDashboardDataProvider);
+    final monthAsync = ref.watch(homeMonthDashboardDataProvider);
     final lowN = ref.watch(stockLowCountProvider);
     final critN = ref.watch(stockCriticalCountProvider);
-    final sessionsN = ref.watch(activeSessionsCountProvider);
     final lowRows = ref.watch(stockLowTopHomeProvider);
     final todayDay = _todayDate();
     final audits = ref.watch(stockAuditDayProvider(todayDay));
@@ -387,6 +496,25 @@ class _HomePageState extends ConsumerState<HomePage>
                     : null,
               ),
               const SizedBox(height: 8),
+              if (isOwner && !offline)
+                OperationalLiveBanner(
+                  pulse: _livePulse,
+                  statsLine: _liveStatsLine(lowN.valueOrNull ?? 0),
+                ),
+              if (isOwner) ...[
+                const SizedBox(height: 10),
+                HomeQuickStatsRow(
+                  todayAsync: todayAsync,
+                  monthAsync: monthAsync,
+                  lowN: lowN,
+                  critN: critN,
+                ),
+                const SizedBox(height: 10),
+                const HomeStaffActivitySection(),
+                const SizedBox(height: 10),
+                const HomeRecentActivitySection(),
+              ],
+              const SizedBox(height: 10),
               const _HomeCatalogChips(),
               const SizedBox(height: 10),
               OperationalSection(
@@ -507,13 +635,6 @@ class _HomePageState extends ConsumerState<HomePage>
                 ),
                 child: _RecentPurchasesCompact(rowsAsync: recentPurch),
               ),
-              const SizedBox(height: 10),
-              _CompactStatsRow(
-                todayAsync: todayAsync,
-                lowN: lowN,
-                critN: critN,
-                sessionsN: sessionsN,
-              ),
             ],
           ),
         ),
@@ -564,7 +685,10 @@ class _HomePageState extends ConsumerState<HomePage>
     c.invalidate(stockAuditDayProvider(_todayDate()));
     c.invalidate(stockVariancesTodayProvider);
     c.invalidate(activeSessionsCountProvider);
+    c.invalidate(activeStaffSessionsProvider);
+    c.invalidate(homeMonthDashboardDataProvider);
     c.invalidate(homeRecentPurchasesCompactProvider);
+    c.invalidate(homeRecentActivityFeedProvider);
   }
 }
 
@@ -689,53 +813,6 @@ class _HomeCatalogChips extends ConsumerWidget {
   }
 }
 
-class _CompactStatsRow extends StatelessWidget {
-  const _CompactStatsRow({
-    required this.todayAsync,
-    required this.lowN,
-    required this.critN,
-    required this.sessionsN,
-  });
-
-  final AsyncValue<HomeDashboardData> todayAsync;
-  final AsyncValue<int> lowN;
-  final AsyncValue<int> critN;
-  final AsyncValue<int> sessionsN;
-
-  @override
-  Widget build(BuildContext context) {
-    final today = todayAsync.valueOrNull;
-    final purchaseToday = today?.totalPurchase ?? 0;
-    final countToday = today?.purchaseCount ?? 0;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        OperationalStatChip(
-          label: 'Today',
-          value: todayAsync.isLoading
-              ? '…'
-              : '${_inr(purchaseToday)} · $countToday',
-        ),
-        OperationalStatChip(
-          label: 'Low',
-          value: lowN.isLoading ? '…' : '${lowN.valueOrNull ?? 0}',
-          tint: const Color(0xFFE65100),
-        ),
-        OperationalStatChip(
-          label: 'Critical',
-          value: critN.isLoading ? '…' : '${critN.valueOrNull ?? 0}',
-          tint: const Color(0xFFC62828),
-        ),
-        OperationalStatChip(
-          label: 'Sessions',
-          value: sessionsN.isLoading ? '…' : '${sessionsN.valueOrNull ?? 0}',
-        ),
-      ],
-    );
-  }
-}
-
 class _LowStockTable extends StatelessWidget {
   const _LowStockTable({required this.rowsAsync});
 
@@ -748,7 +825,10 @@ class _LowStockTable extends StatelessWidget {
         padding: EdgeInsets.all(16),
         child: CircularProgressIndicator(strokeWidth: 2),
       )),
-      error: (e, _) => Text('Could not load low stock', style: TextStyle(color: Colors.red.shade700)),
+      error: (e, _) => Text(
+        'Could not load low stock alerts.',
+        style: TextStyle(color: Colors.red.shade700, fontSize: 13),
+      ),
       data: (rows) {
         if (rows.isEmpty) {
           return Text(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:barcode/barcode.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,7 @@ import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/list_skeleton.dart';
@@ -26,7 +29,6 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
   bool _showLastPurchase = true;
   bool _busy = false;
   bool _loadError = false;
-  String? _loadErrorMessage;
   Map<String, dynamic>? _data;
 
   @override
@@ -40,7 +42,6 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
     if (session == null) return;
     setState(() {
       _loadError = false;
-      _loadErrorMessage = null;
       _data = null;
     });
     final bid = session.primaryBusiness.id;
@@ -51,31 +52,14 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
       setState(() => _data = j);
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _loadError = true;
-        _loadErrorMessage = e.toString();
-      });
+      setState(() => _loadError = true);
     }
   }
 
   BarcodeLabelData? get _label {
     final d = _data;
     if (d == null) return null;
-    DateTime? lpDate;
-    final lpRaw = d['last_purchase_date'];
-    if (lpRaw is String && lpRaw.isNotEmpty) {
-      lpDate = DateTime.tryParse(lpRaw);
-    }
-    return BarcodeLabelData(
-      itemCode: d['item_code']?.toString() ?? '',
-      itemName: d['item_name']?.toString() ?? '',
-      unit: d['unit']?.toString(),
-      currentStock: (d['current_stock'] as num?)?.toDouble(),
-      lastPurchaseDate: lpDate,
-      lastPurchaseQty: (d['last_purchase_qty'] as num?)?.toDouble(),
-      lastPurchaseUnit: d['last_purchase_unit']?.toString(),
-      lastPurchaseRate: (d['last_purchase_rate'] as num?)?.toDouble(),
-    );
+    return BarcodeLabelData.fromApiMap(d);
   }
 
   Future<void> _print() async {
@@ -124,10 +108,16 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
         title: Text(label != null ? label.itemName : 'Print label'),
         actions: [
           if (label != null)
-            IconButton(
-              tooltip: 'Download PDF',
-              onPressed: _busy ? null : _download,
-              icon: const Icon(Icons.download_rounded),
+            PopupMenuButton<String>(
+              onSelected: (v) {
+                if (v == 'download') unawaited(_download());
+              },
+              itemBuilder: (ctx) => const [
+                PopupMenuItem(
+                  value: 'download',
+                  child: Text('Download PDF'),
+                ),
+              ],
             ),
         ],
       ),
@@ -137,23 +127,9 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
 
   Widget _buildBody(BarcodeLabelData? label) {
     if (_loadError) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.error_outline_rounded, size: 48, color: Colors.red.shade300),
-              const SizedBox(height: 12),
-              Text(
-                _loadErrorMessage ?? 'Failed to load label',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 16),
-              FilledButton(onPressed: _load, child: const Text('Retry')),
-            ],
-          ),
-        ),
+      return FriendlyLoadError(
+        message: 'Could not load label data',
+        onRetry: _load,
       );
     }
     if (_data == null) {
@@ -297,18 +273,11 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                 )
               : const Icon(Icons.print_rounded),
-          label: Text(_busy ? 'Preparing…' : 'Print now'),
+          label: Text(_busy ? 'Preparing…' : 'Print label'),
           style: FilledButton.styleFrom(
             backgroundColor: HexaColors.brandPrimary,
             minimumSize: const Size.fromHeight(52),
           ),
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          onPressed: _busy ? null : _download,
-          icon: const Icon(Icons.download_rounded),
-          label: const Text('Download PDF'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
         ),
       ],
     );

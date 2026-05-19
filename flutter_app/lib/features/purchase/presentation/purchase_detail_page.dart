@@ -25,7 +25,7 @@ import '../../../core/utils/trade_purchase_rate_display.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/units/dynamic_unit_label_engine.dart' as unit_lbl;
 import '../../../core/utils/unit_classifier.dart';
-import '../../../core/widgets/friendly_load_error.dart';
+import '../../../core/widgets/hexa_error_card.dart';
 import '../../../core/widgets/list_skeleton.dart';
 import '../providers/trade_purchase_detail_provider.dart';
 
@@ -280,12 +280,6 @@ class _PurchaseDetailPageState extends ConsumerState<PurchaseDetailPage> {
         );
       },
       error: (e, _) {
-        var msg = "Couldn't load purchase";
-        if (e is Exception) {
-          final t = e.toString();
-          const p = 'Exception: ';
-          msg = t.startsWith(p) ? t.substring(p.length) : t;
-        }
         return Scaffold(
           backgroundColor: Colors.transparent,
           appBar: AppBar(
@@ -297,8 +291,9 @@ class _PurchaseDetailPageState extends ConsumerState<PurchaseDetailPage> {
             backgroundColor: Colors.transparent,
             foregroundColor: HexaColors.brandPrimary,
           ),
-          body: FriendlyLoadError(
-            message: msg,
+          body: HexaErrorCard.fromError(
+            error: e,
+            title: 'Could not load purchase',
             onRetry: () =>
                 ref.invalidate(tradePurchaseDetailProvider(widget.purchaseId)),
           ),

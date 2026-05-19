@@ -531,12 +531,18 @@ class _PurchaseBillScanPanelState extends ConsumerState<PurchaseBillScanPanel> {
     ref.listen(suppliersListProvider, (previous, next) {
       if (!next.hasValue || !mounted) return;
       if (_supplierCtrl.text.trim().isEmpty) return;
-      setState(() => _refreshSupplierDirectoryLink());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _refreshSupplierDirectoryLink());
+      });
     });
     ref.listen(brokersListProvider, (previous, next) {
       if (!next.hasValue || !mounted) return;
       if (_brokerCtrl.text.trim().isEmpty) return;
-      setState(() => _refreshBrokerDirectoryLink());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _refreshBrokerDirectoryLink());
+      });
     });
 
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;

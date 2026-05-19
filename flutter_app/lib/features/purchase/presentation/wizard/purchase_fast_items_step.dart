@@ -29,11 +29,15 @@ class PurchaseFastItemsStep extends ConsumerStatefulWidget {
     required this.listScrollController,
     required this.onDraftChanged,
     required this.openAdvancedItemEditor,
+    this.lineJustAdded,
+    this.onDismissLineJustAdded,
   });
 
   final ScrollController listScrollController;
   final VoidCallback onDraftChanged;
   final OpenAdvancedItemSheet openAdvancedItemEditor;
+  final PurchaseLineDraft? lineJustAdded;
+  final VoidCallback? onDismissLineJustAdded;
 
   @override
   ConsumerState<PurchaseFastItemsStep> createState() =>
@@ -133,7 +137,7 @@ class _PurchaseFastItemsStepState extends ConsumerState<PurchaseFastItemsStep> {
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Text(
-              'Pick a supplier on the previous step to add catalog lines.',
+              'Pick a supplier on the Party step to add catalog lines.',
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 color: Colors.orange.shade900,
@@ -141,6 +145,15 @@ class _PurchaseFastItemsStepState extends ConsumerState<PurchaseFastItemsStep> {
               ),
             ),
           ),
+        if (widget.lineJustAdded != null) ...[
+          _PurchaseLineAddedPreviewCard(
+            line: widget.lineJustAdded!,
+            qtyLabel: _qtyHuman(widget.lineJustAdded!),
+            amountLabel: _inr0(_approxLinePurchase(widget.lineJustAdded!)),
+            onDismiss: widget.onDismissLineJustAdded,
+          ),
+          const SizedBox(height: 10),
+        ],
         Consumer(
           builder: (cx, rf, _) {
             final bd = rf.watch(purchaseStrictBreakdownProvider);
@@ -372,6 +385,72 @@ class _PurchaseFastItemsStepState extends ConsumerState<PurchaseFastItemsStep> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _PurchaseLineAddedPreviewCard extends StatelessWidget {
+  const _PurchaseLineAddedPreviewCard({
+    required this.line,
+    required this.qtyLabel,
+    required this.amountLabel,
+    this.onDismiss,
+  });
+
+  final PurchaseLineDraft line;
+  final String qtyLabel;
+  final String amountLabel;
+  final VoidCallback? onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: const Color(0xFFECFDF5),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: cs.primary.withValues(alpha: 0.35)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.check_circle_rounded, color: cs.primary, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Added · ${line.itemName}',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0F172A),
+                        ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$qtyLabel · $amountLabel',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF0D9488),
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            if (onDismiss != null)
+              IconButton(
+                tooltip: 'Dismiss',
+                visualDensity: VisualDensity.compact,
+                onPressed: onDismiss,
+                icon: const Icon(Icons.close_rounded, size: 20),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

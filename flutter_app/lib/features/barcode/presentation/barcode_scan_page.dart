@@ -251,11 +251,32 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
         children: [
           if (kIsWeb)
             Padding(
-              padding: const EdgeInsets.all(16),
-              child: Text(
-                'Camera scanning is not available on web. Use manual entry below.',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Material(
+                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.qr_code_scanner_rounded,
+                        size: 40,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Camera scan is not available in the browser. '
+                          'Enter the item code below or open the app on your phone to scan.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             )

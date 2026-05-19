@@ -13,7 +13,11 @@ import '../providers/business_aggregates_invalidation.dart'
     show invalidateWorkspaceSeedData;
 import '../providers/catalog_providers.dart';
 import '../providers/prefs_provider.dart';
+import '../notifications/local_notifications_service.dart';
+import '../providers/staff_home_providers.dart' show invalidateStaffHomeCaches;
 import '../providers/suppliers_list_provider.dart';
+import '../router/post_auth_route.dart' show sessionIsStaff;
+import '../services/staff_activity_logger.dart';
 import 'google_sign_in_helper.dart';
 import 'secure_token_store.dart';
 import 'session_cache.dart';
@@ -302,6 +306,7 @@ class SessionNotifier extends Notifier<Session?> {
       state = session;
       await _persistSession(session);
       authRefresh.value++;
+      invalidateStaffHomeCaches(ref);
       _scheduleWorkspaceBootstrap();
       _warmWorkspaceListCaches();
     }
@@ -425,6 +430,19 @@ class SessionNotifier extends Notifier<Session?> {
   Future<void> login({required String email, required String password}) =>
       _withAuthSerial(() => _loginImpl(email: email, password: password));
 
+  void _notifyStaffAuthEvent(Session session, {required bool signedIn}) {
+    if (!sessionIsStaff(session)) return;
+    if (!ref.read(localNotificationsOptInProvider)) return;
+    final biz = session.primaryBusiness.effectiveDisplayTitle;
+    if (signedIn) {
+      unawaited(LocalNotificationsService.instance
+          .showStaffSignedIn(businessName: biz));
+    } else {
+      unawaited(LocalNotificationsService.instance
+          .showStaffSignedOut(businessName: biz));
+    }
+  }
+
   Future<void> _loginImpl(
       {required String email, required String password}) async {
     final api = ref.read(hexaApiProvider);
@@ -443,6 +461,11 @@ class SessionNotifier extends Notifier<Session?> {
     state = session;
     await _persistSession(session);
     authRefresh.value++;
+    invalidateStaffHomeCaches(ref);
+    _notifyStaffAuthEvent(session, signedIn: true);
+    if (sessionIsStaff(session)) {
+      unawaited(StaffActivityLogger.logStaffLogin(ref));
+    }
     _scheduleWorkspaceBootstrap();
     _warmWorkspaceListCaches();
   }
@@ -487,6 +510,7 @@ class SessionNotifier extends Notifier<Session?> {
     state = session;
     await _persistSession(session);
     authRefresh.value++;
+    invalidateStaffHomeCaches(ref);
     _scheduleWorkspaceBootstrap();
     _warmWorkspaceListCaches();
   }
@@ -511,6 +535,11 @@ class SessionNotifier extends Notifier<Session?> {
     state = session;
     await _persistSession(session);
     authRefresh.value++;
+    invalidateStaffHomeCaches(ref);
+    _notifyStaffAuthEvent(session, signedIn: true);
+    if (sessionIsStaff(session)) {
+      unawaited(StaffActivityLogger.logStaffLogin(ref));
+    }
     _scheduleWorkspaceBootstrap();
     _warmWorkspaceListCaches();
   }
@@ -532,9 +561,16 @@ class SessionNotifier extends Notifier<Session?> {
   }
 
   Future<void> logout() async {
+    final prev = state;
     final api = ref.read(hexaApiProvider);
     final store = ref.read(tokenStoreProvider);
     final cache = SessionCache(ref.read(sharedPreferencesProvider));
+    if (prev != null) {
+      _notifyStaffAuthEvent(prev, signedIn: false);
+      if (sessionIsStaff(prev)) {
+        unawaited(StaffActivityLogger.logStaffLogout(ref));
+      }
+    }
     await signOutGoogleIfNeeded();
     await store.clear();
     await cache.clear();
@@ -543,6 +579,7 @@ class SessionNotifier extends Notifier<Session?> {
       ref.read(apiDegradedProvider.notifier).clear();
     } catch (_) {}
     state = null;
+    invalidateStaffHomeCaches(ref);
     authRefresh.value++;
   }
 }

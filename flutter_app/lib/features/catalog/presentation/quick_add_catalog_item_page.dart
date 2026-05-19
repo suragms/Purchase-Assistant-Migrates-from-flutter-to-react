@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/errors/user_facing_errors.dart';
+import '../../../core/widgets/hexa_error_card.dart';
 import '../../../core/providers/brokers_list_provider.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/providers/home_dashboard_provider.dart';
@@ -257,20 +258,10 @@ class _QuickAddCatalogItemPageState
               loading: () => const LinearProgressIndicator(),
               error: (e, st) {
                 logSilencedApiError(e, st);
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Could not load subcategories. ${userFacingError(e)}',
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                    const SizedBox(height: 8),
-                    OutlinedButton(
-                      onPressed: () =>
-                          ref.invalidate(categoryTypesIndexProvider),
-                      child: const Text('Retry'),
-                    ),
-                  ],
+                return InlineLoadError(
+                  title: 'Could not load subcategories',
+                  error: e,
+                  onRetry: () => ref.invalidate(categoryTypesIndexProvider),
                 );
               },
               data: (types) {
@@ -306,9 +297,10 @@ class _QuickAddCatalogItemPageState
               loading: () => const LinearProgressIndicator(),
               error: (e, st) {
                 logSilencedApiError(e, st);
-                return Text(
-                  'Could not load suppliers. ${userFacingError(e)}',
-                  style: const TextStyle(color: Colors.red),
+                return InlineLoadError(
+                  title: 'Could not load suppliers',
+                  error: e,
+                  onRetry: () => ref.invalidate(suppliersListProvider),
                 );
               },
               data: (sups) {

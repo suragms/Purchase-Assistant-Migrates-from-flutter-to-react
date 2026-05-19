@@ -138,18 +138,38 @@ class _InlineSearchFieldState extends State<InlineSearchField> {
     return false;
   }
 
+  int _matchRank(InlineSearchItem it, String q) {
+    final lab = it.label.toLowerCase();
+    final blob = (it.searchText ?? lab).toLowerCase();
+    final sub = (it.subtitle ?? '').toLowerCase();
+    if (lab == q) return 1000;
+    if (lab.startsWith(q)) return 920;
+    for (final token in blob.split(RegExp(r'\s+'))) {
+      if (token == q) return 880;
+      if (token.startsWith(q)) return 860;
+    }
+    if (lab.contains(q)) return 800;
+    if (sub.contains(q)) return 720;
+    if (blob.contains(q)) return 640;
+    return 0;
+  }
+
   Iterable<InlineSearchItem> _optionsForQuery(String raw) {
     final q = raw.trim().toLowerCase();
     final min = widget.minQueryLength.clamp(1, 64);
     if (q.isEmpty || q.length < min) return const [];
-    final out = <InlineSearchItem>[];
+    final matched = <InlineSearchItem>[];
     for (final it in widget.items) {
-      if (out.length >= 8) break;
-      final lab = it.label.toLowerCase();
-      final sub = (it.subtitle ?? '').toLowerCase();
-      if (lab.contains(q) || sub.contains(q)) out.add(it);
+      if (_matchRank(it, q) > 0) matched.add(it);
     }
-    return out;
+    matched.sort((a, b) {
+      final ra = _matchRank(a, q);
+      final rb = _matchRank(b, q);
+      if (ra != rb) return rb.compareTo(ra);
+      return b.sortBoost.compareTo(a.sortBoost);
+    });
+    if (matched.length <= 8) return matched;
+    return matched.take(8);
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent event) {

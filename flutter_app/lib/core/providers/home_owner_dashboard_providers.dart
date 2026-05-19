@@ -106,13 +106,117 @@ final stockVariancesTodayProvider =
       );
 });
 
-final activeSessionsCountProvider = FutureProvider.autoDispose<int>((ref) async {
+final activeStaffSessionsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   final session = ref.watch(sessionProvider);
-  if (session == null) return 0;
-  final rows = await ref.read(hexaApiProvider).listActiveSessions(
+  if (session == null) return [];
+  return ref.read(hexaApiProvider).listActiveSessions(
         businessId: session.primaryBusiness.id,
       );
+});
+
+final activeSessionsCountProvider = FutureProvider.autoDispose<int>((ref) async {
+  final rows = await ref.watch(activeStaffSessionsProvider.future);
   return rows.length;
+});
+
+/// Rolling calendar month (1st → today) for owner home quick stats.
+final homeMonthDashboardDataProvider =
+    FutureProvider.autoDispose<HomeDashboardData>((ref) async {
+  final session = ref.watch(sessionProvider);
+  if (session == null) return HomeDashboardData.empty;
+  final now = DateTime.now();
+  final start = DateTime(now.year, now.month, 1);
+  final end = DateTime(now.year, now.month, now.day);
+  final snap = await ref.read(hexaApiProvider).reportsHomeOverview(
+        businessId: session.primaryBusiness.id,
+        from: _apiDate(start),
+        to: _apiDate(end),
+        compact: true,
+        shellBundle: false,
+      );
+  return homeDashboardDataFromApiSnapshot(HomePeriod.month, snap);
+});
+
+/// Unified owner feed: recent purchases + today's stock adjustments.
+class HomeActivityItem {
+  const HomeActivityItem({
+    required this.kind,
+    required this.title,
+    required this.subtitle,
+    required this.at,
+    this.amountInr,
+    this.routeId,
+  });
+
+  final String kind; // purchase | stock
+  final String title;
+  final String subtitle;
+  final DateTime at;
+  final double? amountInr;
+  final String? routeId;
+}
+
+final homeRecentActivityFeedProvider =
+    FutureProvider.autoDispose<List<HomeActivityItem>>((ref) async {
+  final session = ref.watch(sessionProvider);
+  if (session == null) return [];
+  final api = ref.read(hexaApiProvider);
+  final bid = session.primaryBusiness.id;
+  final now = DateTime.now();
+  final day = DateTime(now.year, now.month, now.day);
+
+  final purchases = await api.listTradePurchases(
+    businessId: bid,
+    limit: 8,
+    offset: 0,
+    status: 'all',
+  );
+  final audits = await api.listStockAuditRecent(
+    businessId: bid,
+    limit: 8,
+    on: _apiDate(day),
+  );
+  final items = <HomeActivityItem>[];
+
+  for (final p in purchases) {
+    final id = p['id']?.toString() ?? '';
+    final atRaw = p['purchase_date']?.toString() ?? p['created_at']?.toString();
+    final at = atRaw != null ? DateTime.tryParse(atRaw) : null;
+    if (at == null) continue;
+    items.add(
+      HomeActivityItem(
+        kind: 'purchase',
+        title: p['supplier_name']?.toString() ??
+            p['human_id']?.toString() ??
+            'Purchase',
+        subtitle: p['human_id']?.toString() ?? p['bill_no']?.toString() ?? '',
+        at: at.toLocal(),
+        amountInr: coerceToDouble(p['total_amount'] ?? p['bill_total']),
+        routeId: id.isNotEmpty ? id : null,
+      ),
+    );
+  }
+
+  for (final a in audits) {
+    final atRaw = a['created_at']?.toString() ?? a['at']?.toString();
+    final at = atRaw != null ? DateTime.tryParse(atRaw) : null;
+    if (at == null) continue;
+    final itemName = a['item_name']?.toString() ?? 'Item';
+    final delta = a['delta_qty'] ?? a['qty_change'] ?? a['change'];
+    items.add(
+      HomeActivityItem(
+        kind: 'stock',
+        title: itemName,
+        subtitle: delta != null ? 'Stock ${delta.toString()}' : 'Stock updated',
+        at: at.toLocal(),
+        routeId: a['item_id']?.toString(),
+      ),
+    );
+  }
+
+  items.sort((a, b) => b.at.compareTo(a.at));
+  return items.take(5).toList();
 });
 
 final homeRecentPurchasesCompactProvider =

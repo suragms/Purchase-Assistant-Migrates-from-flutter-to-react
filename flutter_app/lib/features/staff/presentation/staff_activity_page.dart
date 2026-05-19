@@ -4,9 +4,35 @@ import 'package:intl/intl.dart';
 
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
+import '../../../core/theme/hexa_colors.dart';
 import '../../../core/router/navigation_ext.dart';
-import '../../../core/widgets/friendly_load_error.dart';
+import '../../../core/widgets/hexa_error_card.dart';
 import '../../../core/widgets/list_skeleton.dart';
+
+String _staffActivityLabel(String actionType) {
+  switch (actionType.toUpperCase()) {
+    case 'STAFF_LOGIN':
+      return 'Signed in';
+    case 'STAFF_LOGOUT':
+      return 'Signed out';
+    case 'PURCHASE_CREATE':
+      return 'Purchase saved';
+    case 'SCAN':
+    case 'BARCODE_SCAN':
+      return 'Barcode scan';
+    default:
+      return actionType.replaceAll('_', ' ');
+  }
+}
+
+String _timeAgo(DateTime at) {
+  final d = DateTime.now().difference(at);
+  if (d.inSeconds < 60) return 'just now';
+  if (d.inMinutes < 60) return '${d.inMinutes}m ago';
+  if (d.inHours < 24) return '${d.inHours}h ago';
+  if (d.inDays < 7) return '${d.inDays}d ago';
+  return DateFormat.MMMd().format(at);
+}
 
 final _staffActivityPeriodProvider = StateProvider<String>((_) => 'today');
 
@@ -66,16 +92,39 @@ class StaffActivityPage extends ConsumerWidget {
             Expanded(
               child: async.when(
                 loading: () => const ListSkeleton(rowCount: 10),
-                error: (e, _) => FriendlyLoadError(
-                  message: 'Could not load activity.\n$e',
+                error: (e, _) => HexaErrorCard.fromError(
+                  error: e,
+                  title: 'Could not load activity',
                   onRetry: () => ref.invalidate(staffActivityLogProvider),
                 ),
                 data: (rows) {
                   if (rows.isEmpty) {
                     return Center(
-                      child: Text(
-                        'No activity in this period.',
-                        style: tt.bodyLarge?.copyWith(color: onSurf),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.history_rounded,
+                            size: 48,
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No activity in this period',
+                            style: tt.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              color: onSurf,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Scans, stock updates, and purchases appear here.',
+                            textAlign: TextAlign.center,
+                            style: tt.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     );
                   }
@@ -85,9 +134,14 @@ class StaffActivityPage extends ConsumerWidget {
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (ctx, i) {
                       final r = rows[i];
-                      final action = r['action_type']?.toString() ?? '—';
+                      final actionRaw = r['action_type']?.toString() ?? '';
+                      final action = _staffActivityLabel(actionRaw);
                       final item = r['item_name']?.toString();
-                      final who = r['user_name']?.toString();
+                      final details = r['details'];
+                      String? amount;
+                      if (details is Map) {
+                        amount = details['total_formatted']?.toString();
+                      }
                       DateTime when;
                       try {
                         when = DateTime.parse(
@@ -95,19 +149,52 @@ class StaffActivityPage extends ConsumerWidget {
                       } catch (_) {
                         when = DateTime.now();
                       }
+                      final local = when.toLocal();
                       return ListTile(
-                        title: Text(action.replaceAll('_', ' ')),
+                        leading: CircleAvatar(
+                          radius: 18,
+                          backgroundColor: HexaColors.brandPrimary
+                              .withValues(alpha: 0.12),
+                          child: Icon(
+                            actionRaw.toUpperCase().contains('PURCHASE')
+                                ? Icons.shopping_cart_outlined
+                                : Icons.history_rounded,
+                            size: 18,
+                            color: HexaColors.brandPrimary,
+                          ),
+                        ),
+                        title: Text(
+                          action,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
                         subtitle: Text(
                           [
                             if (item != null && item.isNotEmpty) item,
-                            if (who != null && who.isNotEmpty) who,
+                            if (amount != null && amount.isNotEmpty) amount,
                           ].join(' · '),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        trailing: Text(
-                          fmt.format(when.toLocal()),
-                          style: tt.labelSmall,
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              _timeAgo(local),
+                              style: tt.labelSmall?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            Text(
+                              fmt.format(local),
+                              style: tt.labelSmall?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     },

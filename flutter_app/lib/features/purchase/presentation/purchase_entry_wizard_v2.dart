@@ -27,10 +27,12 @@ import '../../../core/providers/prefs_provider.dart';
 import '../../../core/providers/suppliers_list_provider.dart';
 import '../../../core/services/offline_store.dart';
 import '../../../core/services/offline_sync_service.dart';
+import '../../../core/services/staff_activity_logger.dart';
 import '../../../core/notifications/local_notifications_service.dart';
 import '../../purchase/domain/purchase_draft.dart';
 import '../../purchase/mapping/ai_scan_purchase_draft_map.dart';
 import '../../purchase/state/purchase_draft_provider.dart';
+import '../../purchase/state/purchase_smart_defaults.dart';
 import '../../purchase/state/purchase_trade_preview_provider.dart';
 
 import '../../contacts/presentation/broker_wizard_page.dart';
@@ -113,7 +115,10 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
   /// Ignore stale async work when the user picks another supplier before requests finish.
   int _supplierApplySeq = 0;
 
-  /// 0 party → 1 terms → 2 items → 3 review.
+  /// Mini preview on items step after adding a line (replaces snackbar).
+  PurchaseLineDraft? _lineJustAdded;
+
+  /// 0 party+terms → 1 items → 2 review.
   int _wizStep = 0;
 
   /// One-shot: AI bill has OCR supplier text but no `supplierId` — focus opens suggestion panel.
@@ -241,7 +246,79 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
       await _ensureCatalogSeedIfEmpty();
       if (!mounted) return;
       await _prefetchSupplierLastPurchasesMap();
+      if (!mounted) return;
+      await _applyLastSupplierFromPrefsIfNeeded();
     }));
+  }
+
+  Future<List<String>> _recentCatalogItemIdsForSupplier(String supplierId) async {
+    final session = ref.read(sessionProvider);
+    if (session == null) return const [];
+    try {
+      final purchases = await ref.read(hexaApiProvider).listTradePurchases(
+            businessId: session.primaryBusiness.id,
+            supplierId: supplierId,
+            limit: 25,
+          );
+      final ids = <String>[];
+      for (final p in purchases) {
+        final lines = p['lines'];
+        if (lines is! List) continue;
+        for (final ln in lines) {
+          if (ln is! Map) continue;
+          final id = ln['catalog_item_id']?.toString().trim();
+          if (id == null || id.isEmpty) continue;
+          if (!ids.contains(id)) ids.add(id);
+          if (ids.length >= 5) return ids;
+        }
+      }
+      return ids;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> _applyLastSupplierFromPrefsIfNeeded() async {
+    if (_isEditMode() ||
+        widget.initialDraft != null ||
+        widget.resumeDraft ||
+        widget.aiScanToken?.trim().isNotEmpty == true) {
+      return;
+    }
+    final draft = ref.read(purchaseDraftProvider);
+    if (draft.supplierId != null && draft.supplierId!.trim().isNotEmpty) {
+      return;
+    }
+    final lastId = await PurchaseSmartDefaults.loadLastSupplierId();
+    if (lastId == null || lastId.isEmpty || !mounted) return;
+
+    List<Map<String, dynamic>> list =
+        ref.read(suppliersListProvider).valueOrNull ??
+            _lastGoodSuppliers ??
+            const [];
+    if (list.isEmpty) {
+      try {
+        list = await ref.read(suppliersListProvider.future);
+      } catch (_) {
+        return;
+      }
+    }
+    if (!mounted || list.isEmpty) return;
+
+    Map<String, dynamic>? row;
+    for (final m in list) {
+      if (_supplierRowId(m) == lastId) {
+        row = Map<String, dynamic>.from(m);
+        break;
+      }
+    }
+    if (row == null) return;
+
+    final label = _supplierMapLabel(row);
+    await _applySupplierSelectionAsync(
+      list,
+      InlineSearchItem(id: lastId, label: label),
+    );
   }
 
   void _maybeAutoFocusPartyForAiScan() {
@@ -889,6 +966,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
       ref
           .read(purchaseDraftProvider.notifier)
           .applySupplierSelection(commitRow, it.id, it.label);
+      unawaited(PurchaseSmartDefaults.saveLastSupplierId(it.id));
       _syncControllersFromDraft();
       setState(() {
         _supplierFieldError = null;
@@ -1085,7 +1163,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
           );
         }
 
-        if (_wizStep == 2) {
+        if (_wizStep == 1) {
           animate(_itemsStepListScrollController);
         } else {
           animate(_wizardBodyScrollController);
@@ -1115,12 +1193,30 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
     }
     _hideResumeDraftBanner();
     final session = ref.read(sessionProvider);
+    var catalogForSheet = List<Map<String, dynamic>>.from(catalog);
+    if (catalogForSheet.isEmpty) {
+      try {
+        final loaded = await ref.read(catalogItemsListProvider.future);
+        catalogForSheet = List<Map<String, dynamic>>.from(loaded);
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    if (catalogForSheet.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Catalog is still loading. Wait a moment and try again.',
+          ),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
     final initial = initialOverride ??
         (editIndex != null
             ? ref.read(purchaseDraftProvider).lines[editIndex].toLineMap()
             : null);
     // Ensure the sheet can resolve `default_kg_per_bag` for this line (list may omit the row).
-    var catalogForSheet = List<Map<String, dynamic>>.from(catalog);
     final cid = initial?['catalog_item_id']?.toString();
     if (cid != null && cid.isNotEmpty) {
       final has = catalogForSheet.any((m) => m['id']?.toString() == cid);
@@ -1142,6 +1238,11 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
       }
     }
     if (!mounted) return;
+    final supplierId = draft.supplierId?.trim();
+    final priorityIds = supplierId != null && supplierId.isNotEmpty
+        ? await _recentCatalogItemIdsForSupplier(supplierId)
+        : const <String>[];
+    if (!mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         fullscreenDialog: true,
@@ -1151,9 +1252,9 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
           isEdit: editIndex != null,
           fullPage: true,
           gstPrefs: ref.read(sharedPreferencesProvider),
-          preferredSupplierId: draft.supplierId?.trim().isNotEmpty == true
-              ? draft.supplierId!.trim()
-              : null,
+          preferredSupplierId:
+              supplierId != null && supplierId.isNotEmpty ? supplierId : null,
+          priorityCatalogItemIds: priorityIds,
           omitLineFreightDeliveredBilltyDiscount: false,
           navigateCatalogQuickAddItem: session == null || catalog.isEmpty
               ? null
@@ -1233,6 +1334,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
                 );
             setState(() {
               _inlineSaveError = null;
+              _lineJustAdded = p;
             });
             _onDraftChanged();
             unawaited(_learnCatalogPackDefaultsIfNeeded(catalogForSheet, p));
@@ -1240,13 +1342,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
         ),
       ),
     );
-    if (mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        // Auto-save handles draft state now.
-
-      });
-    }
-    if (mounted && _wizStep == 2) {
+    if (mounted && _wizStep == 1) {
       _scrollWizardItemsStepToBottom();
     }
   }
@@ -1449,7 +1545,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
           _inlineSaveError = first;
           _supplierFieldError = null;
           _brokerFieldError = null;
-          _wizStep = 2;
+          _wizStep = 1;
         });
       }
       return;
@@ -1610,7 +1706,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
               _isSaving = false;
               _inlineSaveError =
                   'Match supplier and catalog items with rates for every line before saving this scan.';
-              _wizStep = 2;
+              _wizStep = 1;
             });
           }
           return;
@@ -1673,6 +1769,21 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
           unawaited(LocalNotificationsService.instance
               .cancelPurchaseMissingDetailsReminder(pid));
         }
+        if (ref.read(localNotificationsOptInProvider)) {
+          final hid = saved['human_id']?.toString();
+          final label =
+              (hid != null && hid.isNotEmpty) ? hid : pid;
+          final amount = saved['total_amount'] ?? saved['net_amount'];
+          String? totalStr;
+          if (amount != null) {
+            totalStr = formatRupee(decDouble(amount));
+          }
+          unawaited(LocalNotificationsService.instance.showPurchaseSaved(
+            humanId: label,
+            totalFormatted: totalStr,
+          ));
+        }
+        unawaited(StaffActivityLogger.logPurchase(ref, saved));
       }
       if (!mounted) return;
       final quick = ref.read(quickSavePurchaseProvider);
@@ -1817,7 +1928,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
             _supplierFieldError = null;
             _inlineSaveError = null;
           } else if (hint != null && hint.lineIndex != null) {
-            _wizStep = 2;
+            _wizStep = 1;
             _supplierFieldError = null;
             _brokerFieldError = null;
             _inlineSaveError = msg;
@@ -1852,11 +1963,20 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
     setState(() {
       _supplierFieldError = null;
       _brokerFieldError = null;
-      _wizStep = 1;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _termsPaymentDaysFocus.requestFocus();
+      if (_wizardBodyScrollController.hasClients) {
+        final pos = _wizardBodyScrollController.position;
+        if (pos.maxScrollExtent > 0) {
+          _wizardBodyScrollController.animateTo(
+            pos.maxScrollExtent,
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOut,
+          );
+        }
+      }
     });
   }
 
@@ -1864,7 +1984,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
     final draft = ref.read(purchaseDraftProvider);
     final lines = draft.lines;
 
-    // Wizard order is Party → Terms → Items → Review, so on first entry to Terms
+    // On the combined party+terms step there may be zero lines until items.
     // there may be zero lines. Only auto-select when lines actually exist.
     if (lines.isEmpty) return;
 
@@ -1890,26 +2010,33 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
           _supplierFieldError = reasons.from0;
           _inlineSaveError = reasons.from0;
         });
-        // Focus the supplier field so the user immediately sees the red border.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           _partySupplierFocus.requestFocus();
         });
         return;
       }
-      _partyAdvanceIfValid();
+      if (reasons.from1 != null) {
+        setState(() {
+          _inlineSaveError = reasons.from1;
+          _supplierFieldError = null;
+          _brokerFieldError = null;
+        });
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          _termsPaymentDaysFocus.requestFocus();
+        });
+        return;
+      }
+      setState(() {
+        _supplierFieldError = null;
+        _brokerFieldError = null;
+        _lineJustAdded = null;
+        _wizStep = 1;
+      });
       return;
     }
     if (_wizStep == 1) {
-      final reason = reasons.from1;
-      if (reason != null) {
-        setState(() => _inlineSaveError = reason);
-        return;
-      }
-      setState(() => _wizStep = 2);
-      return;
-    }
-    if (_wizStep == 2) {
       final reason = reasons.from2;
       if (reason != null) {
         setState(() {
@@ -1920,7 +2047,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
         return;
       }
       _autoSelectCommissionUnitFromLinesIfNeeded();
-      setState(() => _wizStep = 3);
+      setState(() => _wizStep = 2);
     }
   }
 
@@ -1928,7 +2055,10 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
     Widget step;
     switch (_wizStep) {
       case 0:
-        step = PurchasePartyStep(
+        step = Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PurchasePartyStep(
             isEdit: isEdit,
             loadedDerivedStatus: _loadedDerivedStatus,
             loadedRemaining: _loadedRemaining,
@@ -1975,25 +2105,38 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
             brokerMapLabel: _brokerMapLabel,
             supplierLastPurchaseById: _supplierLastPurchaseById,
             supplierBalanceById: _supplierBalanceById,
-          );
-        break;
-      case 1:
-        step = PurchaseTermsOnlyStep(
-          paymentDaysFocus: _termsPaymentDaysFocus,
-          paymentDaysCtrl: _paymentDaysCtrl,
-          commissionCtrl: _commissionCtrl,
-          headerDiscCtrl: _headerDiscCtrl,
-          narrationCtrl: _invoiceCtrl,
-          commissionFocus: _termsCommissionFocus,
-          headerDiscFocus: _termsHeaderDiscFocus,
-          narrationFocus: _termsNarrationFocus,
-          onDraftChanged: _onDraftChanged,
+          ),
+            const SizedBox(height: 20),
+            Divider(height: 1, color: Colors.grey.shade300),
+            const SizedBox(height: 16),
+            Text(
+              'Terms & charges',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: const Color(0xFF0F172A),
+                  ),
+            ),
+            const SizedBox(height: 12),
+            PurchaseTermsOnlyStep(
+              paymentDaysFocus: _termsPaymentDaysFocus,
+              paymentDaysCtrl: _paymentDaysCtrl,
+              commissionCtrl: _commissionCtrl,
+              headerDiscCtrl: _headerDiscCtrl,
+              narrationCtrl: _invoiceCtrl,
+              commissionFocus: _termsCommissionFocus,
+              headerDiscFocus: _termsHeaderDiscFocus,
+              narrationFocus: _termsNarrationFocus,
+              onDraftChanged: _onDraftChanged,
+            ),
+          ],
         );
         break;
-      case 2:
+      case 1:
         step = PurchaseFastItemsStep(
           listScrollController: _itemsStepListScrollController,
           onDraftChanged: _onDraftChanged,
+          lineJustAdded: _lineJustAdded,
+          onDismissLineJustAdded: () => setState(() => _lineJustAdded = null),
           openAdvancedItemEditor: ({editIndex, initialOverride}) =>
               _openItemSheet(
                 catalog,
@@ -2002,7 +2145,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
               ),
         );
         break;
-      case 3:
+      case 2:
         step = PurchaseReviewTallyStep(
           isEdit: isEdit,
           previewHumanId: _previewHumanId,
@@ -2063,20 +2206,20 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
               ),
             ),
           ),
-        if (_wizStep == 0 || _wizStep == 1 || _wizStep == 2) ...[
+        if (_wizStep == 0 || _wizStep == 1) ...[
           SizedBox(
             height: kbInset > 0 ? 44 : 52,
             width: double.infinity,
             child: FilledButton(
               onPressed: _isSaving ? null : _wizNext,
               child: Text(
-                _wizStep == 2 ? 'Review purchase →' : 'Continue →',
+                _wizStep == 1 ? 'Review purchase →' : 'Continue →',
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
               ),
             ),
           ),
         ],
-        if (_wizStep == 3) ...[
+        if (_wizStep == 2) ...[
           if (!saveVal.isOk)
             Padding(
               padding: const EdgeInsets.only(bottom: 4),
@@ -2134,7 +2277,12 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
                   padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                   child: stepContent,
                 )
-              : SingleChildScrollView(
+              : wizStep == 1
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                      child: stepContent,
+                    )
+                  : SingleChildScrollView(
                   controller: _wizardBodyScrollController,
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.manual,
@@ -2270,22 +2418,19 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
     final appBarTitle =
         fromAiBill
             ? switch (_wizStep) {
-              0 => 'AI bill draft — Supplier & broker',
-              1 => 'AI bill draft — Terms & charges',
-              2 => 'AI bill draft — Match items',
+              0 => 'AI bill draft — Party & terms',
+              1 => 'AI bill draft — Match items',
               _ => 'AI bill draft — Review & save',
             }
             : !isEdit
             ? switch (_wizStep) {
-              0 => 'New purchase — Party',
-              1 => 'New purchase — Terms',
-              2 => 'New purchase — Items',
+              0 => 'New purchase — Party & terms',
+              1 => 'New purchase — Items',
               _ => 'New purchase — Review',
             }
             : switch (_wizStep) {
-              0 => 'Edit purchase — Party',
-              1 => 'Edit purchase — Terms',
-              2 => 'Edit purchase — Items',
+              0 => 'Edit purchase — Party & terms',
+              1 => 'Edit purchase — Items',
               _ => 'Edit purchase — Review',
             };
 
@@ -2354,7 +2499,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
                     padding:
                         const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     child: Text(
-                      'Catalog could not refresh. ${catalogAsync.error}',
+                      'Catalog could not refresh. Check your connection and try again.',
                       style: TextStyle(
                         color: Colors.orange.shade900,
                         fontSize: 12,

@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/errors/user_facing_errors.dart';
+import '../../../core/widgets/hexa_error_card.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/router/navigation_ext.dart';
 
@@ -220,7 +221,12 @@ class _BatchItemCreatePageState extends ConsumerState<BatchItemCreatePage> {
                       loading: () => const LinearProgressIndicator(),
                       error: (e, st) {
                         logSilencedApiError(e, st);
-                        return Text(userFacingError(e));
+                        return InlineLoadError(
+                          title: 'Could not load categories',
+                          error: e,
+                          onRetry: () =>
+                              ref.invalidate(itemCategoriesListProvider),
+                        );
                       },
                       data: (cats) {
                         if (cats.isEmpty) {
@@ -259,7 +265,13 @@ class _BatchItemCreatePageState extends ConsumerState<BatchItemCreatePage> {
                           : const LinearProgressIndicator(),
                       error: (e, st) {
                         logSilencedApiError(e, st);
-                        return Text(userFacingError(e));
+                        return InlineLoadError(
+                          title: 'Could not load subcategories',
+                          error: e,
+                          onRetry: () => ref.invalidate(
+                            categoryTypesListProvider(line.categoryId!),
+                          ),
+                        );
                       },
                       data: (types) {
                         if (line.categoryId == null) {

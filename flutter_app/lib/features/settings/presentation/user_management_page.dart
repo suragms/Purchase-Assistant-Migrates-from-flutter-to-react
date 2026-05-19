@@ -10,6 +10,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/errors/user_facing_errors.dart';
+import '../../../core/widgets/hexa_error_card.dart';
 import '../../../core/router/navigation_ext.dart';
 import '../../../core/router/post_auth_route.dart' show sessionCanCreateUsers;
 import '../../../core/theme/hexa_colors.dart';
@@ -339,22 +340,11 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
             ),
           ),
         ),
-        error: (e, _) => Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(userFacingError(e), textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton(
-                  onPressed: () => ref.invalidate(businessUsersListProvider),
-                  child: const Text('Retry'),
-                ),
-              ],
+        error: (e, _) => HexaErrorCard.fromError(
+              error: e,
+              title: 'Could not load users',
+              onRetry: () => ref.invalidate(businessUsersListProvider),
             ),
-          ),
-        ),
         data: (rows) {
           final filtered = _filtered(rows);
           return Column(

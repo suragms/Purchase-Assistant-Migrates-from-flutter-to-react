@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/reporting/trade_report_aggregate.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../reporting/reports_item_metrics.dart';
@@ -24,9 +25,14 @@ class ReportsItemTile extends StatelessWidget {
       NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0)
           .format(n);
 
+  static String _initial(String name) {
+    final t = name.trim();
+    if (t.isEmpty) return '?';
+    return t[0].toUpperCase();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final tt = Theme.of(context).textTheme;
     final qtyLine = reportQtySummaryBoldLine(row);
     final showAmt = row.amountInr > 1e-6;
     return InkWell(
@@ -36,27 +42,26 @@ class ReportsItemTile extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(
-              width: 28,
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: HexaColors.brandPrimary.withValues(alpha: 0.12),
               child: Text(
-                '$index.',
-                style: tt.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: HexaColors.textBody,
+                _initial(row.name),
+                style: HexaDsType.listTitle(context).copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: HexaColors.brandPrimary,
                 ),
               ),
             ),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     row.name,
-                    style: const TextStyle(
-                      fontSize: 14,
+                    style: HexaDsType.listTitle(context).copyWith(
                       fontWeight: FontWeight.w700,
-                      height: 1.2,
-                      color: Color(0xFF1A1A1A),
                     ),
                   ),
                   if (qtyLine.isNotEmpty) ...[

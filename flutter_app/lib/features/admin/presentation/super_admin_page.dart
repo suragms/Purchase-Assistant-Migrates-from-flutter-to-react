@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/router/navigation_ext.dart';
 
 final _superAdminHealthProvider =
@@ -56,7 +57,9 @@ class SuperAdminPage extends ConsumerWidget {
           const SizedBox(height: 8),
           health.when(
             loading: () => const LinearProgressIndicator(minHeight: 2),
-            error: (e, _) => _AdminErrorCard(message: '$e'),
+            error: (e, _) => _AdminErrorCard(
+                  message: userFacingError(e),
+                ),
             data: (m) => _AdminKvCard(data: m, accent: const Color(0xFF17A8A7)),
           ),
           const SizedBox(height: 24),
@@ -66,7 +69,9 @@ class SuperAdminPage extends ConsumerWidget {
           const SizedBox(height: 8),
           biz.when(
             loading: () => const LinearProgressIndicator(minHeight: 2),
-            error: (e, _) => _AdminErrorCard(message: '$e'),
+            error: (e, _) => _AdminErrorCard(
+                  message: userFacingError(e),
+                ),
             data: (m) {
               final items = m['items'];
               if (items is! List || items.isEmpty) {

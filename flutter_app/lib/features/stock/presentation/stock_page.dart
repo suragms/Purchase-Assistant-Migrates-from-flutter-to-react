@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/providers/reorder_list_provider.dart';
@@ -49,13 +50,27 @@ class _StockPageState extends ConsumerState<StockPage>
   final _subcatCtrl = TextEditingController();
   final _scroll = ScrollController();
   Timer? _debounce;
+  Timer? _liveRefresh;
   bool _loadingMore = false;
   late final TabController _mainTabs;
+  late final AnimationController _livePulse;
+  DateTime? _lastRefreshedAt;
 
   @override
   void initState() {
     super.initState();
     _mainTabs = TabController(length: 5, vsync: this);
+    _livePulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _lastRefreshedAt = DateTime.now();
+    _liveRefresh = Timer.periodic(const Duration(seconds: 60), (_) {
+      if (!mounted) return;
+      ref.invalidate(stockListProvider);
+      ref.invalidate(stockAlertCountsProvider);
+      setState(() => _lastRefreshedAt = DateTime.now());
+    });
     _searchCtrl.addListener(_onSearchChanged);
     _subcatCtrl.text = ref.read(stockListQueryProvider).subcategory;
     _scroll.addListener(_onScrollLoadMore);
@@ -96,6 +111,8 @@ class _StockPageState extends ConsumerState<StockPage>
   @override
   void dispose() {
     _mainTabs.dispose();
+    _livePulse.dispose();
+    _liveRefresh?.cancel();
     _debounce?.cancel();
     _scroll.dispose();
     _searchCtrl.dispose();
@@ -133,6 +150,30 @@ class _StockPageState extends ConsumerState<StockPage>
       default:
         return cs.onSurfaceVariant;
     }
+  }
+
+  Color _stockQtyColor(String st, dynamic curStock, ColorScheme cs) {
+    final isZero = curStock is num
+        ? curStock <= 0
+        : curStock == null || curStock.toString() == '0';
+    if (st == 'out' || st == 'critical' || isZero) {
+      return _statusColor(st, cs);
+    }
+    if (st == 'low') return const Color(0xFFE65100);
+    return HexaDsColors.textPrimary;
+  }
+
+  String _liveStatsLine(int total, int lowN) {
+    final at = _lastRefreshedAt;
+    final ago = at == null
+        ? 'just now'
+        : () {
+            final d = DateTime.now().difference(at);
+            if (d.inSeconds < 60) return 'just now';
+            if (d.inMinutes < 60) return '${d.inMinutes}m ago';
+            return '${d.inHours}h ago';
+          }();
+    return '$total items · $lowN low · updated $ago';
   }
 
   @override
@@ -187,7 +228,19 @@ class _StockPageState extends ConsumerState<StockPage>
                 icon: const Icon(Icons.arrow_back_rounded),
                 onPressed: () => context.popOrGo('/catalog'),
               ),
-        title: const Text('Stock'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Stock', style: HexaDsType.h2(context)),
+            if (listTotal > 0) ...[
+              const SizedBox(width: 8),
+              Badge(
+                label: Text('$listTotal'),
+                backgroundColor: HexaColors.brandPrimary,
+              ),
+            ],
+          ],
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 4),
@@ -279,47 +332,71 @@ class _StockPageState extends ConsumerState<StockPage>
             ),
           ),
           const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Row(
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                for (final s in const [
-                  ('all', 'All'),
-                  ('healthy', 'OK'),
-                  ('low', 'Low'),
-                  ('critical', 'Critical'),
-                  ('out', 'Out'),
-                ])
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      label: Text(s.$2),
-                      selected: q.status == s.$1 && q.sort != 'recent',
-                      onSelected: (_) {
-                        ref.read(stockListQueryProvider.notifier).state =
-                            ref.read(stockListQueryProvider).copyWith(
-                                  status: s.$1,
-                                  sort: 'name',
-                                  page: 1,
-                                );
-                      },
-                    ),
-                  ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: const Text('Recent'),
-                    selected: q.sort == 'recent',
-                    onSelected: (_) {
-                      ref.read(stockListQueryProvider.notifier).state =
-                          ref.read(stockListQueryProvider).copyWith(
-                                status: 'all',
-                                sort: 'recent',
-                                page: 1,
-                              );
-                    },
-                  ),
+                FilterChip(
+                  label: const Text('All'),
+                  selected: q.status == 'all' && q.sort != 'recent',
+                  onSelected: (_) {
+                    ref.read(stockListQueryProvider.notifier).state =
+                        ref.read(stockListQueryProvider).copyWith(
+                              status: 'all',
+                              sort: 'name',
+                              page: 1,
+                            );
+                  },
+                ),
+                FilterChip(
+                  label: Text(lowN > 0 ? 'Low • $lowN' : 'Low'),
+                  selected: q.status == 'low',
+                  onSelected: (_) {
+                    ref.read(stockListQueryProvider.notifier).state =
+                        ref.read(stockListQueryProvider).copyWith(
+                              status: 'low',
+                              sort: 'name',
+                              page: 1,
+                            );
+                  },
+                ),
+                FilterChip(
+                  label: Text(critN > 0 ? 'Critical • $critN' : 'Critical'),
+                  selected: q.status == 'critical',
+                  onSelected: (_) {
+                    ref.read(stockListQueryProvider.notifier).state =
+                        ref.read(stockListQueryProvider).copyWith(
+                              status: 'critical',
+                              sort: 'name',
+                              page: 1,
+                            );
+                  },
+                ),
+                FilterChip(
+                  label: const Text('Out'),
+                  selected: q.status == 'out',
+                  onSelected: (_) {
+                    ref.read(stockListQueryProvider.notifier).state =
+                        ref.read(stockListQueryProvider).copyWith(
+                              status: 'out',
+                              sort: 'name',
+                              page: 1,
+                            );
+                  },
+                ),
+                FilterChip(
+                  label: const Text('Recent'),
+                  selected: q.sort == 'recent',
+                  onSelected: (_) {
+                    ref.read(stockListQueryProvider.notifier).state =
+                        ref.read(stockListQueryProvider).copyWith(
+                              status: 'all',
+                              sort: 'recent',
+                              page: 1,
+                            );
+                  },
                 ),
               ],
             ),
@@ -349,6 +426,46 @@ class _StockPageState extends ConsumerState<StockPage>
                     },
                   ),
                 ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: suppliersAsync.when(
+                    loading: () => const SizedBox.shrink(),
+                    error: (_, __) => const SizedBox.shrink(),
+                    data: (rows) {
+                      final names = [
+                        for (final s in rows)
+                          if ((s['name'] ?? '').toString().trim().isNotEmpty)
+                            s['name'].toString().trim(),
+                      ];
+                      return DropdownButtonFormField<String>(
+                        initialValue:
+                            q.supplier.isEmpty ? '__all__' : q.supplier,
+                        decoration: const InputDecoration(
+                          labelText: 'Supplier',
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                        ),
+                        items: [
+                          const DropdownMenuItem(
+                            value: '__all__',
+                            child: Text('All'),
+                          ),
+                          for (final n in names)
+                            DropdownMenuItem(value: n, child: Text(n)),
+                        ],
+                        onChanged: (v) {
+                          ref.read(stockListQueryProvider.notifier).state =
+                              ref.read(stockListQueryProvider).copyWith(
+                                    supplier: v == null || v == '__all__'
+                                        ? ''
+                                        : v,
+                                    page: 1,
+                                  );
+                        },
+                      );
+                    },
+                  ),
+                ),
               ],
             ),
           ),
@@ -364,7 +481,7 @@ class _StockPageState extends ConsumerState<StockPage>
                     c['name'].toString().trim(),
               ];
               if (names.length <= 1) return const SizedBox.shrink();
-              return OperationalPillRow(
+              return OperationalPillWrap(
                 labels: names,
                 selected: q.category.isEmpty ? 'All' : q.category,
                 onSelected: (name) {
@@ -399,33 +516,6 @@ class _StockPageState extends ConsumerState<StockPage>
               },
             ),
           ),
-          suppliersAsync.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (rows) {
-              final names = [
-                for (final s in rows)
-                  if ((s['name'] ?? '').toString().trim().isNotEmpty)
-                    s['name'].toString().trim(),
-              ];
-              if (names.isEmpty) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: OperationalPillRow(
-                  labels: names.take(12).toList(),
-                  selected: q.q.isNotEmpty ? q.q : null,
-                  onSelected: (name) {
-                    ref.read(stockListQueryProvider.notifier).state =
-                        ref.read(stockListQueryProvider).copyWith(
-                              q: q.q == name ? '' : name,
-                              page: 1,
-                            );
-                    if (q.q != name) _searchCtrl.text = name;
-                  },
-                ),
-              );
-            },
-          ),
           if (q.status == 'low' || q.status == 'critical')
             Material(
               color: const Color(0xFFFFF3E0),
@@ -457,7 +547,11 @@ class _StockPageState extends ConsumerState<StockPage>
             child: RefreshIndicator(
               onRefresh: () async {
                 ref.invalidate(stockListProvider);
+                ref.invalidate(stockAlertCountsProvider);
                 await ref.read(stockListProvider.future);
+                if (mounted) {
+                  setState(() => _lastRefreshedAt = DateTime.now());
+                }
               },
               child: listAsync.when(
               loading: () => const ListSkeleton(),
@@ -466,7 +560,18 @@ class _StockPageState extends ConsumerState<StockPage>
                 onRetry: () => ref.invalidate(stockListProvider),
               ),
               data: (data) {
-                final items = (data['items'] as List?) ?? const [];
+                var items = (data['items'] as List?) ?? const [];
+                if (q.supplier.isNotEmpty) {
+                  final sup = q.supplier.toLowerCase();
+                  items = [
+                    for (final e in items)
+                      if (e is Map &&
+                          (e['supplier_name']?.toString().toLowerCase() ??
+                                  '') ==
+                              sup)
+                        e,
+                  ];
+                }
                 final total = (data['total'] as num?)?.toInt() ?? 0;
                 final page = (data['page'] as num?)?.toInt() ?? 1;
                 final perPage =
@@ -492,39 +597,11 @@ class _StockPageState extends ConsumerState<StockPage>
 
                 return Column(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Showing ${items.length} / $total · '
-                              '🟠 $lowN low · 🔴 $critN critical',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade700,
-                              ),
-                            ),
-                          ),
-                          Container(
-                            width: 8,
-                            height: 8,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFF2E7D32),
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'LIVE',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
+                    OperationalLiveBanner(
+                      pulse: _livePulse,
+                      statsLine: _liveStatsLine(
+                        q.supplier.isEmpty ? total : items.length,
+                        lowN,
                       ),
                     ),
                     const _StockTableHeader(),
@@ -558,6 +635,8 @@ class _StockPageState extends ConsumerState<StockPage>
                               row: row,
                               fmtQty: _fmtQty,
                               statusColor: (st) => _statusColor(st, cs),
+                              stockQtyColor: (st, cur) =>
+                                  _stockQtyColor(st, cur, cs),
                               updatedSubtitle: updatedBy != null &&
                                       updatedBy.isNotEmpty
                                   ? 'by $updatedBy · $updatedAgo'
@@ -928,11 +1007,10 @@ class _StockTableHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const style = TextStyle(
-      fontSize: 11,
+    final style = HexaDsType.labelCaps(context).copyWith(
       fontWeight: FontWeight.w900,
-      letterSpacing: 0.2,
       color: Colors.white,
+      letterSpacing: 0.2,
     );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -940,8 +1018,9 @@ class _StockTableHeader extends StatelessWidget {
         color: Color(0xFF37474F),
         border: Border(bottom: BorderSide(color: HexaColors.brandBorder)),
       ),
-      child: const Row(
+      child: Row(
         children: [
+          const SizedBox(width: 14),
           Expanded(flex: 5, child: Text('Item', style: style)),
           Expanded(flex: 2, child: Text('Stock', style: style, textAlign: TextAlign.end)),
           Expanded(flex: 2, child: Text('Low', style: style, textAlign: TextAlign.end)),
@@ -957,6 +1036,7 @@ class _StockTableRow extends StatelessWidget {
     required this.row,
     required this.fmtQty,
     required this.statusColor,
+    required this.stockQtyColor,
     this.updatedSubtitle,
     required this.onTap,
     required this.onLongPress,
@@ -965,6 +1045,7 @@ class _StockTableRow extends StatelessWidget {
   final Map<String, dynamic> row;
   final String Function(dynamic) fmtQty;
   final Color Function(String) statusColor;
+  final Color Function(String st, dynamic curStock) stockQtyColor;
   final String? updatedSubtitle;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
@@ -997,6 +1078,17 @@ class _StockTableRow extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 4, right: 6),
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: statusColor(st),
+                  ),
+                ),
+              ),
               Expanded(
                 flex: 5,
                 child: Column(
@@ -1006,10 +1098,9 @@ class _StockTableRow extends StatelessWidget {
                       name,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: HexaDsType.listTitle(context).copyWith(
                         fontWeight: FontWeight.w800,
                         fontSize: 13,
-                        height: 1.15,
                       ),
                     ),
                     if (sub.isNotEmpty)
@@ -1017,10 +1108,9 @@ class _StockTableRow extends StatelessWidget {
                         sub,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
+                        style: HexaDsType.listSubtitle(context).copyWith(
                           fontSize: 10,
                           fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade600,
                         ),
                       ),
                     if (updatedSubtitle != null && updatedSubtitle!.isNotEmpty)
@@ -1028,10 +1118,7 @@ class _StockTableRow extends StatelessWidget {
                         updatedSubtitle!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: Colors.grey.shade500,
-                        ),
+                        style: HexaDsType.bodySm(context).copyWith(fontSize: 10),
                       ),
                   ],
                 ),
@@ -1043,10 +1130,10 @@ class _StockTableRow extends StatelessWidget {
                   children: [
                     Text(
                       '$cur${unit.isNotEmpty ? ' $unit' : ''}',
-                      style: TextStyle(
+                      style: HexaDsType.bodyPrimary(context).copyWith(
                         fontSize: 12,
                         fontWeight: FontWeight.w900,
-                        color: statusColor(st),
+                        color: stockQtyColor(st, row['current_stock']),
                       ),
                     ),
                   ],
@@ -1057,7 +1144,7 @@ class _StockTableRow extends StatelessWidget {
                 child: Text(
                   ro,
                   textAlign: TextAlign.end,
-                  style: const TextStyle(
+                  style: HexaDsType.bodyPrimary(context).copyWith(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1070,10 +1157,8 @@ class _StockTableRow extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.end,
-                  style: TextStyle(
-                    fontSize: 11,
+                  style: HexaDsType.bodySm(context).copyWith(
                     fontWeight: FontWeight.w600,
-                    color: Colors.grey.shade700,
                   ),
                 ),
               ),

@@ -50,6 +50,163 @@ class OperationalSection extends StatelessWidget {
   }
 }
 
+FilterChip _operationalPillChip({
+  required String label,
+  required bool on,
+  required VoidCallback onTap,
+}) {
+  return FilterChip(
+    label: Text(
+      label,
+      style: TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+        color: on ? Colors.white : HexaDsColors.textPrimary,
+      ),
+    ),
+    selected: on,
+    showCheckmark: false,
+    visualDensity: VisualDensity.compact,
+    padding: const EdgeInsets.symmetric(horizontal: 4),
+    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    selectedColor: HexaColors.brandPrimary,
+    backgroundColor: const Color(0xFFF1F5F9),
+    side: BorderSide(
+      color: on ? HexaColors.brandPrimary : HexaColors.brandBorder,
+    ),
+    onSelected: (_) => onTap(),
+  );
+}
+
+/// Wrapping filter pills — preferred for category/status rows (no horizontal overflow).
+class OperationalPillWrap extends StatelessWidget {
+  const OperationalPillWrap({
+    super.key,
+    required this.labels,
+    this.selected,
+    required this.onSelected,
+    this.padding = const EdgeInsets.symmetric(horizontal: 12),
+  });
+
+  final List<String> labels;
+  final String? selected;
+  final ValueChanged<String> onSelected;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    if (labels.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: padding,
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final label in labels)
+            _operationalPillChip(
+              label: label,
+              on: selected == label,
+              onTap: () => onSelected(label),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Shown while pull-to-refresh or manual history refresh is in flight.
+class OperationalRefreshingBanner extends StatelessWidget {
+  const OperationalRefreshingBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: HexaColors.brandPrimary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '↻ Refreshing…',
+            style: HexaDsType.bodySm(context).copyWith(
+              fontWeight: FontWeight.w700,
+              color: HexaDsColors.textBody,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Pulsing LIVE indicator + optional stats line (stock / home dashboards).
+class OperationalLiveBanner extends StatelessWidget {
+  const OperationalLiveBanner({
+    super.key,
+    required this.pulse,
+    required this.statsLine,
+    this.padding = const EdgeInsets.fromLTRB(16, 6, 16, 4),
+  });
+
+  final Animation<double> pulse;
+  final String statsLine;
+  final EdgeInsetsGeometry padding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: padding,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              statsLine,
+              style: HexaDsType.bodySm(context).copyWith(
+                fontWeight: FontWeight.w600,
+                color: HexaDsColors.textBody,
+              ),
+            ),
+          ),
+          FadeTransition(
+            opacity: Tween<double>(begin: 0.45, end: 1).animate(
+              CurvedAnimation(parent: pulse, curve: Curves.easeInOut),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF2E7D32),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  'LIVE',
+                  style: HexaDsType.labelCaps(context).copyWith(
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF2E7D32),
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Horizontal scroll filter pills (category / supplier / status).
 class OperationalPillRow extends StatelessWidget {
   const OperationalPillRow({
@@ -78,26 +235,10 @@ class OperationalPillRow extends StatelessWidget {
         itemBuilder: (ctx, i) {
           final label = labels[i];
           final on = selected == label;
-          return FilterChip(
-            label: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: on ? Colors.white : HexaDsColors.textPrimary,
-              ),
-            ),
-            selected: on,
-            showCheckmark: false,
-            visualDensity: VisualDensity.compact,
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            selectedColor: HexaColors.brandPrimary,
-            backgroundColor: const Color(0xFFF1F5F9),
-            side: BorderSide(
-              color: on ? HexaColors.brandPrimary : HexaColors.brandBorder,
-            ),
-            onSelected: (_) => onSelected(label),
+          return _operationalPillChip(
+            label: label,
+            on: on,
+            onTap: () => onSelected(label),
           );
         },
       ),

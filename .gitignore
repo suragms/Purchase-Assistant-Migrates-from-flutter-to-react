@@ -59,6 +59,23 @@ data/*.webp
 Thumbs.db
 .DS_Store
 
+# Auto-generated Cursor docs — do not commit
+*_AUDIT.md
+*_REPORT.md
+*_CHECKLIST.md
+PROGRESS_LOG.md
+CURRENT_CONTEXT.md
+V[0-9]*.md
+HARISREE_*.md
+PERFORMANCE_*.md
+PRODUCTION_*.md
+PROJECT_STATUS.md
+ARCHITECTURE_STATE.md
+TRACK.md
+SCAN_ENGINE.md
+MATCH_ENGINE.md
+REPORT_ENGINE.md
+
 # Local agent / Codex runner logs (never commit)
 backend/.codex-backend.err.log
 backend/.codex-backend.out.log

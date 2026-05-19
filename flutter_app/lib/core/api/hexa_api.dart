@@ -76,7 +76,8 @@ class _BusinessConnectivityBannerInterceptor extends Interceptor {
 
   final void Function(bool degraded, String? hint)? _fn;
 
-  static bool _biz(String p) => p.contains('/v1/businesses/');
+  static bool _biz(String p) =>
+      p.startsWith('/v1/') && !_isAuthEndpoint(p);
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
@@ -430,6 +431,25 @@ class HexaApi {
     final data = res.data;
     if (data is! List) return [];
     return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<Map<String, dynamic>> postActivityLog({
+    required String businessId,
+    required String actionType,
+    String? itemId,
+    String? itemName,
+    Map<String, dynamic>? details,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/activity-log',
+      data: {
+        'action_type': actionType,
+        if (itemId != null && itemId.isNotEmpty) 'item_id': itemId,
+        if (itemName != null && itemName.isNotEmpty) 'item_name': itemName,
+        if (details != null && details.isNotEmpty) 'details': details,
+      },
+    );
+    return Map<String, dynamic>.from(res.data ?? const {});
   }
 
   Future<List<Map<String, dynamic>>> listBusinessUsers(

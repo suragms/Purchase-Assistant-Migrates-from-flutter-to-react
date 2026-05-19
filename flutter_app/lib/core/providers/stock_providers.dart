@@ -11,6 +11,7 @@ class StockListQuery {
     this.q = '',
     this.category = '',
     this.subcategory = '',
+    this.supplier = '',
     this.status = 'all',
     this.sort = 'name',
   });
@@ -20,6 +21,9 @@ class StockListQuery {
   final String q;
   final String category;
   final String subcategory;
+
+  /// Client-side filter on `supplier_name` in list rows (API has no supplier param).
+  final String supplier;
 
   /// `all` | `healthy` | `low` | `critical` | `out`
   final String status;
@@ -33,6 +37,7 @@ class StockListQuery {
     String? q,
     String? category,
     String? subcategory,
+    String? supplier,
     String? status,
     String? sort,
   }) {
@@ -42,6 +47,7 @@ class StockListQuery {
       q: q ?? this.q,
       category: category ?? this.category,
       subcategory: subcategory ?? this.subcategory,
+      supplier: supplier ?? this.supplier,
       status: status ?? this.status,
       sort: sort ?? this.sort,
     );

@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Purchase Assistant — MASTER agent rules
 
-**Session start:** Read `CURRENT_CONTEXT.md`, `PROGRESS_LOG.md`, and `docs/harisree/MASTER_REFERENCE.md` before coding (Harisree product truth: infra, UX, pages, deploy). Index: `docs/harisree/README.md`.
+**Session start:** Read `TASKS.md` and `docs/harisree/MASTER_REFERENCE.md` before coding (Harisree product truth: infra, UX, pages, deploy). Index: `docs/harisree/README.md`.
 
 Read and follow (in order when trade-offs arise):
 
@@ -20,8 +20,9 @@ Read and follow (in order when trade-offs arise):
 
 ## Trackers (update after meaningful changes)
 
+- **Single living board:** `TASKS.md` (sprint bugs, backlog, blockers, deploy checklist)
 - Harisree docs: `docs/harisree/` (`MASTER_REFERENCE.md`, `FEATURES_DEEP_PLAN.md`, `README.md`)
-- Root: `PROJECT_STATUS.md`, `CURRENT_CONTEXT.md`, `BUGS.md`, `TASKS.md`, `TRACK.md`, `SCAN_ENGINE.md`, `MATCH_ENGINE.md`, `REPORT_ENGINE.md`, `PROGRESS_LOG.md`, `ARCHITECTURE_STATE.md`
+- Do **not** add new root `*_AUDIT.md`, `PROGRESS_LOG.md`, `PROJECT_STATUS.md`, etc. (gitignored)
 
 ## Non‑negotiables
 
@@ -34,6 +35,15 @@ Read and follow (in order when trade-offs arise):
 
 - Mobile: **Flutter** (`flutter_app/`).
 - API: **FastAPI** (`backend/`), Postgres / Supabase‑compatible URLs.
+
+## UI / errors (master plan)
+
+- NEVER show `DioException`, HTTP codes, or stack traces to users (debug-only in `kDebugMode`).
+- ALWAYS use `HexaErrorCard` / `FriendlyLoadError` / `loadStateErrorSubtitle` for error states.
+- `ref.listen` + `setState`: always `WidgetsBinding.instance.addPostFrameCallback`.
+- Category filter chips: `Wrap`, not horizontal `SingleChildScrollView` for categories.
+- Prefer `HexaDsType` text styles over raw inline `TextStyle(fontSize: …)`.
+- Touch targets minimum 48×48 dp.
 
 ## Verification
 
