@@ -248,6 +248,11 @@ String friendlyApiError(Object error, {bool forAssistant = false}) {
       return 'Please check your input and try again.';
     }
     if (sc == 503) {
+      if (AppConfig.apiBasePointsToLoopback && !forAssistant) {
+        return 'Local API database is unavailable. Stop any old API on port 8000, '
+            'then start it from the backend folder with SQLite '
+            '(HEXA_USE_SQLITE=1, DATABASE_URL=sqlite+aiosqlite:///./hexa_dev.db).';
+      }
       return forAssistant
           ? 'Assistant is temporarily unavailable. Try again in a moment.'
           : 'Service is temporarily unavailable. Try again shortly.';

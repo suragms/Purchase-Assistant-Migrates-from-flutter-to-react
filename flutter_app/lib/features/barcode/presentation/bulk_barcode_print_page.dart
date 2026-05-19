@@ -28,6 +28,16 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
   bool _busy = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(stockListQueryProvider.notifier).state =
+          ref.read(stockListQueryProvider).copyWith(perPage: 100, page: 1);
+    });
+  }
+
+  @override
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
@@ -110,8 +120,6 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
 
   @override
   Widget build(BuildContext context) {
-    ref.read(stockListQueryProvider.notifier).state =
-        ref.read(stockListQueryProvider).copyWith(perPage: 100, page: 1);
     final listAsync = ref.watch(stockListProvider);
     final catsAsync = ref.watch(itemCategoriesListProvider);
 

@@ -145,9 +145,12 @@ class _StockPageState extends ConsumerState<StockPage>
     final suppliersAsync = ref.watch(suppliersListProvider);
 
     ref.listen<StockListQuery>(stockListQueryProvider, (prev, next) {
-      if (prev?.subcategory != next.subcategory) {
-        _subcatCtrl.text = next.subcategory;
-      }
+      if (prev?.subcategory == next.subcategory) return;
+      final text = next.subcategory;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _subcatCtrl.text == text) return;
+        _subcatCtrl.text = text;
+      });
     });
 
     final shellStock = _isShellStockRoot(context);
@@ -168,9 +171,11 @@ class _StockPageState extends ConsumerState<StockPage>
     final lowTabCount = lowN + critN;
 
     ref.listen(stockListProvider, (prev, next) {
-      if (next.hasValue && _loadingMore) {
+      if (!next.hasValue || !_loadingMore) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_loadingMore) return;
         setState(() => _loadingMore = false);
-      }
+      });
     });
 
     return Scaffold(

@@ -46,6 +46,7 @@ def apply_sqlite_bootstrap(sync_conn) -> None:
     _ensure_platform_integration_razorpay(sync_conn)
     _ensure_businesses_branding(sync_conn)
     _ensure_users_ai_budget_columns(sync_conn)
+    _ensure_users_modern_columns(sync_conn)
     _ensure_catalog_items_type_id(sync_conn)
     _ensure_catalog_items_item_code(sync_conn)
     _ensure_supplier_wholesale_columns(sync_conn)
@@ -58,6 +59,7 @@ def apply_sqlite_bootstrap(sync_conn) -> None:
     _ensure_trade_purchases_delivery_columns(sync_conn)
     _ensure_trade_purchase_line_columns(sync_conn)
     _ensure_catalog_items_smart_unit_columns(sync_conn)
+    _ensure_catalog_items_stock_columns(sync_conn)
     logger.info("SQLite bootstrap: create_all + legacy column patches complete")
 
 
@@ -154,6 +156,26 @@ def _ensure_users_ai_budget_columns(sync_conn):
         sync_conn.exec_driver_sql(
             "ALTER TABLE users ADD COLUMN ai_tokens_used_month INTEGER DEFAULT 0 NOT NULL"
         )
+
+
+def _ensure_users_modern_columns(sync_conn):
+    """Patch legacy SQLite users table for auth session fields."""
+    insp = inspect(sync_conn)
+    if not insp.has_table("users"):
+        return
+    cols = {c["name"] for c in insp.get_columns("users")}
+    if "is_active" not in cols:
+        sync_conn.exec_driver_sql(
+            "ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"
+        )
+    if "last_login_at" not in cols:
+        sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN last_login_at DATETIME NULL")
+    if "last_active_at" not in cols:
+        sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN last_active_at DATETIME NULL")
+    if "device_info" not in cols:
+        sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN device_info JSON NULL")
+    if "created_by" not in cols:
+        sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN created_by CHAR(32) NULL")
 
 
 def _ensure_catalog_items_type_id(sync_conn):
@@ -516,6 +538,33 @@ def _ensure_catalog_items_smart_unit_columns(sync_conn):
             sync_conn.exec_driver_sql(sql)
         except Exception:  # noqa: BLE001
             pass
+
+
+def _ensure_catalog_items_stock_columns(sync_conn):
+    """Stock inventory columns on catalog_items (see sql/021_stock_inventory.sql)."""
+    insp = inspect(sync_conn)
+    if not insp.has_table("catalog_items"):
+        return
+    cols = {c["name"] for c in insp.get_columns("catalog_items")}
+    alters: list[str] = []
+    if "current_stock" not in cols:
+        alters.append("ALTER TABLE catalog_items ADD COLUMN current_stock NUMERIC(12,3) DEFAULT 0")
+    if "reorder_level" not in cols:
+        alters.append("ALTER TABLE catalog_items ADD COLUMN reorder_level NUMERIC(12,3) DEFAULT 0")
+    if "rack_location" not in cols:
+        alters.append("ALTER TABLE catalog_items ADD COLUMN rack_location VARCHAR(100) NULL")
+    if "last_stock_updated_at" not in cols:
+        alters.append("ALTER TABLE catalog_items ADD COLUMN last_stock_updated_at DATETIME NULL")
+    if "last_stock_updated_by" not in cols:
+        alters.append("ALTER TABLE catalog_items ADD COLUMN last_stock_updated_by VARCHAR(255) NULL")
+    import logging
+
+    log = logging.getLogger(__name__)
+    for sql in alters:
+        try:
+            sync_conn.exec_driver_sql(sql)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("sqlite bootstrap catalog_items stock column failed: %s — %s", sql, exc)
 
 
 def _ensure_trade_purchase_line_columns(sync_conn):

@@ -30,38 +30,53 @@ class ShellScreen extends ConsumerStatefulWidget {
 
 class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncShellBranch(widget.navigationShell.currentIndex);
+    });
+  }
+
+  @override
+  void didUpdateWidget(ShellScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final idx = widget.navigationShell.currentIndex;
+    if (oldWidget.navigationShell.currentIndex != idx) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _syncShellBranch(idx);
+      });
+    }
+  }
+
+  void _syncShellBranch(int idx) {
+    if (!mounted) return;
+    final prev = ref.read(shellCurrentBranchProvider);
+    if (prev == idx) return;
+    ref.read(shellCurrentBranchProvider.notifier).state = idx;
+    switch (idx) {
+      case ShellBranch.home:
+        ref.invalidate(homeDashboardDataProvider);
+        ref.invalidate(homeShellReportsProvider);
+        break;
+      case ShellBranch.history:
+        invalidateTradePurchaseCaches(ref);
+        break;
+      case ShellBranch.reports:
+        ref.invalidate(reportsPurchasesPayloadProvider);
+        break;
+      case ShellBranch.stock:
+        ref.invalidate(stockListProvider);
+        ref.invalidate(stockAlertCountsProvider);
+        break;
+      default:
+        break;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final navigationShell = widget.navigationShell;
     final idx = navigationShell.currentIndex;
-    final prevBranch = ref.read(shellCurrentBranchProvider);
-    // Apply in the same frame as [navigationShell.currentIndex]. A post-frame
-    // update was too late: [tradePurchasesListProvider] watches this value and
-    // returned an empty list while the History tab was already visible, so the
-    // purchase list / loading UI stayed blank despite a 200 from the API.
-    if (prevBranch != idx) {
-      ref.read(shellCurrentBranchProvider.notifier).state = idx;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!context.mounted) return;
-        switch (idx) {
-          case ShellBranch.home:
-            ref.invalidate(homeDashboardDataProvider);
-            ref.invalidate(homeShellReportsProvider);
-            break;
-          case ShellBranch.history:
-            invalidateTradePurchaseCaches(ref);
-            break;
-          case ShellBranch.reports:
-            ref.invalidate(reportsPurchasesPayloadProvider);
-            break;
-          case ShellBranch.stock:
-            ref.invalidate(stockListProvider);
-            ref.invalidate(stockAlertCountsProvider);
-            break;
-          default:
-            break;
-        }
-      });
-    }
     final routePath = GoRouterState.of(context).uri.path;
     final conn = ref.watch(connectivityResultsProvider);
     final offline =
@@ -70,6 +85,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
     void go(int branch) {
       HapticFeedback.selectionClick();
+      _syncShellBranch(branch);
       navigationShell.goBranch(branch);
     }
 

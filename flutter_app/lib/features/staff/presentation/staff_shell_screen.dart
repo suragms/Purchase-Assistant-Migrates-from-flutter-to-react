@@ -26,27 +26,46 @@ class StaffShellScreen extends ConsumerStatefulWidget {
 
 class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncStaffBranch(widget.navigationShell.currentIndex);
+    });
+  }
+
+  @override
+  void didUpdateWidget(StaffShellScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final idx = widget.navigationShell.currentIndex;
+    if (oldWidget.navigationShell.currentIndex != idx) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _syncStaffBranch(idx);
+      });
+    }
+  }
+
+  void _syncStaffBranch(int idx) {
+    if (!mounted) return;
+    final prev = ref.read(staffShellCurrentBranchProvider);
+    if (prev == idx) return;
+    ref.read(staffShellCurrentBranchProvider.notifier).state = idx;
+    switch (idx) {
+      case StaffShellBranch.home:
+        ref.invalidate(homeDashboardDataProvider);
+        break;
+      case StaffShellBranch.stock:
+        ref.invalidate(stockListProvider);
+        ref.invalidate(stockLowCountProvider);
+        break;
+      default:
+        break;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final navigationShell = widget.navigationShell;
     final idx = navigationShell.currentIndex;
-    final prev = ref.read(staffShellCurrentBranchProvider);
-    if (prev != idx) {
-      ref.read(staffShellCurrentBranchProvider.notifier).state = idx;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!context.mounted) return;
-        switch (idx) {
-          case StaffShellBranch.home:
-            ref.invalidate(homeDashboardDataProvider);
-            break;
-          case StaffShellBranch.stock:
-            ref.invalidate(stockListProvider);
-            ref.invalidate(stockLowCountProvider);
-            break;
-          default:
-            break;
-        }
-      });
-    }
 
     final conn = ref.watch(connectivityResultsProvider);
     final offline =
@@ -54,6 +73,7 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
 
     void go(int branch) {
       HapticFeedback.selectionClick();
+      _syncStaffBranch(branch);
       navigationShell.goBranch(branch);
     }
 

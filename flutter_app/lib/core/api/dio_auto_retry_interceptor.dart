@@ -22,8 +22,9 @@ class DioAutoRetryInterceptor extends Interceptor {
         t == DioExceptionType.receiveTimeout) {
       return true;
     }
-    final sc = err.response?.statusCode;
-    return sc == 502 || sc == 503 || sc == 504 || sc == 500;
+  final sc = err.response?.statusCode;
+    // 503 here is usually local DB/schema outage — retrying multiplies console noise.
+    return sc == 502 || sc == 504 || sc == 500;
   }
 
   @override

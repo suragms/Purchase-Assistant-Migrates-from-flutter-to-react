@@ -794,18 +794,24 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final container = ProviderScope.containerOf(context, listen: false);
-    if (container.read(shellCurrentBranchProvider) != ShellBranch.history) {
-      container.read(shellCurrentBranchProvider.notifier).state = ShellBranch.history;
-    }
-    
-    final routerState = GoRouterState.of(context);
+    // IndexedStack keeps History mounted off-screen; never force shell branch here
+    // (that fought Stock/Home tab selection and tripped Riverpod during build).
+    final shell = StatefulNavigationShell.maybeOf(context);
+    if (shell?.currentIndex != ShellBranch.history) return;
 
+    final routerState = GoRouterState.of(context);
     final raw = routerState.uri.queryParameters['filter'];
     final f = (raw == null || raw.isEmpty) ? 'all' : raw.toLowerCase();
     if (f == _lastRouteFilter) return;
     _lastRouteFilter = f;
-    _syncFilterFromRoute();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (StatefulNavigationShell.maybeOf(context)?.currentIndex !=
+          ShellBranch.history) {
+        return;
+      }
+      _syncFilterFromRoute();
+    });
   }
 
   void _syncFilterFromRoute() {
