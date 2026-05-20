@@ -54,7 +54,10 @@ class _KeyboardAwareSuggestionOverlayState
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.translucent,
-                onTap: widget.controller.hide,
+                onTap: () {
+                  if (!widget.controller.isShowing) return;
+                  widget.controller.hide();
+                },
                 child: const ColoredBox(color: Colors.transparent),
               ),
             ),

@@ -8,7 +8,7 @@ import '../utils/currency_utils.dart';
 /// Posts staff actions to `/activity-log` (login, purchases, stock, etc.).
 class StaffActivityLogger {
   static Future<void> log(
-    Ref ref, {
+    dynamic ref, {
     required String actionType,
     String? itemId,
     String? itemName,
@@ -28,19 +28,19 @@ class StaffActivityLogger {
     } catch (_) {}
   }
 
-  static Future<void> logStaffLogin(Ref ref) async {
+  static Future<void> logStaffLogin(dynamic ref) async {
     final session = ref.read(sessionProvider);
     if (session == null || !sessionIsStaff(session)) return;
     await log(ref, actionType: 'STAFF_LOGIN');
   }
 
-  static Future<void> logStaffLogout(Ref ref) async {
+  static Future<void> logStaffLogout(dynamic ref) async {
     final session = ref.read(sessionProvider);
     if (session == null || !sessionIsStaff(session)) return;
     await log(ref, actionType: 'STAFF_LOGOUT');
   }
 
-  static Future<void> logPurchase(Ref ref, Map<String, dynamic> saved) async {
+  static Future<void> logPurchase(dynamic ref, Map<String, dynamic> saved) async {
     final session = ref.read(sessionProvider);
     if (session == null || !sessionIsStaff(session)) return;
     final hid = saved['human_id']?.toString();

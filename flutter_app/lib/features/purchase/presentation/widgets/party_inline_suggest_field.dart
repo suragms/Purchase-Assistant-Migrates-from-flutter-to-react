@@ -536,68 +536,91 @@ class _PartyInlineSuggestFieldState extends State<PartyInlineSuggestField> {
     return false;
   }
 
+  void _hideSuggestionOverlay() {
+    if (!widget.suggestionsAsOverlay) return;
+    _overlayStayOpenUntilDismiss = false;
+    if (_overlayController.isShowing) {
+      _overlayController.hide();
+    }
+  }
+
   void _pick(InlineSearchItem it, {bool keepFocus = true}) {
     if (_consumeIfDuplicatePick(it)) return;
     _cancelSuggestPanelGrace();
-    _overlayStayOpenUntilDismiss = false;
     _filterDebounceTimer?.cancel();
     _revealDebounceTimer?.cancel();
     _suppressPanelAfterPick = true;
     _lastPickedLabel = it.label.trim();
     _filterQuery = it.label.trim().toLowerCase();
 
-    // Call parent before updating [controller]: the parent's text listener may run
-    // synchronously on controller changes; if [onSelected] commits the new catalog
-    // id after the text update, a stale id can still be set and the listener clears
-    // selection (label vs previous row name mismatch).
-    if (widget.onSelected != null) {
-      widget.onSelected!.call(it);
-    }
-    HapticFeedback.selectionClick();
-
-    widget.controller.value = TextEditingValue(
-      text: it.label,
-      selection: TextSelection.collapsed(offset: it.label.length),
-    );
-
-    // Rebuild to hide the panel
-    if (mounted) setState(() {});
-    _scheduleOverlaySync();
-
-    if (kDebugMode) {
-      final tag = widget.debugLabel != null ? ' ${widget.debugLabel}' : '';
-      debugPrint('[PartySuggest$tag] pick id="${it.id}" label="${it.label}" '
-          'focusNext=${widget.focusAfterSelection != null} keepFocus=$keepFocus');
+    final usedOverlay = widget.suggestionsAsOverlay && _overlayController.isShowing;
+    if (usedOverlay) {
+      _hideSuggestionOverlay();
     }
 
-    // Focus hand-off AFTER parent is notified — deferred avoids gesture/blur swallowing taps.
-    if (!keepFocus) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        final next = widget.focusAfterSelection;
-        if (next != null) {
-          FocusScope.of(context).requestFocus(next);
-        } else {
-          widget.focusNode.unfocus();
-          FocusManager.instance.primaryFocus?.unfocus();
-        }
-      });
+    void applyPick() {
+      if (!mounted) return;
+      // Parent before [controller] — avoids listener clearing selection on label mismatch.
+      widget.onSelected?.call(it);
+      HapticFeedback.selectionClick();
+
+      widget.controller.value = TextEditingValue(
+        text: it.label,
+        selection: TextSelection.collapsed(offset: it.label.length),
+      );
+
+      if (mounted) setState(() {});
+      if (!usedOverlay) {
+        _scheduleOverlaySync();
+      }
+
+      if (kDebugMode) {
+        final tag = widget.debugLabel != null ? ' ${widget.debugLabel}' : '';
+        debugPrint('[PartySuggest$tag] pick id="${it.id}" label="${it.label}" '
+            'focusNext=${widget.focusAfterSelection != null} keepFocus=$keepFocus');
+      }
+
+      if (!keepFocus) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final next = widget.focusAfterSelection;
+          if (next != null) {
+            FocusScope.of(context).requestFocus(next);
+          } else {
+            widget.focusNode.unfocus();
+            FocusManager.instance.primaryFocus?.unfocus();
+          }
+        });
+      }
+    }
+
+    // Web: hide overlay first frame, then commit — avoids semantics simulateTap on
+    // disposed InkWell children ("inactive element" / wrong build scope).
+    if (usedOverlay) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => applyPick());
+    } else {
+      applyPick();
     }
   }
 
   Widget _buildSuggestionTile(ColorScheme cs, InlineSearchItem it) {
     void commit() => _pick(it, keepFocus: false);
-    return Material(
-      type: MaterialType.transparency,
-      color: cs.surface,
-      child: InkWell(
-        onTap: commit,
-        hoverColor: cs.primary.withValues(alpha: 0.05),
-        splashColor: cs.primary.withValues(alpha: 0.10),
-        child: ConstrainedBox(
-          constraints:
-              const BoxConstraints(minHeight: 44, minWidth: double.infinity),
-      child: Padding(
+    return Semantics(
+      button: true,
+      label: it.label,
+      onTap: commit,
+      child: Material(
+        type: MaterialType.transparency,
+        color: cs.surface,
+        child: GestureDetector(
+          onTap: commit,
+          behavior: HitTestBehavior.opaque,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: 44,
+              minWidth: double.infinity,
+            ),
+            child: Padding(
             padding: EdgeInsets.symmetric(
               horizontal: 14,
               vertical: widget.dense ? 8 : 10,
@@ -664,6 +687,7 @@ class _PartyInlineSuggestFieldState extends State<PartyInlineSuggestField> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -673,35 +697,40 @@ class _PartyInlineSuggestFieldState extends State<PartyInlineSuggestField> {
       return const SizedBox.shrink();
     }
     void invoke() {
+      _hideSuggestionOverlay();
       widget.focusNode.unfocus();
       FocusManager.instance.primaryFocus?.unfocus();
-      // One post-frame hop (no extra 80ms delay): stacked delays made web taps
-      // feel dead and could race rebuilds before [Navigator.push] in the wizard.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         cb();
       });
     }
 
-    return Material(
-      type: MaterialType.transparency,
-      color: cs.surface,
-      child: InkWell(
-        onTap: invoke,
-        hoverColor: cs.primary.withValues(alpha: 0.06),
-        splashColor: cs.primary.withValues(alpha: 0.12),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48, minWidth: double.infinity),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                widget.addRowLabel ?? '',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                  color: cs.primary,
+    final label = widget.addRowLabel ?? 'Add';
+    return Semantics(
+      button: true,
+      label: label,
+      onTap: invoke,
+      child: Material(
+        type: MaterialType.transparency,
+        color: cs.surface,
+        child: GestureDetector(
+          onTap: invoke,
+          behavior: HitTestBehavior.opaque,
+          child: ConstrainedBox(
+            constraints:
+                const BoxConstraints(minHeight: 48, minWidth: double.infinity),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    color: cs.primary,
+                  ),
                 ),
               ),
             ),
