@@ -38,16 +38,19 @@ class ReportsItemTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        child: SizedBox(
+          height: 48,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
             CircleAvatar(
-              radius: 22,
+              radius: 18,
               backgroundColor: HexaColors.brandPrimary.withValues(alpha: 0.12),
               child: Text(
                 _initial(row.name),
                 style: HexaDsType.listTitle(context).copyWith(
+                  fontSize: 13,
                   fontWeight: FontWeight.w800,
                   color: HexaColors.brandPrimary,
                 ),
@@ -57,34 +60,42 @@ class ReportsItemTile extends StatelessWidget {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Text(
                     row.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: HexaDsType.listTitle(context).copyWith(
                       fontWeight: FontWeight.w700,
+                      fontSize: 14,
                     ),
                   ),
                   if (qtyLine.isNotEmpty) ...[
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     Text(
                       qtyLine,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        height: 1.25,
+                        height: 1.2,
                         color: Color(0xFF0D9488),
                       ),
                     ),
                   ],
                   if (rateLine.isNotEmpty) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 1),
                     Text(
                       rateLine,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 10,
                         color: HexaColors.textBody,
                         fontWeight: FontWeight.w600,
-                        height: 1.25,
+                        height: 1.2,
                       ),
                     ),
                   ],
@@ -93,11 +104,11 @@ class ReportsItemTile extends StatelessWidget {
             ),
             if (showAmt)
               Padding(
-                padding: const EdgeInsets.only(left: 8, top: 2),
+                padding: const EdgeInsets.only(left: 6),
                 child: Text(
                   _inr0(row.amountInr),
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFF0D9488),
                   ),
@@ -108,6 +119,7 @@ class ReportsItemTile extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

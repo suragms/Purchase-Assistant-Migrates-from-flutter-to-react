@@ -38,9 +38,9 @@
 | FIX-08 | Verify | Item entry sheet + overlay fix (device QA) |
 | FIX-09 | Done | Staff stock update invalidates activity + alert counts |
 | FIX-10 | Done | Barcode lookup 10s timeout + friendly slow message |
-| UX-03 | Partial | Reports PDF menu exists; tab compact labels optional follow-up |
+| UX-03 | Done | Compact 4-col report tabs; ring summary card; PDF actions sheet; `hideTopStatRow` on overview; ~48dp item rows |
 | UX-04 | Done | Item detail collapsible sections |
-| UX-05 | Done | 30x10mm small label preset + tuned fonts |
+| UX-05 | Done | A4 dense barcode grid (margins/gaps + dynamic cols/rows); `Isolate.run` / web path; bulk dense toggle + progress; `run_web_dev.ps1 -WebPort` |
 
 ---
 

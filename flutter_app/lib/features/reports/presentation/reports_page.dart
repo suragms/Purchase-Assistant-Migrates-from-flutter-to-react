@@ -602,6 +602,213 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     );
   }
 
+  String _totalsPackSummaryLine(TradeReportTotals t) {
+    final parts = <String>[];
+    if (t.bags > 1e-9) parts.add('${_qtyReadable(t.bags)} BAGS');
+    if (t.boxes > 1e-9) parts.add('${_qtyReadable(t.boxes)} BOXES');
+    if (t.tins > 1e-9) parts.add('${_qtyReadable(t.tins)} TINS');
+    if (t.kg > 1e-9) parts.add('${_kgReadable(t.kg)} KG');
+    return parts.join(' · ');
+  }
+
+  Widget _ringSummaryCard(
+    TradeReportTotals t,
+    String periodLabel,
+    int purchaseCount,
+    int itemCount,
+    int supplierCount,
+  ) {
+    final tt = Theme.of(context).textTheme;
+    final pack = _totalsPackSummaryLine(t);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 2,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    _inr0(t.inr.round()),
+                    style: tt.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: HexaColors.brandPrimary,
+                    ),
+                  ),
+                ),
+                if (pack.isNotEmpty)
+                  Expanded(
+                    child: Text(
+                      pack,
+                      textAlign: TextAlign.end,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: tt.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: HexaColors.textBody,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              periodLabel,
+              style: tt.labelLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: HexaColors.textBody,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _MetricTile(
+                  label: 'Purchases',
+                  value: '$purchaseCount',
+                ),
+                _MetricTile(
+                  label: 'Items',
+                  value: '$itemCount',
+                ),
+                _MetricTile(
+                  label: 'Suppliers',
+                  value: '$supplierCount',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _compactReportsTabs() {
+    final tt = Theme.of(context).textTheme;
+    Widget cell(ReportsMainTab tab, IconData icon, String shortLabel) {
+      final sel = _mainTab == tab;
+      return Expanded(
+        child: Material(
+          color: sel
+              ? HexaColors.brandPrimary.withValues(alpha: 0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.selectionClick();
+              setState(() {
+                _mainTab = tab;
+                _visibleCap = 40;
+              });
+            },
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    icon,
+                    size: 17,
+                    color: sel ? HexaColors.brandPrimary : HexaColors.textBody,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    shortLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: tt.labelSmall?.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      color: sel ? HexaColors.brandPrimary : HexaColors.textBody,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        cell(ReportsMainTab.overview, Icons.donut_large_rounded, 'Ring'),
+        cell(ReportsMainTab.items, Icons.inventory_2_outlined, 'Items'),
+        cell(ReportsMainTab.suppliers, Icons.storefront_outlined, 'Supp'),
+        cell(ReportsMainTab.brokers, Icons.handshake_outlined, 'Brokers'),
+      ],
+    );
+  }
+
+  void _openReportsPdfSheet(List<TradePurchase> merged) {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf_outlined),
+              title: const Text('Full report PDF'),
+              subtitle: const Text('Statement for current date range'),
+              onTap: () {
+                Navigator.pop(ctx);
+                unawaited(_shareStatementPdf(merged));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.table_rows_rounded),
+              title: const Text('Export CSV'),
+              subtitle: const Text('Items, suppliers, or brokers'),
+              onTap: () {
+                Navigator.pop(ctx);
+                setState(() => _mainTab = ReportsMainTab.items);
+                final range = ref.read(analyticsDateRangeProvider);
+                final mergedNow = ref.read(reportsPurchasesMergedProvider);
+                final aggList = ref.read(reportsAggregateProvider);
+                final aggForExport = _aggForList(aggList, aggList);
+                unawaited(_exportCsv(
+                  purchases: mergedNow,
+                  agg: aggForExport,
+                  range: range,
+                ));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.store_mall_directory_outlined),
+              title: const Text('Supplier statement'),
+              subtitle: const Text('Open Contacts → pick a supplier'),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.go('/contacts');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.inventory_2_outlined),
+              title: const Text('Stock report'),
+              subtitle: const Text('View stock levels and filters'),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.go('/stock');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _supplierTile(
     String name,
     String line2, {
@@ -1058,6 +1265,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         backgroundColor: HexaColors.brandBackground,
         foregroundColor: HexaColors.brandPrimary,
         actions: [
+          IconButton(
+            tooltip: 'PDF & export',
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            onPressed: () => _openReportsPdfSheet(merged),
+          ),
           PopupMenuButton<String>(
             onSelected: (v) async {
               if (v == 'pdf') {
@@ -1229,40 +1441,8 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                               _debouncedQuery.trim().isNotEmpty),
                       chrome: _summaryHeader(aggAll.totals, rangeFmt),
                     ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        for (final tab in ReportsMainTab.values)
-                          ChoiceChip(
-                            label: Text(
-                              switch (tab) {
-                                ReportsMainTab.overview => 'Overview',
-                                ReportsMainTab.items => 'Items',
-                                ReportsMainTab.suppliers => 'Suppliers',
-                                ReportsMainTab.brokers => 'Brokers',
-                              },
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            selected: _mainTab == tab,
-                            onSelected: (_) {
-                              HapticFeedback.selectionClick();
-                              setState(() {
-                                _mainTab = tab;
-                                _visibleCap = 40;
-                              });
-                            },
-                            showCheckmark: false,
-                            visualDensity: VisualDensity.compact,
-                            materialTapTargetSize:
-                                MaterialTapTargetSize.shrinkWrap,
-                          ),
-                      ],
-                    ),
+                    const SizedBox(height: 8),
+                    _compactReportsTabs(),
                     if (_mainTab == ReportsMainTab.items) ...[
                       const SizedBox(height: 6),
                       SizedBox(
@@ -1348,6 +1528,18 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         ),
                       ),
                     ],
+                    if (_mainTab == ReportsMainTab.overview &&
+                        !showSkeleton &&
+                        !(hasFetchError && merged.isEmpty)) ...[
+                      const SizedBox(height: 8),
+                      _ringSummaryCard(
+                        aggAll.totals,
+                        '${_presetLabel(_preset)} · $rangeFmt',
+                        merged.length,
+                        aggAll.itemsAll.length,
+                        aggAll.suppliers.length,
+                      ),
+                    ],
                     if (_mainTab == ReportsMainTab.overview) ...[
                       const SizedBox(height: 4),
                       ReportsOverviewChartSection(
@@ -1358,6 +1550,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         loadError: purchasesAsync.error,
                         isEmpty: showEmpty,
                         canRetry: true,
+                        hideTopStatRow: true,
                         onRetry: () {
                           _bumpInvalidate();
                         },

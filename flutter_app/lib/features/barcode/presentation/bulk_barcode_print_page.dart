@@ -30,6 +30,8 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
   String _filterStatus = 'all';
   String _searchText = '';
   bool _busy = false;
+  bool _denseA4 = true;
+  String? _pdfStatus;
 
   @override
   void initState() {
@@ -63,14 +65,30 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
   }
 
   Future<Uint8List?> _buildPdf() async {
+    setState(() => _pdfStatus = 'Fetching labels…');
     final batch = await _fetchLabels();
-    if (batch.isEmpty) return null;
-    return BarcodePdfService.generateBatch(
-      items: batch,
-      size: _size,
-      copiesPerItem: _copies,
-      labelsPerRow: _perRow,
-    );
+    if (batch.isEmpty) {
+      if (mounted) setState(() => _pdfStatus = null);
+      return null;
+    }
+    setState(() => _pdfStatus = 'Generating PDF…');
+    try {
+      if (_denseA4) {
+        return BarcodePdfService.generateBatchA4Dense(
+          items: batch,
+          size: _size,
+          copiesPerItem: _copies,
+        );
+      }
+      return BarcodePdfService.generateBatch(
+        items: batch,
+        size: _size,
+        copiesPerItem: _copies,
+        labelsPerRow: _perRow,
+      );
+    } finally {
+      if (mounted) setState(() => _pdfStatus = null);
+    }
   }
 
   Future<void> _preview() async {
@@ -365,6 +383,15 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (_pdfStatus != null) ...[
+                      LinearProgressIndicator(minHeight: 3),
+                      const SizedBox(height: 6),
+                      Text(
+                        _pdfStatus!,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     Row(
                       children: [
                         Expanded(
@@ -388,17 +415,34 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                                 setState(() => _size = s.first),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        SegmentedButton<int>(
-                          segments: const [
-                            ButtonSegment(value: 2, label: Text('2/row')),
-                            ButtonSegment(value: 3, label: Text('3/row')),
-                          ],
-                          selected: {_perRow},
-                          onSelectionChanged: (s) =>
-                              setState(() => _perRow = s.first),
-                        ),
+                        if (!_denseA4) ...[
+                          const SizedBox(width: 8),
+                          SegmentedButton<int>(
+                            segments: const [
+                              ButtonSegment(value: 2, label: Text('2/row')),
+                              ButtonSegment(value: 3, label: Text('3/row')),
+                            ],
+                            selected: {_perRow},
+                            onSelectionChanged: (s) =>
+                                setState(() => _perRow = s.first),
+                          ),
+                        ],
                       ],
+                    ),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      dense: true,
+                      title: const Text('A4 dense grid'),
+                      subtitle: Text(
+                        _denseA4
+                            ? 'Max labels per page (5mm margin, 2mm gap)'
+                            : 'Classic layout: labels per row on A4',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      value: _denseA4,
+                      onChanged: _busy
+                          ? null
+                          : (v) => setState(() => _denseA4 = v),
                     ),
                     const SizedBox(height: 8),
                     Row(

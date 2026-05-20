@@ -14,16 +14,18 @@
 #    Or open http://127.0.0.1:8000/docs — if it does not load, Flutter will show connection errors.
 # 2) Run (debug):  .\run_web_dev.ps1
 #    Run (fast):   .\run_web_dev.ps1 -Release
+#    Port in use:  .\run_web_dev.ps1 -WebPort 8081
 
 param(
-  [switch] $Release
+  [switch] $Release,
+  [int] $WebPort = 8080
 )
 
 Set-Location $PSScriptRoot
 
 $flutterArgs = @(
   'run', '-d', 'chrome',
-  '--web-port', '8080',
+  '--web-port', "$WebPort",
   '--no-web-resources-cdn',
   '--dart-define=API_BASE_URL=http://127.0.0.1:8000'
 )

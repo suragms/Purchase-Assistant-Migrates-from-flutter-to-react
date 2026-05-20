@@ -33,6 +33,7 @@ class ReportsOverviewChartSection extends ConsumerWidget {
     required this.onRetry,
     required this.onMatchHome,
     required this.onPickRange,
+    this.hideTopStatRow = false,
   });
 
   final TradeReportAgg agg;
@@ -45,6 +46,8 @@ class ReportsOverviewChartSection extends ConsumerWidget {
   final VoidCallback onRetry;
   final VoidCallback onMatchHome;
   final VoidCallback onPickRange;
+  /// When true, skip the duplicate Total / item-count strip (parent shows summary card).
+  final bool hideTopStatRow;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -163,24 +166,26 @@ class ReportsOverviewChartSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _OverviewStatCard(
-                label: 'Total',
-                value: _inr0(t.inr.round()),
+        if (!hideTopStatRow) ...[
+          Row(
+            children: [
+              Expanded(
+                child: _OverviewStatCard(
+                  label: 'Total',
+                  value: _inr0(t.inr.round()),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _OverviewStatCard(
-                label: 'Purchased',
-                value: '${agg.itemsAll.length} items',
+              const SizedBox(width: 10),
+              Expanded(
+                child: _OverviewStatCard(
+                  label: 'Purchased',
+                  value: '${agg.itemsAll.length} items',
+                ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
         catsAsync.when(
           loading: () => _chartPlaceholder(chartSize),
           error: (_, __) => const SizedBox.shrink(),

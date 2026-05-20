@@ -1,6 +1,8 @@
-import 'dart:typed_data';
+import 'dart:isolate';
+import 'dart:math' as math;
 
 import 'package:barcode/barcode.dart';
+import 'package:flutter/foundation.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -26,6 +28,35 @@ class BarcodeLabelData {
   final double? lastPurchaseQty;
   final String? lastPurchaseUnit;
   final double? lastPurchaseRate;
+
+  Map<String, dynamic> toJson() => {
+        'itemCode': itemCode,
+        'itemName': itemName,
+        'unit': unit,
+        'currentStock': currentStock,
+        'lastPurchaseDate': lastPurchaseDate?.toUtc().toIso8601String(),
+        'lastPurchaseQty': lastPurchaseQty,
+        'lastPurchaseUnit': lastPurchaseUnit,
+        'lastPurchaseRate': lastPurchaseRate,
+      };
+
+  factory BarcodeLabelData.fromJson(Map<String, dynamic> j) {
+    DateTime? lpDate;
+    final lpRaw = j['lastPurchaseDate'];
+    if (lpRaw is String && lpRaw.isNotEmpty) {
+      lpDate = DateTime.tryParse(lpRaw);
+    }
+    return BarcodeLabelData(
+      itemCode: j['itemCode'] as String? ?? '',
+      itemName: j['itemName'] as String? ?? '',
+      unit: j['unit'] as String?,
+      currentStock: (j['currentStock'] as num?)?.toDouble(),
+      lastPurchaseDate: lpDate,
+      lastPurchaseQty: (j['lastPurchaseQty'] as num?)?.toDouble(),
+      lastPurchaseUnit: j['lastPurchaseUnit'] as String?,
+      lastPurchaseRate: (j['lastPurchaseRate'] as num?)?.toDouble(),
+    );
+  }
 
   static BarcodeLabelData? fromApiMap(Map<String, dynamic> j) {
     final code = j['item_code']?.toString() ?? '';
@@ -152,6 +183,136 @@ class BarcodePdfService {
                 pw.Expanded(child: pw.SizedBox()),
             ],
           ),
+        ),
+      );
+    }
+    return doc.save();
+  }
+
+  /// Maximizes labels per A4 page: 5mm margins, 2mm gaps; cell size 30×10 (S),
+  /// 50×25 (M), 80×40 (L). Runs off the UI thread on VM via [Isolate.run].
+  static Future<Uint8List> generateBatchA4Dense({
+    required List<BarcodeLabelData> items,
+    LabelSize size = LabelSize.medium,
+    int copiesPerItem = 1,
+    bool showLastPurchase = true,
+  }) async {
+    final expanded = <BarcodeLabelData>[];
+    for (final data in items) {
+      for (var c = 0; c < copiesPerItem; c++) {
+        expanded.add(data);
+      }
+    }
+    if (expanded.isEmpty) {
+      return pw.Document().save();
+    }
+    final payload = <String, dynamic>{
+      'labels': [for (final e in expanded) e.toJson()],
+      'size': size.index,
+      'showLastPurchase': showLastPurchase,
+    };
+    if (kIsWeb) {
+      return _barcodeA4DenseFromPayload(payload);
+    }
+    return Isolate.run(() => _barcodeA4DenseFromPayload(payload));
+  }
+
+  static (double wMm, double hMm) a4DenseCellMm(LabelSize size) => switch (size) {
+        LabelSize.small => (30.0, 10.0),
+        LabelSize.medium => (50.0, 25.0),
+        LabelSize.large => (80.0, 40.0),
+      };
+
+  /// PDF builder for [Isolate.run] / web (uses async [pw.Document.save]).
+  static Future<Uint8List> buildA4DenseGridPdf(Map<String, dynamic> payload) async {
+    final rawList = payload['labels'] as List<dynamic>;
+    final labels = <BarcodeLabelData>[
+      for (final e in rawList)
+        BarcodeLabelData.fromJson(Map<String, dynamic>.from(e as Map)),
+    ];
+    final sizeIdx = (payload['size'] as int?) ?? 1;
+    final size = LabelSize.values[sizeIdx.clamp(0, LabelSize.values.length - 1)];
+    final showLastPurchase = payload['showLastPurchase'] as bool? ?? true;
+
+    final mm = PdfPageFormat.mm;
+    const margin = 5.0 * PdfPageFormat.mm;
+    const gap = 2.0 * PdfPageFormat.mm;
+    final (lwMm, lhMm) = a4DenseCellMm(size);
+    final labelW = lwMm * mm;
+    final labelH = lhMm * mm;
+    const sheet = PdfPageFormat.a4;
+    final innerW = sheet.width - 2 * margin;
+    final innerH = sheet.height - 2 * margin;
+    final cols = math.max(1, ((innerW + gap) / (labelW + gap)).floor());
+    final rows = math.max(1, ((innerH + gap) / (labelH + gap)).floor());
+    final perPage = cols * rows;
+
+    final doc = pw.Document();
+    for (var base = 0; base < labels.length; base += perPage) {
+      final chunk = labels.sublist(base, math.min(base + perPage, labels.length));
+      doc.addPage(
+        pw.Page(
+          pageFormat: sheet,
+          margin: const pw.EdgeInsets.all(margin),
+          build: (ctx) {
+            final pageRows = <pw.Widget>[];
+            for (var r = 0; r < rows; r++) {
+              final rowCells = <pw.Widget>[];
+              for (var c = 0; c < cols; c++) {
+                final idx = r * cols + c;
+                final right = c < cols - 1 ? gap : 0.0;
+                final bottom = r < rows - 1 ? gap : 0.0;
+                if (idx < chunk.length) {
+                  rowCells.add(
+                    pw.Padding(
+                      padding: pw.EdgeInsets.only(right: right, bottom: bottom),
+                      child: pw.Container(
+                        width: labelW,
+                        height: labelH,
+                        padding: const pw.EdgeInsets.all(0.5),
+                        decoration: pw.BoxDecoration(
+                          border: pw.Border.all(
+                            color: PdfColors.grey400,
+                            width: 0.25,
+                          ),
+                        ),
+                        child: pw.FittedBox(
+                          fit: pw.BoxFit.scaleDown,
+                          alignment: pw.Alignment.topCenter,
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                            mainAxisSize: pw.MainAxisSize.min,
+                            children: _labelBody(
+                              data: chunk[idx],
+                              size: size,
+                              showLastPurchase: showLastPurchase,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                } else {
+                  rowCells.add(
+                    pw.Padding(
+                      padding: pw.EdgeInsets.only(right: right, bottom: bottom),
+                      child: pw.SizedBox(width: labelW, height: labelH),
+                    ),
+                  );
+                }
+              }
+              pageRows.add(
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: rowCells,
+                ),
+              );
+            }
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: pageRows,
+            );
+          },
         ),
       );
     }
@@ -289,4 +450,9 @@ class BarcodePdfService {
     ];
     return names[m - 1];
   }
+}
+
+/// Top-level for [Isolate.run] (must be a library function).
+Future<Uint8List> _barcodeA4DenseFromPayload(Map<String, dynamic> payload) {
+  return BarcodePdfService.buildA4DenseGridPdf(payload);
 }
