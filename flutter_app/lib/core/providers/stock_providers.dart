@@ -80,6 +80,43 @@ final stockListProvider = FutureProvider.autoDispose((ref) async {
       );
 });
 
+/// Loads **all** stock rows matching [stockListQueryProvider] filters (paged API calls).
+/// Used by bulk barcode print so the list is not limited to the stock screen page size.
+final bulkStockListProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final session = ref.watch(sessionProvider);
+  final query = ref.watch(stockListQueryProvider);
+  if (session == null) {
+    return {'items': <Map<String, dynamic>>[], 'total': 0, 'loaded': 0};
+  }
+  final api = ref.read(hexaApiProvider);
+  const pageSize = 500;
+  var page = 1;
+  final merged = <Map<String, dynamic>>[];
+  var total = 0;
+  while (page <= 40) {
+    final res = await api.listStock(
+      businessId: session.primaryBusiness.id,
+      page: page,
+      perPage: pageSize,
+      q: query.q,
+      category: query.category,
+      subcategory: query.subcategory,
+      status: query.status,
+      sort: query.sort,
+    );
+    total = (res['total'] as num?)?.toInt() ?? 0;
+    final raw = (res['items'] as List?) ?? const [];
+    if (raw.isEmpty) break;
+    for (final e in raw) {
+      if (e is Map) merged.add(Map<String, dynamic>.from(e));
+    }
+    if (merged.length >= total) break;
+    page++;
+  }
+  return {'items': merged, 'total': total, 'loaded': merged.length};
+});
+
 /// Stock row + recent purchases for catalog item detail / sheets.
 final stockItemDetailProvider =
     FutureProvider.autoDispose.family<Map<String, dynamic>, String>(

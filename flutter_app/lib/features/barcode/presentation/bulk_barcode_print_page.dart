@@ -34,17 +34,6 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
   String? _pdfStatus;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final cur = ref.read(stockListQueryProvider);
-      ref.read(stockListQueryProvider.notifier).state =
-          cur.copyWith(perPage: 2000, page: 1);
-    });
-  }
-
-  @override
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
@@ -53,14 +42,25 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
   Future<List<BarcodeLabelData>> _fetchLabels() async {
     final session = ref.read(sessionProvider);
     if (session == null || _selected.isEmpty) return [];
-    final labels = await ref.read(hexaApiProvider).barcodeLabelBatch(
-          businessId: session.primaryBusiness.id,
-          itemIds: _selected.toList(),
-        );
+    final ids = _selected.toList();
+    const chunkSize = 200;
+    final api = ref.read(hexaApiProvider);
     final batch = <BarcodeLabelData>[];
-    for (final j in labels) {
-      final label = BarcodeLabelData.fromApiMap(j);
-      if (label != null) batch.add(label);
+    for (var i = 0; i < ids.length; i += chunkSize) {
+      if (!mounted) break;
+      final end = (i + chunkSize < ids.length) ? i + chunkSize : ids.length;
+      setState(
+        () => _pdfStatus =
+            'Fetching labels… ${end.clamp(0, ids.length)}/${ids.length}',
+      );
+      final labels = await api.barcodeLabelBatch(
+        businessId: session.primaryBusiness.id,
+        itemIds: ids.sublist(i, end),
+      );
+      for (final j in labels) {
+        final label = BarcodeLabelData.fromApiMap(j);
+        if (label != null) batch.add(label);
+      }
     }
     return batch;
   }
@@ -223,7 +223,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
   @override
   Widget build(BuildContext context) {
     final listQ = ref.watch(stockListQueryProvider);
-    final listAsync = ref.watch(stockListProvider);
+    final listAsync = ref.watch(bulkStockListProvider);
     final catsAsync = ref.watch(itemCategoriesListProvider);
 
     return Scaffold(
@@ -403,7 +403,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
               error: (e, _) => HexaErrorCard.fromError(
                     error: e,
                     title: 'Could not load items',
-                    onRetry: () => ref.invalidate(stockListProvider),
+                    onRetry: () => ref.invalidate(bulkStockListProvider),
                   ),
               data: (data) {
                 final raw = (data['items'] as List?) ?? const [];
@@ -412,8 +412,9 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                     if (e is Map) Map<String, dynamic>.from(e),
                 ];
                 final visible = _filterItems(items);
-                final totalRaw = data['total'];
-                final total = totalRaw is num ? totalRaw.toInt() : null;
+                final total = (data['total'] as num?)?.toInt();
+                final loaded = (data['loaded'] as num?)?.toInt() ??
+                    items.length;
                 return Column(
                   children: [
                     Padding(
@@ -424,7 +425,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                             child: Text(
                               '${_selected.length} selected · '
                               '${visible.length} shown'
-                              '${total != null ? ' · $total match filter' : ''}',
+                              '${total != null ? ' · $loaded of $total loaded' : ''}',
                               style: const TextStyle(fontWeight: FontWeight.w800),
                             ),
                           ),
@@ -520,6 +521,14 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                       ),
                       const SizedBox(height: 8),
                     ],
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Label size',
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
                     Row(
                       children: [
                         Expanded(
@@ -527,15 +536,15 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                             segments: const [
                               ButtonSegment(
                                 value: LabelSize.small,
-                                label: Text('S'),
+                                label: Text('Small'),
                               ),
                               ButtonSegment(
                                 value: LabelSize.medium,
-                                label: Text('M'),
+                                label: Text('Medium'),
                               ),
                               ButtonSegment(
                                 value: LabelSize.large,
-                                label: Text('L'),
+                                label: Text('Large'),
                               ),
                             ],
                             selected: {_size},
