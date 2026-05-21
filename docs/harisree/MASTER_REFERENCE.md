@@ -517,18 +517,18 @@ ROUTE                          PAGE FILE                          ROLE    STATUS
 ──────────────────────────────────────────────────────────────────────────────
 /splash                        splash_page.dart                   all     ✅ done
 /get-started                   get_started_page.dart              anon    ✅ done
-/login                         login_page.dart                    anon    ✅ done
+/login                         login_page.dart                    anon    ✅ done (username or phone + password; API `identifier` field)
 /forgot-password               forgot_password_page.dart          anon    ✅ done
 
 ── OWNER / MANAGER SHELL ──────────────────────────────────────────────────────
-/home                          home_page.dart                     owner   ✅ done (2026-05-21 dense rebuild: period chips, compact KPI, grouped recent changes)
+/home                          home_page.dart                     owner   ✅ done (2026-05-21 pie analytics: inventory summary API, ring+breakdown card, alert banner, collapsible feeds)
 /stock                         stock_page.dart                    all     ✅ done (5-tab, swipe, who-edited, health badge)
 /reports                       reports_page.dart                  owner   ✅ done (KEEP RING CHART)
 /purchase                      purchase_home_page.dart            all     ✅ done
 /search                        search_page.dart                   all     ✅ done
 
 ── STAFF SHELL ────────────────────────────────────────────────────────────────
-/staff/home                    staff_home_page.dart               staff   ✅ done, needs polish
+/staff/home                    staff_dashboard_page.dart          staff   ✅ done (alias of staff home; staff blocked from /reports and /settings/users)
 /staff/search                  (reuses search_page.dart)          staff   ✅ done
 /staff/stock                   (reuses stock_page.dart)           staff   ✅ done
 
@@ -576,7 +576,7 @@ ROUTE                          PAGE FILE                          ROLE    STATUS
 ── SETTINGS ───────────────────────────────────────────────────────────────────
 /settings                      settings_page.dart                 owner   ✅ done (1778 lines)
 /settings/users                user_management_page.dart          owner   ✅ done
-/settings/users/:id            user_detail_page.dart              owner   ✅ done
+/settings/users/:id            user_profile_page.dart             owner   ✅ done (7 tabs: overview, activity, stock, purchases, items, ledger, permissions)
 /settings/backup               backup_page.dart                   owner   ✅ done
 
 ── ADMIN ──────────────────────────────────────────────────────────────────────

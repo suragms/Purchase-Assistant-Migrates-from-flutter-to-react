@@ -292,11 +292,13 @@ class HexaApi {
     );
   }
 
-  Future<({String access, String refresh})> login(
-      {required String email, required String password}) async {
+  Future<({String access, String refresh})> login({
+    required String identifier,
+    required String password,
+  }) async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/v1/auth/login',
-      data: {'email': email, 'password': password},
+      data: {'identifier': identifier.trim(), 'password': password},
     );
     return _tokenPairFromResponse(res);
   }
@@ -467,6 +469,8 @@ class HexaApi {
     required String phone,
     required String role,
     String? password,
+    String? username,
+    String? notes,
     bool isActive = true,
   }) async {
     final res = await _dio.post<Map<String, dynamic>>(
@@ -477,9 +481,111 @@ class HexaApi {
         'role': role,
         'is_active': isActive,
         if (password != null && password.trim().isNotEmpty) 'password': password.trim(),
+        if (username != null && username.trim().isNotEmpty) 'username': username.trim(),
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
       },
     );
     return res.data ?? {};
+  }
+
+  Future<Map<String, dynamic>> patchBusinessUser({
+    required String businessId,
+    required String userId,
+    String? fullName,
+    String? phone,
+    String? role,
+    bool? isActive,
+    String? notes,
+  }) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/users/$userId',
+      data: {
+        if (fullName != null) 'full_name': fullName.trim(),
+        if (phone != null) 'phone': phone.trim(),
+        if (role != null) 'role': role,
+        if (isActive != null) 'is_active': isActive,
+        if (notes != null) 'notes': notes.trim(),
+      },
+    );
+    return Map<String, dynamic>.from(res.data ?? const {});
+  }
+
+  Future<List<Map<String, dynamic>>> listUserActivity({
+    required String businessId,
+    required String userId,
+    int days = 30,
+  }) async {
+    final res = await _dio.get<dynamic>(
+      '/v1/businesses/$businessId/activity-log',
+      queryParameters: {'user_id': userId, 'days': days, 'per_page': 100},
+    );
+    final data = res.data;
+    if (data is! List) return [];
+    return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> listUserStockAdjustments({
+    required String businessId,
+    required String userId,
+    int limit = 50,
+  }) async {
+    final res = await _dio.get<dynamic>(
+      '/v1/businesses/$businessId/users/$userId/stock-adjustments',
+      queryParameters: {'limit': limit},
+    );
+    final data = res.data;
+    if (data is! List) return [];
+    return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> listUserPurchases({
+    required String businessId,
+    required String userId,
+    int limit = 50,
+  }) async {
+    final res = await _dio.get<dynamic>(
+      '/v1/businesses/$businessId/users/$userId/purchases',
+      queryParameters: {'limit': limit},
+    );
+    final data = res.data;
+    if (data is! List) return [];
+    return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<List<Map<String, dynamic>>> listUserLedger({
+    required String businessId,
+    required String userId,
+    int limit = 80,
+  }) async {
+    final res = await _dio.get<dynamic>(
+      '/v1/businesses/$businessId/users/$userId/ledger',
+      queryParameters: {'limit': limit},
+    );
+    final data = res.data;
+    if (data is! List) return [];
+    return data.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<Map<String, dynamic>> getUserPermissions({
+    required String businessId,
+    required String userId,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/users/$userId/permissions',
+    );
+    return Map<String, dynamic>.from(res.data ?? const {});
+  }
+
+  Future<Map<String, dynamic>> patchUserPermissions({
+    required String businessId,
+    required String userId,
+    required Map<String, bool> permissions,
+  }) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/users/$userId/permissions',
+      data: {'permissions': permissions},
+    );
+    return Map<String, dynamic>.from(res.data ?? const {});
   }
 
   Future<Map<String, dynamic>> getBusinessUser({
@@ -1866,6 +1972,24 @@ class HexaApi {
           'total': 0,
           'page': page,
           'per_page': perPage,
+        };
+  }
+
+  /// On-hand warehouse valuation (landing cost × qty) and unit buckets.
+  Future<Map<String, dynamic>> stockInventorySummary({
+    required String businessId,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/stock/inventory-summary',
+    );
+    return res.data ??
+        <String, dynamic>{
+          'total_value_inr': 0,
+          'bags': 0,
+          'boxes': 0,
+          'tins': 0,
+          'kg': 0,
+          'item_count': 0,
         };
   }
 

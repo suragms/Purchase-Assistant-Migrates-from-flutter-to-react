@@ -30,6 +30,73 @@ def catalog_reorder(item: CatalogItem) -> Decimal:
     return Decimal(item.reorder_level or 0)
 
 
+def catalog_landing_rate(item: CatalogItem) -> Decimal:
+    """Valuation rate for on-hand stock: landing cost only (never selling)."""
+    for raw in (item.default_landing_cost, item.last_purchase_price):
+        if raw is not None:
+            rate = Decimal(raw)
+            if rate > 0:
+                return rate
+    return Decimal(0)
+
+
+def catalog_unit_key(item: CatalogItem) -> str:
+    """Bucket on-hand qty into bags | boxes | tins | kg for dashboard totals."""
+    unit = (
+        (item.stock_unit or item.default_unit or item.selling_unit or "") or ""
+    ).strip().lower()
+    if "bag" in unit:
+        return "bags"
+    if "box" in unit:
+        return "boxes"
+    if "tin" in unit:
+        return "tins"
+    return "kg"
+
+
+async def compute_inventory_summary(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+) -> dict[str, float | int]:
+    """
+    Point-in-time warehouse totals: sum(current_stock * landing rate) and unit buckets.
+    Items without a landing rate still count toward unit buckets but not total_value_inr.
+    """
+    r = await db.execute(
+        select(CatalogItem).where(
+            CatalogItem.business_id == business_id,
+            CatalogItem.deleted_at.is_(None),
+        )
+    )
+    items = list(r.scalars().all())
+    bags = boxes = tins = kg = Decimal(0)
+    total_value = Decimal(0)
+    for item in items:
+        qty = catalog_stock_qty(item)
+        if qty <= 0:
+            continue
+        bucket = catalog_unit_key(item)
+        if bucket == "bags":
+            bags += qty
+        elif bucket == "boxes":
+            boxes += qty
+        elif bucket == "tins":
+            tins += qty
+        else:
+            kg += qty
+        rate = catalog_landing_rate(item)
+        if rate > 0:
+            total_value += qty * rate
+    return {
+        "total_value_inr": float(total_value),
+        "bags": float(bags),
+        "boxes": float(boxes),
+        "tins": float(tins),
+        "kg": float(kg),
+        "item_count": len(items),
+    }
+
+
 async def apply_confirmed_purchase_stock(
     db: AsyncSession,
     business_id: uuid.UUID,

@@ -13,6 +13,7 @@ from app.config import Settings, get_settings
 from app.database import get_db
 from app.models import Business, Membership, User
 from app.models.user_session import UserSession
+from app.services.staff_audit import log_staff_login_if_applicable
 from app.models.password_reset import PasswordResetToken, hash_reset_token, new_reset_token_raw
 from app.schemas.auth import (
     ForgotPasswordRequest,
@@ -23,6 +24,7 @@ from app.schemas.auth import (
     ResetPasswordRequest,
     TokenPair,
 )
+from app.services.auth_login import resolve_user_by_login_identifier
 from app.services.google_oauth import verify_google_id_token_async
 from app.services.jwt_tokens import create_access_token, create_refresh_token, decode_refresh_token
 from app.services.passwords import hash_password, verify_password
@@ -181,8 +183,7 @@ async def login(
 ):
     try:
         try:
-            q = await db.execute(select(User).where(User.email == body.email))
-            user = q.scalar_one_or_none()
+            user = await resolve_user_by_login_identifier(db, body.identifier)
         except SQLAlchemyError:
             logger.exception("auth.login database error")
             raise HTTPException(
@@ -195,7 +196,10 @@ async def login(
             or user.password_hash is None
             or not verify_password(body.password, user.password_hash)
         ):
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid username, phone, or password",
+            )
         if not user.is_active:
             raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Account is inactive")
 
@@ -212,6 +216,7 @@ async def login(
                 is_active=True,
             )
         )
+        await log_staff_login_if_applicable(db, user, mem)
         await db.flush()
 
         try:

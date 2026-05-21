@@ -11,14 +11,14 @@ import '../../../core/providers/home_dashboard_provider.dart'
     show bustHomeDashboardVolatileCaches, homeDashboardDataProvider;
 import '../../../core/providers/home_owner_dashboard_providers.dart'
     show
-        homeMonthDashboardDataProvider,
+        homeInventorySummaryProvider,
         homeRecentActivityFeedProvider,
-        homeTodayDashboardDataProvider,
         stockAlertCountsProvider,
         stockAuditPeriodProvider,
         stockLowTopHomeProvider,
         stockVariancesTodayProvider;
 import '../../../core/providers/purchase_post_save_provider.dart';
+import '../../shell/shell_branch_provider.dart';
 import '../../../core/notifications/local_notifications_service.dart';
 import '../../../core/providers/connectivity_provider.dart';
 import '../../../core/providers/notifications_provider.dart'
@@ -29,11 +29,11 @@ import '../../../core/theme/hexa_colors.dart';
 import '../../purchase/presentation/widgets/purchase_saved_sheet.dart';
 import '../../purchase/presentation/widgets/resume_purchase_draft_banner.dart';
 import 'widgets/daily_stock_report_sheet.dart';
-import 'widgets/home_category_pills.dart';
+import 'widgets/home_analytics_card.dart';
+import 'widgets/home_collapsible_section.dart';
 import 'widgets/home_compact_header.dart';
-import 'widgets/home_kpi_strip.dart';
-import 'widgets/home_live_status_bar.dart';
 import 'widgets/home_low_stock_section.dart';
+import 'widgets/home_operational_alert_banner.dart';
 import 'widgets/home_period_filter_row.dart';
 import 'widgets/home_quick_actions_grid.dart';
 import 'widgets/home_recent_changes_section.dart';
@@ -57,12 +57,12 @@ class _HomePageState extends ConsumerState<HomePage>
   Timer? _poll;
   Timer? _rtPoll;
   Timer? _resumeRefreshDebounce;
+  bool _homeTimersActive = false;
   bool _handlingPurchasePostSave = false;
   int _lastUnread = 0;
   int _lastNotifiedLowCount = 0;
   final _notifiedStaffPurchaseIds = <String>{};
   AppLifecycleState _lifecycle = AppLifecycleState.resumed;
-  DateTime? _lastRefreshedAt;
   DateTime? _lastThrottledInvalidate;
 
   bool _throttleHomeInvalidate({bool force = false}) {
@@ -82,8 +82,7 @@ class _HomePageState extends ConsumerState<HomePage>
   void _invalidateHomeDataProviders() {
     bustHomeDashboardVolatileCaches();
     ref.invalidate(homeDashboardDataProvider);
-    ref.invalidate(homeTodayDashboardDataProvider);
-    ref.invalidate(homeMonthDashboardDataProvider);
+    ref.invalidate(homeInventorySummaryProvider);
     ref.invalidate(stockAlertCountsProvider);
     ref.invalidate(stockLowTopHomeProvider);
     ref.invalidate(stockAuditPeriodProvider);
@@ -91,29 +90,43 @@ class _HomePageState extends ConsumerState<HomePage>
     ref.invalidate(homeRecentActivityFeedProvider);
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _lastRefreshedAt = DateTime.now();
-    WidgetsBinding.instance.addObserver(this);
+  void _setHomePollingActive(bool active) {
+    if (active == _homeTimersActive) return;
+    _homeTimersActive = active;
+    if (!active) {
+      _poll?.cancel();
+      _poll = null;
+      _rtPoll?.cancel();
+      _rtPoll = null;
+      return;
+    }
+    _poll?.cancel();
     _poll = Timer.periodic(const Duration(minutes: 5), (_) {
       if (!mounted || _throttleHomeInvalidate()) return;
       _invalidateHomeDataProviders();
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _lastUnread = ref.read(notificationsUnreadCountProvider);
-      }
-    });
+    _rtPoll?.cancel();
     _rtPoll = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted) return;
-      setState(() => _lastRefreshedAt = DateTime.now());
       if (!_throttleHomeInvalidate()) {
         _invalidateHomeDataProviders();
       }
       ref.invalidate(appNotificationUnreadCountProvider);
       _maybePushBackgroundAlert();
       _maybeNotifyStaffPurchases();
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _lastUnread = ref.read(notificationsUnreadCountProvider);
+      _setHomePollingActive(
+        ref.read(shellCurrentBranchProvider) == ShellBranch.home,
+      );
     });
   }
 
@@ -197,6 +210,7 @@ class _HomePageState extends ConsumerState<HomePage>
       _lastUnread = ref.read(notificationsUnreadCountProvider);
     }
     if (s != AppLifecycleState.resumed) return;
+    if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) return;
     _resumeRefreshDebounce?.cancel();
     _resumeRefreshDebounce = Timer(const Duration(milliseconds: 320), () {
       if (!mounted) {
@@ -209,9 +223,9 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   Future<void> _refresh() async {
+    if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) return;
     if (_throttleHomeInvalidate()) return;
     _invalidateHomeDataProviders();
-    if (mounted) setState(() => _lastRefreshedAt = DateTime.now());
   }
 
   Future<void> _showAccountMenu() async {
@@ -249,6 +263,18 @@ class _HomePageState extends ConsumerState<HomePage>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(shellCurrentBranchProvider, (prev, next) {
+      final onHome = next == ShellBranch.home;
+      _setHomePollingActive(onHome);
+      if (onHome && prev != ShellBranch.home && !_throttleHomeInvalidate()) {
+        _invalidateHomeDataProviders();
+      }
+    });
+
+    if (ref.watch(shellCurrentBranchProvider) != ShellBranch.home) {
+      return const SizedBox.shrink();
+    }
+
     ref.listen<PurchasePostSavePayload?>(purchasePostSaveProvider, (prev, next) {
       if (next == null || _handlingPurchasePostSave) return;
       _handlingPurchasePostSave = true;
@@ -291,9 +317,6 @@ class _HomePageState extends ConsumerState<HomePage>
 
     final session = ref.watch(sessionProvider);
     final isOwner = session != null && _sessionIsOwner(session);
-    final todayAsync = ref.watch(homeTodayDashboardDataProvider);
-    final monthAsync = ref.watch(homeMonthDashboardDataProvider);
-    final alertCountsAsync = ref.watch(stockAlertCountsProvider);
     final variances = ref.watch(stockVariancesTodayProvider);
     final conn = ref.watch(connectivityResultsProvider);
     final offline =
@@ -331,23 +354,34 @@ class _HomePageState extends ConsumerState<HomePage>
               ),
               const SizedBox(height: 12),
               if (isOwner) ...[
-                HomeLiveStatusBar(
-                  offline: offline,
-                  lastRefreshedAt: _lastRefreshedAt,
+                const HomeOperationalAlertBanner(),
+                const SizedBox(height: 12),
+                const HomeAnalyticsCard(),
+                const SizedBox(height: 12),
+                HomeCollapsibleSection(
+                  title: 'Recent changes',
+                  initiallyExpanded: false,
+                  child: const HomeRecentChangesSection(embedded: true),
                 ),
-                const SizedBox(height: 12),
-                HomeKpiStrip(
-                  todayAsync: todayAsync,
-                  monthAsync: monthAsync,
-                  alertCountsAsync: alertCountsAsync,
-                ),
-                const SizedBox(height: 12),
-                const HomeCategoryPills(),
-                const SizedBox(height: 12),
-                const HomeRecentChangesSection(),
                 const SizedBox(height: 12),
               ],
-              const HomeLowStockSection(),
+              HomeCollapsibleSection(
+                title: 'Low stock',
+                initiallyExpanded: false,
+                trailing: isOwner
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextButton(
+                            onPressed: () => context.push('/stock/reorder'),
+                            child: const Text('Reorder',
+                                style: TextStyle(fontSize: 12)),
+                          ),
+                        ],
+                      )
+                    : null,
+                child: const HomeLowStockSection(embedded: true),
+              ),
               variances.when(
                 loading: () => const SizedBox.shrink(),
                 error: (_, __) => const SizedBox.shrink(),
@@ -404,8 +438,14 @@ class _HomePageState extends ConsumerState<HomePage>
                   );
                 },
               ),
-              const SizedBox(height: 12),
-              const HomeStockMovementSection(),
+              if (isOwner) ...[
+                const SizedBox(height: 12),
+                HomeCollapsibleSection(
+                  title: 'Stock movement',
+                  initiallyExpanded: false,
+                  child: const HomeStockMovementSection(embedded: true),
+                ),
+              ],
             ],
           ),
         ),
@@ -449,8 +489,7 @@ class _HomePageState extends ConsumerState<HomePage>
 
   void _invalidateOwnerCachesFromContainer(ProviderContainer c) {
     bustHomeDashboardVolatileCaches();
-    c.invalidate(homeTodayDashboardDataProvider);
-    c.invalidate(homeMonthDashboardDataProvider);
+    c.invalidate(homeInventorySummaryProvider);
     c.invalidate(stockAlertCountsProvider);
     c.invalidate(stockLowTopHomeProvider);
     c.invalidate(stockAuditPeriodProvider);

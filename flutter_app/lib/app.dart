@@ -188,7 +188,9 @@ bool _hexaFlutterErrorLikelyNonFatal(FlutterErrorDetails details) {
       s.contains('FormatException') ||
       s.contains('type \'Null\' is not') ||
       s.contains('NoSuchMethodError') ||
-      s.contains('PlatformException');
+      s.contains('PlatformException') ||
+      s.contains('StaleHomeDashboardFetch') ||
+      s.contains('ProviderException');
 }
 
 /// Catches framework errors so the web build can show recovery UI instead of a blank screen.

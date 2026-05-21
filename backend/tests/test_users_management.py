@@ -18,12 +18,13 @@ def test_create_staff_user():
     h = {"Authorization": f"Bearer {r.json()['access_token']}"}
     bid = client.get("/v1/me/businesses", headers=h).json()[0]["id"]
 
+    phone = f"91{u[-8:]}"
     cr = client.post(
         f"/v1/businesses/{bid}/users",
         headers=h,
         json={
             "full_name": "Ravi Staff",
-            "phone": "9876543210",
+            "phone": phone,
             "role": "staff",
         },
     )

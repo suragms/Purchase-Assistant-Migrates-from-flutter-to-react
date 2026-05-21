@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
-from app.deps import get_current_user, require_membership
+from app.deps import get_current_user, require_membership, require_permission
 from app.models import (
     CatalogItem,
     CategoryType,
@@ -38,8 +38,14 @@ from app.schemas.stock import (
     ReorderListEntryOut,
     ReorderListOut,
     ReorderListPatchIn,
+    InventorySummaryOut,
 )
-from app.services.stock_inventory import catalog_reorder, catalog_stock_qty, stock_status
+from app.services.stock_inventory import (
+    catalog_reorder,
+    catalog_stock_qty,
+    compute_inventory_summary,
+    stock_status,
+)
 from app.services.stock_variance_notifications import (
     _last_purchase_expected_qty,
     maybe_notify_stock_variance,
@@ -159,6 +165,18 @@ async def _query_items(
     start = (page - 1) * per_page
     page_rows = out[start : start + per_page]
     return total, page_rows
+
+
+@router.get("/inventory-summary", response_model=InventorySummaryOut)
+async def stock_inventory_summary(
+    business_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _m: Annotated[Membership, Depends(require_membership)],
+) -> InventorySummaryOut:
+    """On-hand stock valuation (landing cost × qty) and unit buckets for owner home."""
+    del _m
+    payload = await compute_inventory_summary(db, business_id)
+    return InventorySummaryOut(**payload)
 
 
 @router.get("/list", response_model=StockListOut)
@@ -660,10 +678,9 @@ async def patch_stock_item(
     body: StockPatchIn,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
-    membership: Annotated[Membership, Depends(require_membership)],
+    membership: Annotated[Membership, Depends(require_permission("stock_edit"))],
 ):
-    if membership.role not in ("owner", "manager", "staff", "super_admin"):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Access denied")
+    del membership
     r = await db.execute(
         select(CatalogItem)
         .options(selectinload(CatalogItem.category))
@@ -693,6 +710,7 @@ async def patch_stock_item(
     item.current_stock = new_qty
     item.last_stock_updated_at = datetime.now(timezone.utc)
     item.last_stock_updated_by = display
+    item.updated_by_user_id = user.id
     db.add(log)
     await maybe_notify_stock_variance(
         db,

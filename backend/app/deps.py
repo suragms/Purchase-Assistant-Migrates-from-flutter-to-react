@@ -16,6 +16,7 @@ from app.models import Membership, User
 from app.services.billing_entitlements import assert_ai_entitled
 from app.services.feature_flags import is_ai_parsing_enabled
 from app.services.jwt_tokens import decode_access_token
+from app.services.permissions import membership_permissions, require_permission_key
 
 security = HTTPBearer(auto_error=False)
 
@@ -153,6 +154,22 @@ def require_role(*roles: str):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Access denied. Required roles: {list(roles)}",
             )
+        return membership
+
+    return _dep
+
+
+def require_permission(permission: str):
+    """RBAC: membership must have permission key (owner defaults via template)."""
+
+    async def _dep(
+        membership: Annotated[Membership, Depends(require_membership)],
+        user: Annotated[User, Depends(get_current_user)],
+    ) -> Membership:
+        if user.is_super_admin:
+            return membership
+        perms = await membership_permissions(membership)
+        require_permission_key(permission, perms)
         return membership
 
     return _dep

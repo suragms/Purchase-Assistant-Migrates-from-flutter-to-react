@@ -97,21 +97,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.dispose();
   }
 
-  bool _emailValid(String v) {
-    final s = v.trim();
-    return s.contains('@') && RegExp(r'^[\w.+-]+@[\w.-]+\.\w{2,}$').hasMatch(s);
-  }
-
   bool get _isFormValid {
-    final email = _loginEmail.text.trim();
+    final id = _loginEmail.text.trim();
     final p = _loginPass.text;
-    return _emailValid(email) && p.length >= 6;
+    return id.length >= 3 && p.length >= 6;
   }
 
-  String? _emailError() {
+  String? _identifierError() {
     if (!_showValidation) return null;
     final s = _loginEmail.text.trim();
-    if (s.isEmpty || !_emailValid(s)) return 'Enter a valid email';
+    if (s.isEmpty || s.length < 3) {
+      return 'Enter username or phone (min 3 characters)';
+    }
     return null;
   }
 
@@ -196,7 +193,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     });
     try {
       await ref.read(sessionProvider.notifier).login(
-            email: _loginEmail.text.trim(),
+            identifier: _loginEmail.text.trim(),
             password: _loginPass.text,
           );
       if (mounted) _goPostAuth();
@@ -212,7 +209,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       final sc = e.response?.statusCode;
       if (sc == 401) {
         setState(() {
-          _inlineAuthError = 'Wrong email or password. Try again.';
+          _inlineAuthError = 'Wrong username, phone, or password. Try again.';
         });
         return;
       }
@@ -247,7 +244,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final eErr = _emailError();
+    final eErr = _identifierError();
     final pErr = _passError();
 
     return Scaffold(
@@ -309,17 +306,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     TextField(
                       controller: _loginEmail,
                       focusNode: _emailFocus,
-                      keyboardType: TextInputType.emailAddress,
+                      keyboardType: TextInputType.text,
                       textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.email],
+                      autofillHints: const [AutofillHints.username],
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
                       ),
                       onSubmitted: (_) => _passFocus.requestFocus(),
                       decoration: authFilledDecoration(
-                        'Email',
-                        icon: Icons.mail_outline_rounded,
+                        'Username or phone',
+                        icon: Icons.person_outline_rounded,
                         err: eErr != null,
                       ),
                     ),

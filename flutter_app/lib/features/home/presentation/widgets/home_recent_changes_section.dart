@@ -12,21 +12,41 @@ import 'home_formatters.dart';
 
 /// Grouped recent purchases + stock changes for the selected period.
 class HomeRecentChangesSection extends ConsumerWidget {
-  const HomeRecentChangesSection({super.key});
+  const HomeRecentChangesSection({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final feedAsync = ref.watch(homeRecentActivityFeedProvider);
 
+    Widget wrapSection({required Widget child, Widget? trailing}) {
+      if (embedded) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (trailing != null)
+              Padding(
+                padding: const EdgeInsets.only(right: 4, bottom: 4),
+                child: Align(alignment: Alignment.centerRight, child: trailing),
+              ),
+            child,
+          ],
+        );
+      }
+      return OperationalSection(
+        title: 'Recent changes',
+        dense: true,
+        trailing: trailing,
+        child: child,
+      );
+    }
+
     return feedAsync.when(
-      loading: () => const OperationalSection(
-        title: 'Recent changes',
-        dense: true,
-        child: HomeSectionSkeleton(rows: 3),
+      loading: () => wrapSection(
+        child: const HomeSectionSkeleton(rows: 3),
       ),
-      error: (_, __) => OperationalSection(
-        title: 'Recent changes',
-        dense: true,
+      error: (_, __) => wrapSection(
         child: FriendlyLoadError(
           message: 'Could not load recent changes',
           onRetry: () => ref.invalidate(homeRecentActivityFeedProvider),
@@ -35,9 +55,7 @@ class HomeRecentChangesSection extends ConsumerWidget {
       data: (items) {
         if (items.isEmpty) return const SizedBox.shrink();
         final groups = groupHomeActivityByDay(items);
-        return OperationalSection(
-          title: 'Recent changes',
-          dense: true,
+        return wrapSection(
           trailing: TextButton(
             onPressed: () => context.go('/purchase'),
             child: const Text('See all', style: TextStyle(fontSize: 12)),

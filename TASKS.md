@@ -1,6 +1,6 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-05-21
+**Last updated:** 2026-05-21 (user/staff system rebuild)
 **App:** `hexa_purchase_assistant` (Flutter + FastAPI + Supabase)  
 **Product docs:** `docs/harisree/` (`MASTER_REFERENCE.md`, `FEATURES_DEEP_PLAN.md`)
 
@@ -51,6 +51,9 @@
 | UX-12 | Done | Barcode/report/supplier/item/broker/Purchase print-share filenames are descriptive and date-stamped |
 | PERF-01 | Done | Purchase item notes no longer trigger live totals rebuilds; full-page preview remains behind `RepaintBoundary` |
 | HOME-REBUILD | Done | Owner `/home` dense warehouse dashboard: global period chips, compact header/KPI/quick actions, grouped recent changes, deduped feeds, shell FAB 48dp |
+| FIX-13 | Done | Web “Something went wrong” on Stock tab: defer home fetches/polling when IndexedStack branch ≠ Home; inline activity-feed audits; treat stale dashboard/provider errors as non-fatal |
+| HOME-PIE-ANALYTICS | Done | Owner `/home`: unified analytics card (inventory summary API + ring + breakdown tabs + ranked list); operational alert banner; collapsible feeds; removed 2×2 KPI strip |
+| USER-SYSTEM | Done | Identifier login (username/phone/email); user CRUD + credentials UX; tabbed `UserProfilePage`; permissions_json; server LOGIN/PASSWORD_RESET audit; staff dashboard alias + route guards; Alembic `025_user_system_rebuild` |
 
 ---
 

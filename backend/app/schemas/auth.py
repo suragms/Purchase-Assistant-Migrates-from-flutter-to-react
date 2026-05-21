@@ -34,15 +34,15 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    """Log in with registered email and password."""
+    """Log in with username, phone, or email plus password."""
 
-    email: str = Field(..., min_length=3, max_length=320)
+    identifier: str = Field(..., min_length=3, max_length=320)
     password: str = Field(..., min_length=1, max_length=128)
 
-    @field_validator("email")
+    @field_validator("identifier")
     @classmethod
-    def email_lower(cls, v: str) -> str:
-        return v.strip().lower()
+    def identifier_strip(cls, v: str) -> str:
+        return v.strip()
 
 
 class TokenPair(BaseModel):

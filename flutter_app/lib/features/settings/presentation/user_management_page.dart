@@ -25,7 +25,7 @@ final businessUsersListProvider =
       );
 });
 
-enum _UserFilter { all, active, staff, managers }
+enum _UserFilter { all, active, staff, managers, disabled, recent }
 
 /// Owner / super_admin: list workspace users, create staff/manager, share credentials.
 class UserManagementPage extends ConsumerStatefulWidget {
@@ -50,6 +50,12 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
       case _UserFilter.managers:
         it = it.where((u) => (u['role']?.toString() ?? '') == 'manager');
         break;
+      case _UserFilter.disabled:
+        it = it.where((u) => u['is_active'] != true);
+        break;
+      case _UserFilter.recent:
+        it = it.where((u) => _recentActive(u['last_active_at']?.toString()));
+        break;
       case _UserFilter.all:
         break;
     }
@@ -62,6 +68,8 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
     final bid = session.primaryBusiness.id;
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
+    final userCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
     final passCtrl = TextEditingController();
     var role = 'staff';
     var active = true;
@@ -93,6 +101,8 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
                         fullName: name,
                         phone: phone,
                         role: role,
+                        username: userCtrl.text.trim().isEmpty ? null : userCtrl.text.trim(),
+                        notes: notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
                         password: passCtrl.text.trim().isEmpty ? null : passCtrl.text.trim(),
                         isActive: active,
                       );
@@ -112,6 +122,8 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
                       user: user,
                       password: pwd,
                       phone: phone,
+                      loginUsername: body['login_username']?.toString(),
+                      loginEmail: body['login_email']?.toString(),
                     );
                   } else if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -153,6 +165,23 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
                       keyboardType: TextInputType.phone,
                       decoration: const InputDecoration(
                         labelText: 'Phone',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: userCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Username (optional)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: notesCtrl,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Notes (optional)',
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -209,6 +238,8 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
     );
     nameCtrl.dispose();
     phoneCtrl.dispose();
+    userCtrl.dispose();
+    notesCtrl.dispose();
     passCtrl.dispose();
   }
 
@@ -217,25 +248,39 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
     required Map<String, dynamic> user,
     required String password,
     required String phone,
+    String? loginUsername,
+    String? loginEmail,
   }) async {
     final name = user['name']?.toString() ?? 'User';
+    final username = loginUsername ?? user['username']?.toString() ?? '';
+    final email = loginEmail ?? user['email']?.toString() ?? '';
     final digits = phone.replaceAll(RegExp(r'\D'), '');
-    final msg = Uri.encodeComponent(
-      'Harisree workspace login\n'
-      'Name: $name\n'
-      'Phone (username): $phone\n'
-      'Password: $password\n'
-      'Please sign in and change your password after first login.',
-    );
+    final lines = <String>[
+      'Harisree workspace login',
+      'Name: $name',
+      if (username.isNotEmpty) 'Username: $username',
+      'Phone: $phone',
+      if (email.isNotEmpty) 'Login email: $email',
+      'Password: $password',
+      'Sign in with username or phone.',
+    ];
+    final msg = Uri.encodeComponent(lines.join('\n'));
     final wa = digits.length >= 10 ? Uri.parse('https://wa.me/$digits?text=$msg') : null;
 
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Share credentials'),
-        content: SelectableText(
-          'Password: $password',
-          style: const TextStyle(fontWeight: FontWeight.w700),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (username.isNotEmpty) Text('Username: $username'),
+            SelectableText(
+              'Password: $password',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -271,6 +316,8 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
         _UserFilter.active => 'Active',
         _UserFilter.staff => 'Staff',
         _UserFilter.managers => 'Managers',
+        _UserFilter.disabled => 'Disabled',
+        _UserFilter.recent => 'Recent',
       };
 
   static bool _recentActive(String? iso) {

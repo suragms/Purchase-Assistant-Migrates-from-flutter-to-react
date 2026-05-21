@@ -103,9 +103,10 @@ String friendlyAuthError(
 
     final sc = error.response?.statusCode;
     if (sc == 401) {
-      return context == AuthErrorContext.register
-          ? 'Could not create your account. Check your details and try again.'
-          : 'Wrong email or password. Try again.';
+      if (context == AuthErrorContext.register) {
+        return 'Could not create your account. Check your details and try again.';
+      }
+      return 'Wrong username, phone, or password. Try again.';
     }
     if (sc == 400 || sc == 422) {
       return context == AuthErrorContext.register

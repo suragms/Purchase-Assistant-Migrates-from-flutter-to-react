@@ -11,7 +11,9 @@ import 'home_recent_changes_section.dart';
 
 /// Period-filtered stock movement feed.
 class HomeStockMovementSection extends ConsumerWidget {
-  const HomeStockMovementSection({super.key});
+  const HomeStockMovementSection({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -25,15 +27,31 @@ class HomeStockMovementSection extends ConsumerWidget {
       HomePeriod.custom => 'Stock movement',
     };
 
+    Widget wrap({
+      required Widget child,
+      Widget? trailing,
+    }) {
+      if (embedded) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (trailing != null)
+              Align(alignment: Alignment.centerRight, child: trailing),
+            child,
+          ],
+        );
+      }
+      return OperationalSection(
+        title: title,
+        dense: true,
+        trailing: trailing,
+        child: child,
+      );
+    }
+
     return audits.when(
-      loading: () => OperationalSection(
-        title: title,
-        dense: true,
-        child: const HomeSectionSkeleton(rows: 2),
-      ),
-      error: (_, __) => OperationalSection(
-        title: title,
-        dense: true,
+      loading: () => wrap(child: const HomeSectionSkeleton(rows: 2)),
+      error: (_, __) => wrap(
         child: FriendlyLoadError(
           message: 'Could not load stock movement',
           onRetry: () => ref.invalidate(stockAuditPeriodProvider),
@@ -41,9 +59,7 @@ class HomeStockMovementSection extends ConsumerWidget {
       ),
       data: (rows) {
         if (rows.isEmpty) return const SizedBox.shrink();
-        return OperationalSection(
-          title: title,
-          dense: true,
+        return wrap(
           trailing: TextButton(
             onPressed: () => context.push('/stock/today-feed'),
             child: const Text('View all', style: TextStyle(fontSize: 12)),

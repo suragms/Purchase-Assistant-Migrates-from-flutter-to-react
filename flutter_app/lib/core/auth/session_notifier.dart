@@ -427,8 +427,10 @@ class SessionNotifier extends Notifier<Session?> {
         (t == DioExceptionType.unknown && e.response == null);
   }
 
-  Future<void> login({required String email, required String password}) =>
-      _withAuthSerial(() => _loginImpl(email: email, password: password));
+  Future<void> login({required String identifier, required String password}) =>
+      _withAuthSerial(
+        () => _loginImpl(identifier: identifier, password: password),
+      );
 
   void _notifyStaffAuthEvent(Session session, {required bool signedIn}) {
     if (!sessionIsStaff(session)) return;
@@ -443,12 +445,14 @@ class SessionNotifier extends Notifier<Session?> {
     }
   }
 
-  Future<void> _loginImpl(
-      {required String email, required String password}) async {
+  Future<void> _loginImpl({
+    required String identifier,
+    required String password,
+  }) async {
     final api = ref.read(hexaApiProvider);
     final store = ref.read(tokenStoreProvider);
     api.setAuthToken(null);
-    final tokens = await api.login(email: email, password: password);
+    final tokens = await api.login(identifier: identifier, password: password);
     await store.write(access: tokens.access, refresh: tokens.refresh);
     api.setAuthToken(tokens.access);
     var businesses = await api.meBusinesses();

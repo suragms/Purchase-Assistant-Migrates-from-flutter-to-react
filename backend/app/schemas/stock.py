@@ -37,6 +37,17 @@ class StockListOut(BaseModel):
     per_page: int
 
 
+class InventorySummaryOut(BaseModel):
+    """On-hand warehouse valuation (landing-cost rates only)."""
+
+    total_value_inr: float = 0.0
+    bags: float = 0.0
+    boxes: float = 0.0
+    tins: float = 0.0
+    kg: float = 0.0
+    item_count: int = 0
+
+
 class RecentPurchaseOut(BaseModel):
     purchase_date: datetime | None
     qty: Decimal | None

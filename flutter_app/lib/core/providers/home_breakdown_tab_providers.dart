@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 
+import '../../features/shell/shell_branch_provider.dart';
 import '../auth/session_notifier.dart';
 import '../services/offline_store.dart';
 import 'home_dashboard_provider.dart';
@@ -152,6 +153,10 @@ final homeShellReportsProvider =
   final session = ref.watch(sessionProvider);
   if (session == null) {
     return HomeShellReportsBundle.empty;
+  }
+  if (!shellBranchIsVisible(ref, ShellBranch.home)) {
+    return ref.watch(homeShellReportsSyncCacheProvider) ??
+        HomeShellReportsBundle.empty;
   }
   final q = homeDateRangeForRef(ref);
   final api = ref.read(hexaApiProvider);

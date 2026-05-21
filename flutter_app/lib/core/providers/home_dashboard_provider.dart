@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 
+import '../../features/shell/shell_branch_provider.dart';
 import '../api/hexa_api.dart';
 import '../auth/session_notifier.dart';
 import '../models/trade_purchase_models.dart';
@@ -877,6 +878,14 @@ class HomeDashboardDataNotifier extends AutoDisposeNotifier<HomeDashboardDashSta
 
     final seed =
         hydrated ?? const HomeDashboardPayload(data: HomeDashboardData.empty);
+
+    final onHomeTab = shellBranchIsVisible(ref, ShellBranch.home);
+    if (!onHomeTab) {
+      return HomeDashboardDashState(
+        snapshot: seed,
+        refreshing: false,
+      );
+    }
 
     Future<void>.microtask(() async {
       try {

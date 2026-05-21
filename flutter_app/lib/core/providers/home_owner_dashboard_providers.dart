@@ -1,9 +1,26 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/shell/shell_branch_provider.dart';
 import '../auth/session_notifier.dart';
 import '../json_coerce.dart';
 import 'home_breakdown_tab_providers.dart';
 import 'home_dashboard_provider.dart';
+
+List<Map<String, dynamic>> _filterAuditsToHomePeriod(
+  Ref ref,
+  List<Map<String, dynamic>> rows,
+) {
+  final range = homePeriodRange(
+    ref.read(homePeriodProvider),
+    custom: ref.read(homeCustomDateRangeProvider),
+  );
+  return rows.where((a) {
+    final atRaw = a['created_at']?.toString() ?? a['at']?.toString();
+    final at = atRaw != null ? DateTime.tryParse(atRaw)?.toLocal() : null;
+    if (at == null) return false;
+    return !at.isBefore(range.start) && at.isBefore(range.end);
+  }).toList();
+}
 
 String _apiDate(DateTime d) {
   return '${d.year.toString().padLeft(4, '0')}-'
@@ -11,9 +28,64 @@ String _apiDate(DateTime d) {
       '${d.day.toString().padLeft(2, '0')}';
 }
 
+/// Point-in-time on-hand stock totals (landing-cost valuation from backend).
+class HomeInventorySummary {
+  const HomeInventorySummary({
+    required this.totalValueInr,
+    required this.bags,
+    required this.boxes,
+    required this.tins,
+    required this.kg,
+    required this.itemCount,
+  });
+
+  final double totalValueInr;
+  final double bags;
+  final double boxes;
+  final double tins;
+  final double kg;
+  final int itemCount;
+
+  static const empty = HomeInventorySummary(
+    totalValueInr: 0,
+    bags: 0,
+    boxes: 0,
+    tins: 0,
+    kg: 0,
+    itemCount: 0,
+  );
+
+  factory HomeInventorySummary.fromJson(Map<String, dynamic> m) {
+    return HomeInventorySummary(
+      totalValueInr: coerceToDouble(m['total_value_inr']),
+      bags: coerceToDouble(m['bags']),
+      boxes: coerceToDouble(m['boxes']),
+      tins: coerceToDouble(m['tins']),
+      kg: coerceToDouble(m['kg']),
+      itemCount: coerceToInt(m['item_count']),
+    );
+  }
+}
+
+final homeInventorySummaryProvider =
+    FutureProvider.autoDispose<HomeInventorySummary>((ref) async {
+  if (!shellBranchIsVisible(ref, ShellBranch.home)) {
+    return HomeInventorySummary.empty;
+  }
+  final session = ref.watch(sessionProvider);
+  if (session == null) return HomeInventorySummary.empty;
+  final raw = await ref.read(hexaApiProvider).stockInventorySummary(
+        businessId: session.primaryBusiness.id,
+      );
+  return HomeInventorySummary.fromJson(raw);
+});
+
 /// Today-only dashboard row for the owner home stats strip (not tied to [homePeriodProvider]).
 final homeTodayDashboardDataProvider =
     FutureProvider.autoDispose<HomeDashboardData>((ref) async {
+  if (!shellBranchIsVisible(ref, ShellBranch.home)) {
+    return HomeDashboardData.empty;
+  }
   final session = ref.watch(sessionProvider);
   if (session == null) return HomeDashboardData.empty;
   final now = DateTime.now();
@@ -60,6 +132,7 @@ final stockCriticalCountProvider = FutureProvider.autoDispose<int>((ref) async {
 /// Top low-stock rows (server sorts by stock vs reorder).
 final stockLowTopHomeProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  if (!shellBranchIsVisible(ref, ShellBranch.home)) return [];
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   final m = await ref.read(hexaApiProvider).listStockLow(
@@ -101,29 +174,24 @@ final stockAuditDayProvider = FutureProvider.autoDispose
 /// Stock adjustments for the global [homePeriodProvider] window (client-filtered).
 final stockAuditPeriodProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  if (!shellBranchIsVisible(ref, ShellBranch.home)) return [];
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   ref.watch(homePeriodProvider);
   ref.watch(homeCustomDateRangeProvider);
-  final range = homePeriodRange(
-    ref.read(homePeriodProvider),
-    custom: ref.read(homeCustomDateRangeProvider),
-  );
   final rows = await ref.read(hexaApiProvider).listStockAuditRecent(
         businessId: session.primaryBusiness.id,
         limit: 80,
       );
-  return rows.where((a) {
-    final atRaw = a['created_at']?.toString() ?? a['at']?.toString();
-    final at = atRaw != null ? DateTime.tryParse(atRaw)?.toLocal() : null;
-    if (at == null) return false;
-    return !at.isBefore(range.start) && at.isBefore(range.end);
-  }).toList();
+  return _filterAuditsToHomePeriod(ref, rows);
 });
 
 /// Period-scoped overview for category pills (reuses dashboard cache when possible).
 final homeOwnerPeriodDashboardProvider =
     Provider.autoDispose<HomeDashboardData>((ref) {
+  if (!shellBranchIsVisible(ref, ShellBranch.home)) {
+    return HomeDashboardData.empty;
+  }
   ref.watch(homePeriodProvider);
   ref.watch(homeCustomDateRangeProvider);
   return ref.watch(homeDashboardDataProvider).snapshot.data;
@@ -131,6 +199,7 @@ final homeOwnerPeriodDashboardProvider =
 
 final stockVariancesTodayProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  if (!shellBranchIsVisible(ref, ShellBranch.home)) return [];
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   return ref.read(hexaApiProvider).listStockVariancesToday(
@@ -140,6 +209,7 @@ final stockVariancesTodayProvider =
 
 final activeStaffSessionsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  if (!shellBranchIsVisible(ref, ShellBranch.home)) return [];
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   return ref.read(hexaApiProvider).listActiveSessions(
@@ -155,6 +225,9 @@ final activeSessionsCountProvider = FutureProvider.autoDispose<int>((ref) async 
 /// Rolling calendar month (1st → today) for owner home quick stats.
 final homeMonthDashboardDataProvider =
     FutureProvider.autoDispose<HomeDashboardData>((ref) async {
+  if (!shellBranchIsVisible(ref, ShellBranch.home)) {
+    return HomeDashboardData.empty;
+  }
   final session = ref.watch(sessionProvider);
   if (session == null) return HomeDashboardData.empty;
   final now = DateTime.now();
@@ -240,6 +313,7 @@ List<HomeActivityGroup> groupHomeActivityByDay(List<HomeActivityItem> items) {
 
 final homeRecentActivityFeedProvider =
     FutureProvider.autoDispose<List<HomeActivityItem>>((ref) async {
+  if (!shellBranchIsVisible(ref, ShellBranch.home)) return [];
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   ref.watch(homePeriodProvider);
@@ -260,8 +334,11 @@ final homeRecentActivityFeedProvider =
     purchaseFrom: q.from,
     purchaseTo: q.to,
   );
-  ref.watch(stockAuditPeriodProvider);
-  final audits = await ref.read(stockAuditPeriodProvider.future);
+  final auditRows = await api.listStockAuditRecent(
+    businessId: bid,
+    limit: 80,
+  );
+  final audits = _filterAuditsToHomePeriod(ref, auditRows);
   final items = <HomeActivityItem>[];
 
   for (final p in purchases) {

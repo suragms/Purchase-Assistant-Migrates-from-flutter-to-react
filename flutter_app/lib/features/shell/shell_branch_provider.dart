@@ -17,3 +17,7 @@ abstract final class ShellBranch {
 final shellCurrentBranchProvider = StateProvider<int>(
   (ref) => ShellBranch.home,
 );
+
+/// Whether [branch] is the active IndexedStack tab (off-screen branches stay mounted).
+bool shellBranchIsVisible(Ref ref, int branch) =>
+    ref.watch(shellCurrentBranchProvider) == branch;

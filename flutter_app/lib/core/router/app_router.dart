@@ -48,7 +48,8 @@ import '../../features/settings/presentation/business_profile_page.dart';
 import '../../features/settings/presentation/maintenance_history_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
 import '../../features/settings/presentation/user_management_page.dart';
-import '../../features/settings/presentation/user_detail_page.dart';
+import '../../features/settings/presentation/user_profile_page.dart';
+import '../../features/staff/presentation/staff_dashboard_page.dart';
 import '../../features/settings/presentation/backup_page.dart';
 import '../../features/search/presentation/search_page.dart';
 import '../../features/barcode/presentation/barcode_print_page.dart';
@@ -58,7 +59,6 @@ import '../../features/stock/presentation/stock_page.dart';
 import '../../features/stock/presentation/reorder_list_page.dart';
 import '../../features/stock/presentation/stock_history_page.dart';
 import '../../features/stock/presentation/stock_today_feed_page.dart';
-import '../../features/staff/presentation/staff_home_page.dart';
 import '../../features/staff/presentation/staff_shell_screen.dart';
 import '../../features/staff/presentation/staff_activity_page.dart';
 import '../../features/shell/shell_screen.dart';
@@ -144,6 +144,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       }
       if (sessionIsStaff(session)) {
         if (loc.startsWith('/staff')) return null;
+        if (loc == '/reports' || loc.startsWith('/reports/')) {
+          return '/staff/home';
+        }
         if (_isOwnerShellTab(loc)) {
           if (loc == '/stock') return '/staff/stock';
           if (loc == '/search') return '/staff/search';
@@ -482,7 +485,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               final id = state.pathParameters['userId']!;
               return iosPushPage(
                 key: state.pageKey,
-                child: UserDetailPage(userId: id),
+                child: UserProfilePage(userId: id),
               );
             },
           ),
@@ -766,7 +769,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/staff/home',
                 name: 'staff_home',
-                builder: (context, state) => const StaffHomePage(),
+                builder: (context, state) => const StaffDashboardPage(),
               ),
             ],
           ),

@@ -8,7 +8,12 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/providers/connectivity_provider.dart';
 import '../../core/providers/home_owner_dashboard_providers.dart'
-    show homeRecentActivityFeedProvider, stockAlertCountsProvider, stockAuditPeriodProvider, stockLowCountProvider;
+    show
+        homeInventorySummaryProvider,
+        homeRecentActivityFeedProvider,
+        stockAlertCountsProvider,
+        stockAuditPeriodProvider,
+        stockLowCountProvider;
 import '../../core/providers/stock_providers.dart';
 import '../../core/providers/home_breakdown_tab_providers.dart';
 import '../../core/providers/home_dashboard_provider.dart';
@@ -58,6 +63,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       case ShellBranch.home:
         ref.invalidate(homeDashboardDataProvider);
         ref.invalidate(homeShellReportsProvider);
+        ref.invalidate(homeInventorySummaryProvider);
         ref.invalidate(stockAuditPeriodProvider);
         ref.invalidate(homeRecentActivityFeedProvider);
         break;

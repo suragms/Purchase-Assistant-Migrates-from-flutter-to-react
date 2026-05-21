@@ -10,7 +10,9 @@ import '../../../../shared/widgets/operational_ui.dart';
 
 /// Dense low-stock table with status colors and reorder CTA.
 class HomeLowStockSection extends ConsumerStatefulWidget {
-  const HomeLowStockSection({super.key});
+  const HomeLowStockSection({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   ConsumerState<HomeLowStockSection> createState() => _HomeLowStockSectionState();
@@ -32,27 +34,25 @@ class _HomeLowStockSectionState extends ConsumerState<HomeLowStockSection> {
   Widget build(BuildContext context) {
     final rowsAsync = ref.watch(stockLowTopHomeProvider);
 
-    return OperationalSection(
-      title: 'Low stock',
-      dense: true,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextButton(
-            onPressed: () => context.push('/stock/reorder'),
-            child: const Text('Reorder', style: TextStyle(fontSize: 12)),
-          ),
-          TextButton(
-            onPressed: () {
-              ref.read(stockListQueryProvider.notifier).state =
-                  const StockListQuery(status: 'low', sort: 'stock_asc');
-              context.go('/stock');
-            },
-            child: const Text('All', style: TextStyle(fontSize: 12)),
-          ),
-        ],
-      ),
-      child: rowsAsync.when(
+    final trailing = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextButton(
+          onPressed: () => context.push('/stock/reorder'),
+          child: const Text('Reorder', style: TextStyle(fontSize: 12)),
+        ),
+        TextButton(
+          onPressed: () {
+            ref.read(stockListQueryProvider.notifier).state =
+                const StockListQuery(status: 'low', sort: 'stock_asc');
+            context.go('/stock');
+          },
+          child: const Text('All', style: TextStyle(fontSize: 12)),
+        ),
+      ],
+    );
+
+    final body = rowsAsync.when(
         loading: () => const Padding(
           padding: EdgeInsets.all(16),
           child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
@@ -148,7 +148,20 @@ class _HomeLowStockSectionState extends ConsumerState<HomeLowStockSection> {
             ],
           );
         },
-      ),
+      );
+
+    if (widget.embedded) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [body],
+      );
+    }
+
+    return OperationalSection(
+      title: 'Low stock',
+      dense: true,
+      trailing: trailing,
+      child: body,
     );
   }
 }
