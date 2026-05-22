@@ -9,6 +9,7 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -181,14 +182,18 @@ async def checklist_complete(
             notes=body.notes,
         )
     )
-    await log_staff_activity(
-        db,
-        business_id=business_id,
-        user=user,
-        action_type="CHECKLIST_COMPLETE",
-        details={"slot": slot, "task_key": body.task_key},
-    )
-    await db.commit()
+    try:
+        await log_staff_activity(
+            db,
+            business_id=business_id,
+            user=user,
+            action_type="CHECKLIST_COMPLETE",
+            details={"slot": slot, "task_key": body.task_key},
+        )
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        return
 
 
 @router.get("/usage/today", response_model=UsageTodayOut)

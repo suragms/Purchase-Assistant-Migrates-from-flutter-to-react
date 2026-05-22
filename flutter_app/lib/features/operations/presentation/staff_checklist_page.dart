@@ -1,6 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/providers/operations_providers.dart';
 import '../../../core/providers/warehouse_alerts_provider.dart';
@@ -16,6 +18,7 @@ class StaffChecklistPage extends ConsumerStatefulWidget {
 class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
+  final Set<String> _busy = {};
 
   @override
   void initState() {
@@ -27,6 +30,41 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
   void dispose() {
     _tabs.dispose();
     super.dispose();
+  }
+
+  Future<void> _completeTask({
+    required String slot,
+    required Map<String, dynamic> task,
+  }) async {
+    if (task['completed'] == true) return;
+    final key = task['task_key']?.toString() ?? '';
+    if (key.isEmpty) return;
+    final busyId = '$slot:$key';
+    if (_busy.contains(busyId)) return;
+    setState(() => _busy.add(busyId));
+    try {
+      final session = ref.read(sessionProvider);
+      if (session == null) return;
+      await ref.read(hexaApiProvider).completeChecklistTask(
+            businessId: session.primaryBusiness.id,
+            slot: slot,
+            taskKey: key,
+          );
+      ref.invalidate(checklistTodayProvider);
+      ref.invalidate(warehouseAlertsProvider);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 409) {
+        ref.invalidate(checklistTodayProvider);
+        return;
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyApiError(e))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy.remove(busyId));
+    }
   }
 
   @override
@@ -69,9 +107,9 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
                 child: TabBarView(
                   controller: _tabs,
                   children: [
-                    _slotList(context, ref, tasks, 'morning'),
-                    _slotList(context, ref, tasks, 'midday'),
-                    _slotList(context, ref, tasks, 'evening'),
+                    _slotList(context, tasks, 'morning'),
+                    _slotList(context, tasks, 'midday'),
+                    _slotList(context, tasks, 'evening'),
                   ],
                 ),
               ),
@@ -84,7 +122,6 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
 
   Widget _slotList(
     BuildContext context,
-    WidgetRef ref,
     List<Map<String, dynamic>> tasks,
     String slot,
   ) {
@@ -97,21 +134,28 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
       itemCount: slotTasks.length,
       itemBuilder: (ctx, i) {
         final t = slotTasks[i];
+        final key = t['task_key']?.toString() ?? '';
+        final busyId = '$slot:$key';
+        final done = t['completed'] == true;
+        final busy = _busy.contains(busyId);
         return CheckboxListTile(
-          value: t['completed'] == true,
-          onChanged: (v) async {
-            if (v != true) return;
-            final session = ref.read(sessionProvider);
-            if (session == null) return;
-            await ref.read(hexaApiProvider).completeChecklistTask(
-                  businessId: session.primaryBusiness.id,
-                  slot: slot,
-                  taskKey: t['task_key']?.toString() ?? '',
-                );
-            ref.invalidate(checklistTodayProvider);
-            ref.invalidate(warehouseAlertsProvider);
-          },
+          value: done,
+          tristate: false,
+          onChanged: done || busy
+              ? null
+              : (v) {
+                  if (v == true) {
+                    _completeTask(slot: slot, task: t);
+                  }
+                },
           title: Text(t['label']?.toString() ?? ''),
+          secondary: busy
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : null,
         );
       },
     );

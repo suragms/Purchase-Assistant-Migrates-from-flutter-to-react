@@ -130,19 +130,20 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
             ),
           ],
         ),
-            Positioned(
-              right: 16,
-              bottom: 72 + MediaQuery.viewPaddingOf(context).bottom,
-              child: FloatingActionButton(
-                heroTag: 'staff_scan_fab',
-                tooltip: 'Scan barcode',
-                onPressed: () {
-                  HapticFeedback.mediumImpact();
-                  navigationShell.goBranch(StaffShellBranch.scan);
-                },
-                child: const Icon(Icons.qr_code_scanner_rounded),
+            if (idx != StaffShellBranch.scan && idx != StaffShellBranch.stock)
+              Positioned(
+                right: 16,
+                bottom: 68 + MediaQuery.viewPaddingOf(context).bottom,
+                child: FloatingActionButton.small(
+                  heroTag: 'staff_scan_fab',
+                  tooltip: 'Scan barcode',
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    navigationShell.goBranch(StaffShellBranch.scan);
+                  },
+                  child: const Icon(Icons.qr_code_scanner_rounded, size: 22),
+                ),
               ),
-            ),
           ],
         ),
       ),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,8 +12,9 @@ import '../../../core/theme/hexa_colors.dart';
 import '../../../core/utils/line_display.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/list_skeleton.dart';
+import '../../../shared/widgets/operational_ui.dart';
 
-/// Staff purchase list — qty and delivery only (no rates).
+/// Staff purchase list — search, period/status filters, qty and delivery only.
 class StaffPurchaseHistoryPage extends ConsumerStatefulWidget {
   const StaffPurchaseHistoryPage({super.key});
 
@@ -22,8 +25,32 @@ class StaffPurchaseHistoryPage extends ConsumerStatefulWidget {
 
 class _StaffPurchaseHistoryPageState
     extends ConsumerState<StaffPurchaseHistoryPage> {
+  final _searchCtrl = TextEditingController();
+  Timer? _debounce;
   String _period = 'week';
   String? _statusFilter;
+  String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      setState(() => _query = _searchCtrl.text.trim().toLowerCase());
+    });
+  }
 
   DateTime get _from {
     final now = DateTime.now();
@@ -44,7 +71,13 @@ class _StaffPurchaseHistoryPageState
       if (d.isBefore(_from)) return false;
       if (_statusFilter == 'pending' && p.isDelivered) return false;
       if (_statusFilter == 'delivered' && !p.isDelivered) return false;
-      return true;
+      if (_query.isEmpty) return true;
+      final hay = [
+        p.humanId,
+        p.supplierName ?? '',
+        for (final l in p.lines) l.itemName,
+      ].join(' ').toLowerCase();
+      return hay.contains(_query);
     }).toList();
   }
 
@@ -64,26 +97,40 @@ class _StaffPurchaseHistoryPageState
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Wrap(
-              spacing: 8,
-              children: [
-                ChoiceChip(
-                  label: const Text('This week'),
-                  selected: _period == 'week',
-                  onSelected: (_) => setState(() => _period = 'week'),
+            child: TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Search supplier, order no., item…',
+                isDense: true,
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => _searchCtrl.clear(),
+                      ),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: Color(0xFFE0DDD8)),
                 ),
-                ChoiceChip(
-                  label: const Text('This month'),
-                  selected: _period == 'month',
-                  onSelected: (_) => setState(() => _period = 'month'),
-                ),
-              ],
+              ),
             ),
           ),
+          OperationalPillRow(
+            labels: const ['This week', 'This month'],
+            selected: _period == 'month' ? 'This month' : 'This week',
+            height: 32,
+            onSelected: (label) {
+              setState(() => _period = label == 'This month' ? 'month' : 'week');
+            },
+          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
             child: Wrap(
-              spacing: 8,
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 for (final s in <String?>[null, 'pending', 'delivered'])
                   FilterChip(
@@ -93,9 +140,12 @@ class _StaffPurchaseHistoryPageState
                           : s == 'pending'
                               ? 'Pending'
                               : 'Delivered',
+                      style: const TextStyle(fontSize: 12),
                     ),
                     selected: _statusFilter == s,
                     onSelected: (_) => setState(() => _statusFilter = s),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
               ],
             ),
@@ -112,13 +162,15 @@ class _StaffPurchaseHistoryPageState
                 if (filtered.isEmpty) {
                   return Center(
                     child: Text(
-                      'No purchase orders in this period',
+                      _query.isEmpty
+                          ? 'No purchase orders in this period'
+                          : 'No orders match your search',
                       style: HexaDsType.body(14, color: HexaDsColors.textMuted),
                     ),
                   );
                 }
                 return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 88),
                   itemCount: filtered.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (ctx, i) {
