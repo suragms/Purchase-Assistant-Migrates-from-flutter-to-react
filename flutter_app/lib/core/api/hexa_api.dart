@@ -2033,6 +2033,23 @@ class HexaApi {
     return res.data ?? {};
   }
 
+  Future<Map<String, dynamic>> getStockIntelligence({
+    required String businessId,
+    required String itemId,
+    String? periodStart,
+    String? periodEnd,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/stock/$itemId/intelligence',
+      queryParameters: {
+        if (periodStart != null && periodStart.isNotEmpty)
+          'period_start': periodStart,
+        if (periodEnd != null && periodEnd.isNotEmpty) 'period_end': periodEnd,
+      },
+    );
+    return res.data ?? {};
+  }
+
   /// Stock list with filters (server-side pagination).
   Future<Map<String, dynamic>> listStock({
     required String businessId,
@@ -2043,6 +2060,9 @@ class HexaApi {
     String subcategory = '',
     String status = 'all',
     String sort = 'name',
+    bool includePeriod = false,
+    String? periodStart,
+    String? periodEnd,
   }) async {
     final res = await _dio.get<Map<String, dynamic>>(
       '/v1/businesses/$businessId/stock/list',
@@ -2054,6 +2074,10 @@ class HexaApi {
         'subcategory': subcategory,
         'status': status,
         'sort': sort,
+        if (includePeriod) 'include_period': true,
+        if (periodStart != null && periodStart.isNotEmpty)
+          'period_start': periodStart,
+        if (periodEnd != null && periodEnd.isNotEmpty) 'period_end': periodEnd,
       },
     );
     return res.data ??

@@ -28,6 +28,9 @@ class StockListItemOut(BaseModel):
     stock_status: str
     last_stock_updated_at: datetime | None
     last_stock_updated_by: str | None
+    period_purchased_qty: Decimal | None = None
+    period_variance_qty: Decimal | None = None
+    needs_verification: bool = False
 
 
 class StockListOut(BaseModel):
@@ -86,6 +89,25 @@ class StockAdjustmentOut(BaseModel):
     variance_delta: Decimal | None = None
 
     model_config = {"from_attributes": True}
+
+
+class StockIntelligenceOut(BaseModel):
+    """Per-item warehouse intelligence for drill-down screens."""
+
+    id: uuid.UUID
+    item_code: str | None
+    name: str
+    category_name: str | None
+    subcategory_name: str | None
+    current_stock: Decimal
+    reorder_level: Decimal
+    unit: str | None
+    stock_status: str
+    period_purchased_qty: Decimal = Decimal("0")
+    period_variance_qty: Decimal = Decimal("0")
+    needs_verification: bool = False
+    recent_purchases: list[RecentPurchaseOut] = Field(default_factory=list)
+    recent_adjustments: list[StockAdjustmentOut] = Field(default_factory=list)
 
 
 class StockVarianceOut(BaseModel):

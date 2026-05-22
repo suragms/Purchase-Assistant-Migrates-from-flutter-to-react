@@ -20,6 +20,8 @@ import 'reports_prior_period_provider.dart';
 import 'suppliers_list_provider.dart';
 import 'trade_purchases_provider.dart';
 import 'business_users_provider.dart';
+import 'stock_providers.dart';
+import 'warehouse_alerts_provider.dart';
 
 // Debounce guard: prevent stampede when called from multiple sources within 400ms.
 Timer? _invalidateDebounce;
@@ -120,4 +122,19 @@ void invalidateWorkspaceSeedData(dynamic ref) {
 /// reports insights, KPIs, and supplier/broker lists.
 void invalidatePurchaseWorkspace(dynamic ref) {
   invalidateBusinessAggregates(ref);
+}
+
+/// Home, stock list, bulk print, totals, and warehouse alert chips.
+void invalidateWarehouseSurfaces(dynamic ref) {
+  invalidateBusinessAggregates(ref);
+  ref.invalidate(stockListProvider);
+  ref.invalidate(bulkStockListProvider);
+  ref.invalidate(stockTotalsProvider);
+  ref.invalidate(stockItemIntelligenceProvider);
+  ref.invalidate(warehouseAlertsProvider);
+  ref.invalidate(homeRecentActivityFeedProvider);
+  ref.invalidate(stockAlertCountsProvider);
+  ref.invalidate(stockLowTopHomeProvider);
+  ref.invalidate(stockVariancesTodayProvider);
+  bumpBusinessDataWriteRevision(ref);
 }

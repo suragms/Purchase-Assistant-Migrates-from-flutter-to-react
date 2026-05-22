@@ -44,6 +44,20 @@
 
 ---
 
+## Sprint 10 — Warehouse UX rebuild (May 21 2026)
+
+| ID | Priority | Status | Summary |
+|----|----------|--------|---------|
+| WH-00 | P0 | Done | `HexaDsWarehouse` tokens, warehouse widgets, `invalidateWarehouseSurfaces` |
+| WH-01 | P0 | Done | Home live status bar, analytics skeletons, comparison strip, ring drill-down |
+| WH-02 | P0 | Done | Stock list period fields + `GET /stock/{id}/intelligence` |
+| WH-03 | P1 | Done | Dense stock rows, intelligence page, period sync from analytics range |
+| WH-04 | P1 | Done | Purchase detail sticky action bar (owner); staff delivery in body |
+| WH-05 | P2 | Done | Bulk print thermal-only (50×25 mm), collapsible filter chips |
+| WH-06 | P2 | Done | `warehouseAlertsProvider` consolidation |
+
+---
+
 ## May 20 screenshot pass (critical fixes + UX)
 
 | ID | Status | Notes |

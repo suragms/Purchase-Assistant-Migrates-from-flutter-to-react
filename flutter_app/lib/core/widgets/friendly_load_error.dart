@@ -11,6 +11,8 @@ class FriendlyLoadError extends StatelessWidget {
     required this.onRetry,
     this.message = 'Unable to load data',
     this.subtitle = kFriendlyLoadNetworkSubtitle,
+    this.offline = false,
+    this.onShowCached,
   });
 
   final VoidCallback onRetry;
@@ -18,6 +20,12 @@ class FriendlyLoadError extends StatelessWidget {
 
   /// Shown under [message]. Defaults to [kFriendlyLoadNetworkSubtitle]; pass `null` to hide.
   final String? subtitle;
+
+  /// When true, uses offline icon and copy unless [subtitle] overrides.
+  final bool offline;
+
+  /// Optional action to open last cached snapshot (warehouse surfaces).
+  final VoidCallback? onShowCached;
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +65,9 @@ class FriendlyLoadError extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(12),
                       child: Icon(
-                        Icons.cloud_off_rounded,
+                        offline
+                            ? Icons.wifi_off_rounded
+                            : Icons.cloud_off_rounded,
                         size: 32,
                         color: cs.onPrimaryContainer,
                       ),
@@ -99,6 +109,13 @@ class FriendlyLoadError extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (onShowCached != null) ...[
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: onShowCached,
+                      child: const Text('Show cached data'),
+                    ),
+                  ],
                 ],
               ),
             ),

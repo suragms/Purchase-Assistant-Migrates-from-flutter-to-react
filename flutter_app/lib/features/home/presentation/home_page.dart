@@ -37,6 +37,7 @@ import 'widgets/home_operational_alert_banner.dart';
 import 'widgets/home_period_filter_row.dart';
 import 'widgets/home_quick_actions_grid.dart';
 import 'widgets/home_stock_totals_card.dart';
+import 'widgets/home_live_status_bar.dart';
 import 'widgets/home_recent_changes_section.dart';
 import 'widgets/home_stock_movement_section.dart';
 
@@ -65,6 +66,7 @@ class _HomePageState extends ConsumerState<HomePage>
   final _notifiedStaffPurchaseIds = <String>{};
   AppLifecycleState _lifecycle = AppLifecycleState.resumed;
   DateTime? _lastThrottledInvalidate;
+  DateTime? _homeLastRefreshedAt;
 
   bool _throttleHomeInvalidate({bool force = false}) {
     if (force) {
@@ -81,6 +83,7 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   void _invalidateHomeDataProviders() {
+    _homeLastRefreshedAt = DateTime.now();
     bustHomeDashboardVolatileCaches();
     ref.invalidate(homeDashboardDataProvider);
     ref.invalidate(homeInventorySummaryProvider);
@@ -335,6 +338,14 @@ class _HomePageState extends ConsumerState<HomePage>
                 offline: offline,
                 onSettingsLongPress: _showAccountMenu,
               ),
+              if (isOwner) ...[
+                const SizedBox(height: 8),
+                HomeLiveStatusBar(
+                  offline: offline,
+                  lastRefreshedAt: _homeLastRefreshedAt,
+                  isOwner: true,
+                ),
+              ],
               const SizedBox(height: 12),
               const ResumePurchaseDraftBanner(),
               if (isOwner) ...[

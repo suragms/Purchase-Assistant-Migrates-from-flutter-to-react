@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/providers/home_breakdown_tab_providers.dart';
@@ -9,7 +11,7 @@ import 'home_analytics_helpers.dart';
 import 'home_formatters.dart';
 
 /// Large period-scoped donut with profit + units in center.
-class HomeAnalyticsRing extends StatelessWidget {
+class HomeAnalyticsRing extends ConsumerWidget {
   const HomeAnalyticsRing({
     super.key,
     required this.dash,
@@ -28,7 +30,7 @@ class HomeAnalyticsRing extends StatelessWidget {
   final bool mini;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final diameter = mini
         ? 72.0
         : computeHomeSpendRingDiameter(
@@ -104,6 +106,14 @@ class HomeAnalyticsRing extends StatelessWidget {
       );
     }
 
+    void onTap(int index) {
+      if (index < 0 || index >= slices.length) return;
+      final slice = slices[index];
+      final q = <String, String>{'tab': tab.name};
+      if (slice.title.isNotEmpty) q['focus'] = slice.title;
+      context.push(Uri(path: '/reports', queryParameters: q).toString());
+    }
+
     return Center(
       child: SpendRingChart(
         diameter: diameter,
@@ -114,6 +124,7 @@ class HomeAnalyticsRing extends StatelessWidget {
         centerLine2: mini ? null : homeInr(profit),
         centerLine3: mini || pctLabel.isEmpty ? null : pctLabel,
         centerLine4: mini || units.isEmpty ? null : units,
+        onSectionTap: mini ? null : onTap,
       ),
     );
   }

@@ -14,6 +14,9 @@ class StockListQuery {
     this.supplier = '',
     this.status = 'all',
     this.sort = 'name',
+    this.includePeriod = false,
+    this.periodStart,
+    this.periodEnd,
   });
 
   final int page;
@@ -31,6 +34,10 @@ class StockListQuery {
   /// `name` | `stock_asc` | `stock_desc` | `recent`
   final String sort;
 
+  final bool includePeriod;
+  final String? periodStart;
+  final String? periodEnd;
+
   StockListQuery copyWith({
     int? page,
     int? perPage,
@@ -40,6 +47,9 @@ class StockListQuery {
     String? supplier,
     String? status,
     String? sort,
+    bool? includePeriod,
+    String? periodStart,
+    String? periodEnd,
   }) {
     return StockListQuery(
       page: page ?? this.page,
@@ -50,9 +60,26 @@ class StockListQuery {
       supplier: supplier ?? this.supplier,
       status: status ?? this.status,
       sort: sort ?? this.sort,
+      includePeriod: includePeriod ?? this.includePeriod,
+      periodStart: periodStart ?? this.periodStart,
+      periodEnd: periodEnd ?? this.periodEnd,
     );
   }
 }
+
+/// Item drill-down: period purchases, variance, recent lines.
+final stockItemIntelligenceProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, String>((ref, itemId) async {
+  final session = ref.watch(sessionProvider);
+  if (session == null) return {};
+  final range = ref.watch(stockListQueryProvider);
+  return ref.read(hexaApiProvider).getStockIntelligence(
+        businessId: session.primaryBusiness.id,
+        itemId: itemId,
+        periodStart: range.periodStart,
+        periodEnd: range.periodEnd,
+      );
+});
 
 final stockListQueryProvider =
     StateProvider<StockListQuery>((_) => const StockListQuery());
@@ -85,6 +112,9 @@ final stockListProvider = FutureProvider.autoDispose((ref) async {
         subcategory: query.subcategory,
         status: query.status,
         sort: query.sort,
+        includePeriod: query.includePeriod,
+        periodStart: query.periodStart,
+        periodEnd: query.periodEnd,
       );
 });
 
@@ -112,6 +142,9 @@ final bulkStockListProvider =
       subcategory: query.subcategory,
       status: query.status,
       sort: query.sort,
+      includePeriod: query.includePeriod,
+      periodStart: query.periodStart,
+      periodEnd: query.periodEnd,
     );
     total = (res['total'] as num?)?.toInt() ?? 0;
     final raw = (res['items'] as List?) ?? const [];

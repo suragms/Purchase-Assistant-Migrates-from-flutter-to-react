@@ -7,6 +7,8 @@ import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../../core/widgets/friendly_load_error.dart';
+import '../../../../core/widgets/list_skeleton.dart';
+import 'home_analytics_comparison_strip.dart';
 import 'home_analytics_helpers.dart';
 import 'home_analytics_ranked_list.dart';
 import 'home_analytics_ring.dart';
@@ -54,8 +56,8 @@ class _HomeAnalyticsCardState extends ConsumerState<HomeAnalyticsCard> {
     if (dashState.refreshing && dash.isEmpty && _lastDash == null) {
       return _cardShell(
         child: const Padding(
-          padding: EdgeInsets.all(24),
-          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          padding: EdgeInsets.all(12),
+          child: ListSkeleton(rowCount: 4, rowHeight: 56),
         ),
       );
     }
@@ -136,6 +138,8 @@ class _HomeAnalyticsCardState extends ConsumerState<HomeAnalyticsCard> {
               inventoryLoading: invAsync.isLoading && !invAsync.hasValue,
               purchasedLoading: dashState.refreshing && dash.isEmpty,
             ),
+            const SizedBox(height: 8),
+            const HomeAnalyticsComparisonStrip(),
             if (expanded) ...[
               const SizedBox(height: 10),
               const HomeAnalyticsTabs(),

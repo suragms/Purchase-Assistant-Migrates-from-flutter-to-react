@@ -82,6 +82,20 @@ abstract final class HexaDsRadii {
   static BorderRadius get fieldShell => BorderRadius.circular(lg);
 }
 
+/// Dense warehouse / stock surfaces — tighter padding than default SaaS cards.
+abstract final class HexaDsWarehouse {
+  static const double cardPadding = 12;
+  static const double gap = 10;
+  static const double radius = 14;
+  static const double metricTileMinHeight = 56;
+  static const double listRowMinHeight = 52;
+  static const double statusBarHeight = 36;
+
+  static BorderRadius get card => BorderRadius.circular(radius);
+  static EdgeInsets get cardInsets =>
+      const EdgeInsets.all(cardPadding);
+}
+
 abstract final class HexaDsShadows {
   static List<BoxShadow> get card => [
         BoxShadow(

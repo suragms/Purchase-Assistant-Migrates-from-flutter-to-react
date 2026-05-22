@@ -32,6 +32,7 @@ from app.schemas.stock import (
     StockAdjustmentOut,
     StockVarianceOut,
     StockDetailOut,
+    StockIntelligenceOut,
     StockListItemOut,
     StockListOut,
     StockPatchIn,
@@ -80,6 +81,10 @@ def _item_to_list_row(
     category_name: str | None,
     subcategory_name: str | None,
     supplier_name: str | None,
+    *,
+    period_purchased_qty: Decimal | None = None,
+    period_variance_qty: Decimal | None = None,
+    needs_verification: bool = False,
 ) -> StockListItemOut:
     cur = catalog_stock_qty(item)
     ro = catalog_reorder(item)
@@ -98,7 +103,59 @@ def _item_to_list_row(
         stock_status=stock_status(cur, ro),
         last_stock_updated_at=item.last_stock_updated_at,
         last_stock_updated_by=item.last_stock_updated_by,
+        period_purchased_qty=period_purchased_qty,
+        period_variance_qty=period_variance_qty,
+        needs_verification=needs_verification,
     )
+
+
+def _parse_period_dates(
+    period_start: str | None, period_end: str | None
+) -> tuple[date | None, date | None]:
+    if not period_start or not period_end:
+        return None, None
+    try:
+        ps = date.fromisoformat(period_start.strip()[:10])
+        pe = date.fromisoformat(period_end.strip()[:10])
+        return ps, pe
+    except ValueError:
+        return None, None
+
+
+async def _period_purchased_map(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    item_ids: list[uuid.UUID],
+    period_start: date,
+    period_end: date,
+) -> dict[uuid.UUID, Decimal]:
+    if not item_ids:
+        return {}
+    r = await db.execute(
+        select(
+            TradePurchaseLine.catalog_item_id,
+            func.coalesce(func.sum(TradePurchaseLine.qty), 0),
+        )
+        .join(TradePurchase, TradePurchaseLine.trade_purchase_id == TradePurchase.id)
+        .where(
+            TradePurchase.business_id == business_id,
+            TradePurchase.purchase_date >= period_start,
+            TradePurchase.purchase_date <= period_end,
+            TradePurchase.status != "cancelled",
+            TradePurchaseLine.catalog_item_id.in_(item_ids),
+        )
+        .group_by(TradePurchaseLine.catalog_item_id)
+    )
+    return {row[0]: Decimal(row[1] or 0) for row in r.all()}
+
+
+def _needs_verification(
+    current: Decimal, purchased: Decimal, *, threshold_pct: float = 0.1
+) -> bool:
+    if purchased <= 0:
+        return False
+    delta = abs(current - purchased)
+    return delta / purchased > Decimal(str(threshold_pct))
 
 
 def _sort_stock_rows(
@@ -261,6 +318,9 @@ async def list_stock(
     subcategory: str = Query(""),
     status: StatusFilter = Query("all"),
     sort: SortBy = Query("name"),
+    include_period: bool = Query(False),
+    period_start: str | None = Query(None),
+    period_end: str | None = Query(None),
 ):
     total, rows = await _query_items(
         db,
@@ -273,10 +333,32 @@ async def list_stock(
         page=page,
         per_page=per_page,
     )
+    period_map: dict[uuid.UUID, Decimal] = {}
+    ps, pe = _parse_period_dates(period_start, period_end)
+    if include_period and ps and pe:
+        period_map = await _period_purchased_map(
+            db, business_id, [item.id for item, _, _ in rows], ps, pe
+        )
     items: list[StockListItemOut] = []
     for item, cat_name, type_name in rows:
         sup = await _supplier_name(db, item)
-        items.append(_item_to_list_row(item, cat_name, type_name, sup))
+        purchased = period_map.get(item.id) if include_period else None
+        cur = catalog_stock_qty(item)
+        variance = (cur - purchased) if purchased is not None else None
+        verify = (
+            _needs_verification(cur, purchased) if purchased is not None else False
+        )
+        items.append(
+            _item_to_list_row(
+                item,
+                cat_name,
+                type_name,
+                sup,
+                period_purchased_qty=purchased,
+                period_variance_qty=variance,
+                needs_verification=verify,
+            )
+        )
     return StockListOut(items=items, total=total, page=page, per_page=per_page)
 
 
@@ -712,6 +794,74 @@ async def delete_reorder_entry(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Reorder entry not found")
     await db.delete(entry)
     await db.commit()
+
+
+@router.get("/{item_id}/intelligence", response_model=StockIntelligenceOut)
+async def get_stock_intelligence(
+    business_id: uuid.UUID,
+    item_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _m: Annotated[Membership, Depends(require_membership)],
+    period_start: str | None = Query(None),
+    period_end: str | None = Query(None),
+):
+    r = await db.execute(
+        select(CatalogItem, ItemCategory.name, CategoryType.name)
+        .join(ItemCategory, CatalogItem.category_id == ItemCategory.id)
+        .outerjoin(CategoryType, CatalogItem.type_id == CategoryType.id)
+        .where(
+            CatalogItem.id == item_id,
+            CatalogItem.business_id == business_id,
+            CatalogItem.deleted_at.is_(None),
+        )
+    )
+    row = r.one_or_none()
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found")
+    item, cat_name, type_name = row
+    cur = catalog_stock_qty(item)
+    ro = catalog_reorder(item)
+    unit = item.stock_unit or item.default_unit or item.selling_unit
+    purchased = Decimal("0")
+    ps, pe = _parse_period_dates(period_start, period_end)
+    if ps and pe:
+        m = await _period_purchased_map(db, business_id, [item_id], ps, pe)
+        purchased = m.get(item_id, Decimal("0"))
+    variance = cur - purchased
+    purchases = await _recent_purchases(db, item_id)
+    if should_redact_financials(_m.role):
+        purchases = [
+            p.model_copy(update={"rate": None}) if hasattr(p, "model_copy") else p
+            for p in purchases
+        ]
+    adj_r = await db.execute(
+        select(StockAdjustmentLog)
+        .where(
+            StockAdjustmentLog.business_id == business_id,
+            StockAdjustmentLog.item_id == item_id,
+        )
+        .order_by(desc(StockAdjustmentLog.updated_at))
+        .limit(8)
+    )
+    adjustments = [
+        StockAdjustmentOut.model_validate(a) for a in adj_r.scalars().all()
+    ]
+    return StockIntelligenceOut(
+        id=item.id,
+        item_code=item.item_code,
+        name=item.name,
+        category_name=cat_name,
+        subcategory_name=type_name,
+        current_stock=cur,
+        reorder_level=ro,
+        unit=unit,
+        stock_status=stock_status(cur, ro),
+        period_purchased_qty=purchased,
+        period_variance_qty=variance,
+        needs_verification=_needs_verification(cur, purchased),
+        recent_purchases=purchases,
+        recent_adjustments=adjustments,
+    )
 
 
 @router.get("/{item_id}", response_model=StockDetailOut)

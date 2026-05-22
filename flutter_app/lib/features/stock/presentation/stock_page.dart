@@ -9,7 +9,10 @@ import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/providers/reorder_list_provider.dart';
+import '../../../core/providers/analytics_kpi_provider.dart'
+    show analyticsDateRangeProvider;
 import '../../../core/providers/stock_providers.dart';
+import 'package:intl/intl.dart';
 import '../../../core/providers/suppliers_list_provider.dart';
 import '../../home/presentation/widgets/stock_health_score.dart';
 import 'widgets/stock_today_feed.dart';
@@ -76,6 +79,17 @@ class _StockPageState extends ConsumerState<StockPage>
     _searchCtrl.addListener(_onSearchChanged);
     _subcatCtrl.text = ref.read(stockListQueryProvider).subcategory;
     _scroll.addListener(_onScrollLoadMore);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final range = ref.read(analyticsDateRangeProvider);
+      final fmt = DateFormat('yyyy-MM-dd');
+      ref.read(stockListQueryProvider.notifier).state =
+          ref.read(stockListQueryProvider).copyWith(
+                includePeriod: true,
+                periodStart: fmt.format(range.from),
+                periodEnd: fmt.format(range.to),
+              );
+    });
   }
 
   void _onScrollLoadMore() {
@@ -628,9 +642,8 @@ class _StockPageState extends ConsumerState<StockPage>
                             updatedToday:
                                 _updatedToday(row['last_stock_updated_at']),
                             onTap: () {
-                              final id = row['id']?.toString() ?? '';
                               if (id.isNotEmpty) {
-                                context.push('/catalog/item/$id');
+                                context.push('/stock/intelligence/$id');
                               }
                             },
                             onLongPress: () {
@@ -655,6 +668,16 @@ class _StockPageState extends ConsumerState<StockPage>
                                             itemName: name,
                                             stockRow: row,
                                           );
+                                        },
+                                      ),
+                                      ListTile(
+                                        leading: const Icon(
+                                            Icons.insights_outlined),
+                                        title: const Text('Stock intelligence'),
+                                        onTap: () {
+                                          Navigator.pop(ctx);
+                                          context.push(
+                                              '/stock/intelligence/$id');
                                         },
                                       ),
                                       ListTile(
@@ -1087,6 +1110,9 @@ class _StockTableRow extends StatelessWidget {
       kgPerBag,
       double.tryParse(row['default_weight_per_tin']?.toString() ?? ''),
     );
+    final purchased =
+        double.tryParse(row['period_purchased_qty']?.toString() ?? '');
+    final mismatch = row['needs_verification'] == true;
     final statusLabel = switch (st) {
       'out' => 'Out',
       'critical' => 'Crit',
@@ -1198,14 +1224,32 @@ class _StockTableRow extends StatelessWidget {
                           color: HexaColors.brandPrimary,
                         ),
                       ),
+                    if (purchased != null)
+                      Text(
+                        'Bought ${stockDisplayPrimary(purchased, unit)}',
+                        style: HexaDsType.bodySm(context).copyWith(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: HexaDsColors.textMuted,
+                        ),
+                      ),
                   ],
                 ),
               ),
               SizedBox(
-                width: 56,
+                width: mismatch ? 72 : 56,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    if (mismatch)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 4),
+                        child: Icon(
+                          Icons.warning_amber_rounded,
+                          size: 14,
+                          color: Color(0xFFE65100),
+                        ),
+                      ),
                     Container(
                       width: 6,
                       height: 6,

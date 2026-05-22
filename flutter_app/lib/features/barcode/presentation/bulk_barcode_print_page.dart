@@ -25,7 +25,7 @@ class BulkBarcodePrintPage extends ConsumerStatefulWidget {
 class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
   final _selected = <String>{};
   final _searchCtrl = TextEditingController();
-  LabelSize _size = LabelSize.medium;
+  static const LabelSize _thermalSize = LabelSize.medium;
   int _copies = 1;
   int _perRow = 2;
 
@@ -86,14 +86,14 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
       if (_denseA4) {
         return BarcodePdfService.generateBatchA4Dense(
           items: batch,
-          size: _size,
+          size: _thermalSize,
           copiesPerItem: _copies,
           hideFinancials: hideFinancials,
         );
       }
       return BarcodePdfService.generateBatch(
         items: batch,
-        size: _size,
+        size: _thermalSize,
         copiesPerItem: _copies,
         labelsPerRow: _perRow,
         hideFinancials: hideFinancials,
@@ -292,6 +292,11 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
             ),
           ),
           const SizedBox(height: 6),
+          ExpansionTile(
+            tilePadding: const EdgeInsets.symmetric(horizontal: 12),
+            title: const Text('Filters', style: TextStyle(fontSize: 14)),
+            initiallyExpanded: false,
+            children: [
           catsAsync.when(
             loading: () => const Padding(
               padding: EdgeInsets.symmetric(horizontal: 12),
@@ -468,6 +473,8 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
               ],
             ),
           ),
+            ],
+          ),
           Expanded(
             child: listAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -598,48 +605,22 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Label size',
+                        'Thermal label (50×25 mm)',
                         style: Theme.of(context).textTheme.labelLarge,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: SegmentedButton<LabelSize>(
-                            segments: const [
-                              ButtonSegment(
-                                value: LabelSize.small,
-                                label: Text('Small'),
-                              ),
-                              ButtonSegment(
-                                value: LabelSize.medium,
-                                label: Text('Medium'),
-                              ),
-                              ButtonSegment(
-                                value: LabelSize.large,
-                                label: Text('Large'),
-                              ),
-                            ],
-                            selected: {_size},
-                            onSelectionChanged: (s) =>
-                                setState(() => _size = s.first),
-                          ),
-                        ),
-                        if (!_denseA4) ...[
-                          const SizedBox(width: 8),
-                          SegmentedButton<int>(
-                            segments: const [
-                              ButtonSegment(value: 2, label: Text('2/row')),
-                              ButtonSegment(value: 3, label: Text('3/row')),
-                            ],
-                            selected: {_perRow},
-                            onSelectionChanged: (s) =>
-                                setState(() => _perRow = s.first),
-                          ),
+                    if (!_denseA4) ...[
+                      const SizedBox(height: 6),
+                      SegmentedButton<int>(
+                        segments: const [
+                          ButtonSegment(value: 2, label: Text('2/row')),
+                          ButtonSegment(value: 3, label: Text('3/row')),
                         ],
-                      ],
-                    ),
+                        selected: {_perRow},
+                        onSelectionChanged: (s) =>
+                            setState(() => _perRow = s.first),
+                      ),
+                    ],
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       dense: true,
