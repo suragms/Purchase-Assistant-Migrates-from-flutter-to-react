@@ -547,16 +547,14 @@ class LocalNotificationsService {
   Future<void> scheduleStockEaseReminders({required bool enabled}) async {
     if (kIsWeb || !_inited) return;
     if (!enabled) {
-      await _p.cancel(_usageReminderId);
-      await _p.cancel(_checklistReminderId);
-      await _p.cancel(_lowStockDigestId);
+      await _p.cancel(id: _usageReminderId);
+      await _p.cancel(id: _checklistReminderId);
+      await _p.cancel(id: _lowStockDigestId);
       return;
     }
-    final loc = tz.local;
-    final usageAt = tz.TZDateTime(loc, loc.year, loc.month, loc.day, 18, 0);
-    final checklistAt =
-        tz.TZDateTime(loc, loc.year, loc.month, loc.day, 20, 30);
-    final digestAt = tz.TZDateTime(loc, loc.year, loc.month, loc.day, 9, 0);
+    final usageAt = _nextAt(hour: 18, minute: 0);
+    final checklistAt = _nextAt(hour: 20, minute: 30);
+    final digestAt = _nextAt(hour: 9, minute: 0);
     for (final entry in [
       (_usageReminderId, usageAt, 'Log today\'s usage', 'Submit daily usage before closing.'),
       (_checklistReminderId, checklistAt, 'Finish shift checklist',

@@ -93,7 +93,6 @@ final stockTotalsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((re
 });
 
 final stockListProvider = FutureProvider.autoDispose((ref) async {
-  ref.cacheFor(const Duration(minutes: 5));
   final session = ref.watch(sessionProvider);
   final query = ref.watch(stockListQueryProvider);
   if (session == null) {
