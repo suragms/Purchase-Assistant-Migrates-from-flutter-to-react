@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/json_coerce.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/list_skeleton.dart';
@@ -133,8 +134,8 @@ class _StockHistoryPageState extends ConsumerState<StockHistoryPage> {
                       const Divider(height: 1, indent: 16),
                   itemBuilder: (context, i) {
                     final r = filtered[i];
-                    final oldQ = (r['old_qty'] as num?)?.toDouble() ?? 0;
-                    final newQ = (r['new_qty'] as num?)?.toDouble() ?? 0;
+                    final oldQ = coerceToDouble(r['old_qty']);
+                    final newQ = coerceToDouble(r['new_qty']);
                     final diff = newQ - oldQ;
                     final barColor = diff > 0
                         ? const Color(0xFF2E7D32)

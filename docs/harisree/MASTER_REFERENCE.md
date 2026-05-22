@@ -16,7 +16,8 @@
 | Days building | 42 days |
 | Production score | 72 / 100 |
 | Backend | Render.com — `my-purchases-api` ✅ (`/health`, `/health/ready`) |
-| Frontend admin | Vercel — purchase-assiastant.vercel.app ✅ |
+| Frontend (Harisree Flutter) | Vercel — **https://purchase-assiastant.vercel.app** ✅ (note spelling: `assiastant`, not `assistant`) |
+| Wrong domain | `purchase-assistant.vercel.app` is a **different** app — do not use for Harisree |
 | Mobile app | Flutter — iOS 16+ / Android ✅ |
 | Database | Supabase PostgreSQL (free tier) |
 | Migrations | 023 Alembic versions (all applied) |
@@ -187,6 +188,24 @@ FUTURE (when revenue allows):
 ---
 
 ## 🎨 UX DESIGN SYSTEM — COMPLETE SPECIFICATION
+
+### Operational density (`HexaOp`) — warehouse home/stock/scanner/bulk print
+
+Use `flutter_app/lib/core/design_system/hexa_operational_tokens.dart` on **operational** surfaces only (not purchase wizard — keep `HexaDsLayout.pageGutter` 24dp there).
+
+| Token | Value | Use |
+|-------|-------|-----|
+| `pageGutter` | 16dp | Home, stock, bulk print, missing labels |
+| `cardPadding` | 14dp | Cards, sheets |
+| `sectionGap` | 16dp | Between home sections |
+| `buttonHeight` | 44dp | Primary actions, bulk print sticky bar |
+| `chipHeight` | 36dp | Filters, horizontal alert pills |
+| `listRowMin` / `listRowMax` | 64–72dp | Stock rows, bulk print, missing labels |
+| `collapsedHeader` | 52dp | Home accordions (default collapsed) |
+| `bottomNavMax` | 60dp | Owner shell bottom bar |
+| `fabSize` | 56dp | Center scan FAB |
+
+Owner home: 3×2 quick actions, horizontal `HomeMultiAlertStrip` pills, compact stock totals (Purchased \| Current \| Variance). Scanner: post-scan `scan_stock_result_sheet` (+1/+5). Bulk print: sticky Preview/PDF/Print, Wrap filters, 2-column layout ≥900px width.
 
 ### Typography (warehouse-grade, old-person friendly)
 
@@ -548,9 +567,23 @@ ROUTE                          PAGE FILE                          ROLE    STATUS
 /catalog/category/:id/...      (subcategory add)                  owner   ✅ done
 
 ── BARCODE ────────────────────────────────────────────────────────────────────
-/barcode/scan                  barcode_scan_page.dart             all     ✅ done
-/barcode/print/:itemId         barcode_print_page.dart            all     ✅ done (preview + PDF share)
-/barcode/bulk-print            bulk_barcode_print_page.dart       all     ✅ done (category filters)
+/barcode/scan                  barcode_scan_page.dart             all     ✅ done (PWA camera try + manual/photo fallback)
+/barcode/print/:itemId         barcode_print_page.dart            all     ✅ done (symbology=barcode, text=item_code)
+/barcode/bulk-print            bulk_barcode_print_page.dart       all     ✅ done (2/4-col A4 dense, debounced search)
+/catalog/quick-add-from-scan   barcode_quick_create_page.dart     all     ✅ done (no ITM auto; barcode read-only)
+/stock/missing-barcodes        stock_missing_labels_page.dart     all     ✅ done (tabs: missing barcode / item code)
+
+**Barcode vs item code (two DB columns — migration `030_catalog_barcode.sql`):**
+
+| Field | Column | Use |
+|-------|--------|-----|
+| Barcode | `catalog_items.barcode` | Scanner / package EAN; lookup first; encoded on label symbology |
+| Item code | `catalog_items.item_code` | Internal shelf code (`A-Z0-9_-`); shown on label text; reports |
+
+- **Lookup:** `GET /stock/barcode/lookup` — `barcode` match, then legacy `item_code`.
+- **Scan create:** `POST /catalog-items/from-scan` — requires both codes; **no** `_next_item_code()`.
+- **Full add:** `/catalog/quick-add` — supplier/broker/HSN; optional ITM auto when code empty.
+- **Patch:** `PATCH …/barcode`, `PATCH …/item-code`.
 
 ── STOCK ──────────────────────────────────────────────────────────────────────
 /stock/today-feed              stock_today_feed_page.dart         owner   ✅ done (2026-05-19)

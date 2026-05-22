@@ -49,6 +49,7 @@ def apply_sqlite_bootstrap(sync_conn) -> None:
     _ensure_users_modern_columns(sync_conn)
     _ensure_catalog_items_type_id(sync_conn)
     _ensure_catalog_items_item_code(sync_conn)
+    _ensure_catalog_items_barcode(sync_conn)
     _ensure_supplier_wholesale_columns(sync_conn)
     _ensure_supplier_profile_columns(sync_conn)
     _ensure_broker_phone_column(sync_conn)
@@ -224,6 +225,19 @@ def _ensure_catalog_items_item_code(sync_conn):
         return
     try:
         sync_conn.exec_driver_sql("ALTER TABLE catalog_items ADD COLUMN item_code VARCHAR(64) NULL")
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _ensure_catalog_items_barcode(sync_conn):
+    insp = inspect(sync_conn)
+    if not insp.has_table("catalog_items"):
+        return
+    cols = {c["name"] for c in insp.get_columns("catalog_items")}
+    if "barcode" in cols:
+        return
+    try:
+        sync_conn.exec_driver_sql("ALTER TABLE catalog_items ADD COLUMN barcode VARCHAR(64) NULL")
     except Exception:  # noqa: BLE001
         pass
 

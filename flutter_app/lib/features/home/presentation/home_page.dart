@@ -25,6 +25,7 @@ import '../../../core/providers/notifications_provider.dart'
     show notificationsUnreadCountProvider;
 import '../../../core/providers/prefs_provider.dart';
 import '../../../core/providers/server_notifications_provider.dart';
+import '../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../purchase/presentation/widgets/purchase_saved_sheet.dart';
 import '../../purchase/presentation/widgets/resume_purchase_draft_banner.dart';
@@ -33,7 +34,6 @@ import 'widgets/home_collapsible_section.dart';
 import 'widgets/home_compact_header.dart';
 import 'widgets/home_low_stock_section.dart';
 import 'widgets/home_multi_alert_strip.dart';
-import 'widgets/home_operational_alert_banner.dart';
 import 'widgets/home_period_filter_row.dart';
 import 'widgets/home_quick_actions_grid.dart';
 import 'widgets/home_stock_totals_card.dart';
@@ -332,7 +332,12 @@ class _HomePageState extends ConsumerState<HomePage>
         child: RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+            padding: const EdgeInsets.fromLTRB(
+              HexaOp.pageGutter,
+              8,
+              HexaOp.pageGutter,
+              20,
+            ),
             children: [
               HomeCompactHeader(
                 offline: offline,
@@ -362,13 +367,11 @@ class _HomePageState extends ConsumerState<HomePage>
                 onDaily: isOwner
                     ? () => DailyStockReportSheet.show(context)
                     : null,
-                onUsers: () => context.push('/settings/users'),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: HexaOp.cardGap),
               if (isOwner) ...[
                 const HomeMultiAlertStrip(),
-                const HomeOperationalAlertBanner(),
-                const SizedBox(height: 12),
+                const SizedBox(height: HexaOp.cardGap),
                 const HomeStockTotalsCard(),
                 const SizedBox(height: 12),
                 HomeCollapsibleSection(

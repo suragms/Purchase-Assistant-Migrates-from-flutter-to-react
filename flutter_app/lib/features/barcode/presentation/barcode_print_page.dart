@@ -12,6 +12,7 @@ import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/list_skeleton.dart';
+import '../../stock/presentation/widgets/edit_item_code_sheet.dart';
 import '../services/barcode_pdf_service.dart';
 
 class BarcodePrintPage extends ConsumerStatefulWidget {
@@ -123,9 +124,28 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
           if (label != null)
             PopupMenuButton<String>(
               onSelected: (v) {
-                if (v == 'download') unawaited(_download());
+                if (v == 'download') {
+                  unawaited(_download());
+                } else if (v == 'edit_code') {
+                  final l = _label;
+                  if (l == null) return;
+                  unawaited(() async {
+                    final ok = await showEditItemCodeSheet(
+                      context: context,
+                      ref: ref,
+                      itemId: widget.itemId,
+                      itemName: l.itemName,
+                      currentCode: l.itemCode,
+                    );
+                    if (ok) await _load();
+                  }());
+                }
               },
               itemBuilder: (ctx) => const [
+                PopupMenuItem(
+                  value: 'edit_code',
+                  child: Text('Edit item code'),
+                ),
                 PopupMenuItem(
                   value: 'download',
                   child: Text('Download PDF'),
@@ -151,7 +171,7 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
         child: ListSkeleton(),
       );
     }
-    if (label == null || label.itemCode.isEmpty) {
+    if (label == null || label.symbologyValue.isEmpty) {
       return const Center(child: Text('No label data'));
     }
 
@@ -190,26 +210,31 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
                     const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 8),
-              if (label.itemCode.isNotEmpty)
-                SvgPicture.string(
-                  Barcode.code128().toSvg(
-                    label.itemCode,
-                    width: 220,
-                    height: 60,
-                    drawText: false,
-                  ),
+              SvgPicture.string(
+                Barcode.code128().toSvg(
+                  label.symbologyValue,
                   width: 220,
                   height: 60,
+                  drawText: false,
                 ),
+                width: 220,
+                height: 60,
+              ),
               const SizedBox(height: 4),
               Text(
-                label.itemCode,
+                'Item code: ${label.itemCode}',
                 style: const TextStyle(
                   fontSize: 11,
-                  fontFamily: 'monospace',
-                  letterSpacing: 1.5,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
+              if (label.barcode != null && label.barcode!.trim().isNotEmpty)
+                Text(
+                  'Barcode: ${label.barcode}',
+                  style: const TextStyle(fontSize: 10, color: Colors.black54),
+                ),
+              if (label.unit != null && label.unit!.isNotEmpty)
+                Text('Unit: ${label.unit}', style: const TextStyle(fontSize: 10)),
               if (_size != LabelSize.small &&
                   _showLastPurchase &&
                   label.lastPurchaseDate != null) ...[

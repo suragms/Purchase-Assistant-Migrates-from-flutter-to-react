@@ -37,6 +37,8 @@ class StockListItemOut(BaseModel):
     needs_eviction: bool = False
     is_perishable: bool = False
     missing_barcode: bool = False
+    missing_item_code: bool = False
+    barcode: str | None = None
 
 
 class StockListOut(BaseModel):
@@ -138,6 +140,7 @@ class BarcodeLookupOut(BaseModel):
     id: uuid.UUID
     name: str
     item_code: str | None
+    barcode: str | None = None
     current_stock: Decimal
     reorder_level: Decimal
     unit: str | None
@@ -145,6 +148,7 @@ class BarcodeLookupOut(BaseModel):
 
 class BarcodeLabelOut(BaseModel):
     id: uuid.UUID
+    barcode: str | None = None
     item_code: str | None
     item_name: str
     category_name: str | None = None

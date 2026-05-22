@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/json_coerce.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
+import '../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../core/providers/notifications_provider.dart';
 import '../../../core/providers/staff_home_providers.dart';
 import '../../../core/providers/stock_providers.dart';
@@ -124,7 +126,6 @@ class StaffHomePage extends ConsumerWidget {
     final lowAsync = ref.watch(staffLowStockAlertsProvider);
     final recentAsync = ref.watch(staffRecentScansProvider);
     final missingCount = ref.watch(staffMissingCodeCountProvider);
-    final missingAsync = ref.watch(missingCodeItemsProvider);
     final todayPurchases = ref.watch(staffTodayPurchasesProvider);
 
     return Scaffold(
@@ -139,7 +140,12 @@ class StaffHomePage extends ConsumerWidget {
             ref.invalidate(tradePurchasesListProvider);
           },
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+            padding: const EdgeInsets.fromLTRB(
+              HexaOp.pageGutter,
+              12,
+              HexaOp.pageGutter,
+              100,
+            ),
             children: [
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -214,7 +220,7 @@ class StaffHomePage extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(16),
                   onTap: () => context.push('/barcode/scan'),
                   child: Ink(
-                    height: 80,
+                    height: HexaOp.listRowMin,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
                       gradient: LinearGradient(
@@ -310,25 +316,49 @@ class StaffHomePage extends ConsumerWidget {
                   ),
                 ],
               ),
-              if (missingAsync.isLoading && missingCount == 0)
-                const SizedBox.shrink()
-              else if (missingCount > 0) ...[
-                const SizedBox(height: 16),
-                Card(
-                  color: HexaColors.loss.withValues(alpha: 0.08),
-                  child: ListTile(
-                    leading: Icon(Icons.warning_amber_rounded, color: HexaColors.loss),
-                    title: Text(
-                      '$missingCount items missing barcode codes',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    trailing: TextButton(
-                      onPressed: () => context.push('/catalog/missing-codes'),
-                      child: const Text('Fix now'),
-                    ),
+              if (missingCount > 0) ...[
+                const SizedBox(height: HexaOp.sectionGap),
+                SizedBox(
+                  height: HexaOp.chipHeight + 4,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _StaffAlertPill(
+                        label: '⚠ $missingCount barcode',
+                        color: HexaColors.loss,
+                        onTap: () => context.push('/stock/missing-barcodes'),
+                      ),
+                    ],
                   ),
                 ),
               ],
+              lowAsync.when(
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (rows) {
+                  if (rows.isEmpty) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: SizedBox(
+                      height: HexaOp.chipHeight + 4,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          _StaffAlertPill(
+                            label: '⚠ ${rows.length} low stock',
+                            color: const Color(0xFFBA7517),
+                            onTap: () {
+                              ref.read(stockListQueryProvider.notifier).state =
+                                  const StockListQuery(status: 'low', page: 1);
+                              context.go('/staff/stock');
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -492,7 +522,7 @@ class StaffHomePage extends ConsumerWidget {
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const SizedBox(height: 20),
+                      const SizedBox(height: HexaOp.sectionGap),
                       Text(
                         'Low stock alerts',
                         style: HexaDsType.heading(16, color: HexaColors.loss),
@@ -501,41 +531,75 @@ class StaffHomePage extends ConsumerWidget {
                       ...rows.take(6).map((r) {
                         final id = r['id']?.toString() ?? '';
                         final nm = r['name']?.toString() ?? '';
-                        final curN = (r['current_stock'] as num?)?.toDouble() ?? 0;
+                        final curN = coerceToDouble(r['current_stock']);
                         final unit =
                             (r['default_unit'] ?? r['unit'])?.toString() ?? 'bag';
-                        final kgBag = (r['default_kg_per_bag'] as num?)?.toDouble();
-                        final kgTin = (r['default_weight_per_tin'] as num?)?.toDouble();
+                        final kgBag = coerceToDoubleNullable(r['default_kg_per_bag']);
+                        final kgTin = coerceToDoubleNullable(r['default_weight_per_tin']);
                         final primary = stockDisplayPrimary(curN, unit);
                         final secondary =
                             stockDisplaySecondary(curN, unit, kgBag, kgTin);
                         final ro = r['reorder_level'];
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          color: HexaColors.loss.withValues(alpha: 0.06),
-                          child: ListTile(
-                            dense: true,
-                            title: Text(
-                              nm,
-                              style: const TextStyle(fontWeight: FontWeight.w800),
+                        final sub = secondary == null
+                            ? 'On hand: $primary · Reorder: $ro'
+                            : 'On hand: $primary · $secondary';
+                        return SizedBox(
+                          height: HexaOp.listRowMin,
+                          child: Card(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            color: HexaColors.loss.withValues(alpha: 0.06),
+                            child: InkWell(
+                              onTap: id.isEmpty
+                                  ? null
+                                  : () async {
+                                      await showUpdateStockSheet(
+                                        context: context,
+                                        ref: ref,
+                                        itemId: id,
+                                        itemName: nm,
+                                        stockRow: r,
+                                      );
+                                    },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            nm,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w800,
+                                              fontSize: 14,
+                                            ),
+                                          ),
+                                          Text(
+                                            sub,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: HexaDsType.body(
+                                              12,
+                                              color: HexaDsColors.textMuted,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const Icon(Icons.chevron_right_rounded),
+                                  ],
+                                ),
+                              ),
                             ),
-                            subtitle: Text(
-                              secondary == null
-                                  ? 'On hand: $primary · Reorder: $ro'
-                                  : 'On hand: $primary\n$secondary · Reorder: $ro',
-                            ),
-                            trailing: const Icon(Icons.chevron_right_rounded),
-                            onTap: id.isEmpty
-                                ? null
-                                : () async {
-                                    await showUpdateStockSheet(
-                                      context: context,
-                                      ref: ref,
-                                      itemId: id,
-                                      itemName: nm,
-                                      stockRow: r,
-                                    );
-                                  },
                           ),
                         );
                       }),
@@ -544,6 +608,44 @@ class StaffHomePage extends ConsumerWidget {
                 },
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StaffAlertPill extends StatelessWidget {
+  const _StaffAlertPill({
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
           ),
         ),
       ),

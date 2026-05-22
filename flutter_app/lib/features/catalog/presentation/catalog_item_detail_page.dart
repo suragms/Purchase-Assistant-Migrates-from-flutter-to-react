@@ -16,6 +16,7 @@ import '../../../core/units/dynamic_unit_label_engine.dart' as unit_lbl;
 import '../../../core/utils/trade_purchase_rate_display.dart';
 import '../../../core/utils/unit_utils.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
+import '../../../core/json_coerce.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
@@ -31,6 +32,7 @@ import '../../../core/services/reports_pdf.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/form_field_scroll.dart';
 import '../../../core/widgets/list_skeleton.dart';
+import '../../stock/presentation/widgets/edit_item_code_sheet.dart';
 import '../../../shared/widgets/bag_default_unit_hint.dart';
 import '../../../shared/widgets/trade_intel_cards.dart';
 import '../../../shared/widgets/search_picker_sheet.dart';
@@ -93,7 +95,7 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
     final name = item['name']?.toString() ?? 'Item';
     final unit =
         (stock?['unit'] ?? item['default_unit'])?.toString().trim() ?? 'bag';
-    final current = (stock?['reorder_level'] as num?)?.toDouble() ?? 0;
+    final current = coerceToDouble(stock?['reorder_level']);
     final ctrl = TextEditingController(
       text: current > 0 ? current.toString() : '',
     );
@@ -1387,8 +1389,8 @@ class _CatalogItemStockHistorySection extends ConsumerWidget {
             ),
             const SizedBox(height: 6),
             ...preview.map((r) {
-              final oldQ = (r['old_qty'] as num?)?.toDouble() ?? 0;
-              final newQ = (r['new_qty'] as num?)?.toDouble() ?? 0;
+              final oldQ = coerceToDouble(r['old_qty']);
+              final newQ = coerceToDouble(r['new_qty']);
               final diff = newQ - oldQ;
               final dot = diff > 0
                   ? const Color(0xFF2E7D32)
@@ -1461,7 +1463,7 @@ class _CatalogItemStockHistorySection extends ConsumerWidget {
   }
 }
 
-class _CompactCatalogBarcodeRow extends StatelessWidget {
+class _CompactCatalogBarcodeRow extends ConsumerWidget {
   const _CompactCatalogBarcodeRow({
     this.itemCode,
     required this.itemName,
@@ -1489,7 +1491,7 @@ class _CompactCatalogBarcodeRow extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final code = itemCode?.trim() ?? '';
     final cs = Theme.of(context).colorScheme;
     return Material(
@@ -1507,11 +1509,26 @@ class _CompactCatalogBarcodeRow extends StatelessWidget {
             ),
             Expanded(
               child: Text(
-                code.isEmpty ? 'No barcode code assigned' : 'Barcode: $code',
+                code.isEmpty ? 'No item code' : 'Item code: $code',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
               ),
+            ),
+            IconButton(
+              tooltip: 'Edit item code',
+              visualDensity: VisualDensity.compact,
+              onPressed: () async {
+                final ok = await showEditItemCodeSheet(
+                  context: context,
+                  ref: ref,
+                  itemId: itemId,
+                  itemName: itemName,
+                  currentCode: code,
+                );
+                if (ok) ref.invalidate(catalogItemDetailProvider(itemId));
+              },
+              icon: const Icon(Icons.edit_outlined, size: 20),
             ),
             IconButton(
               tooltip: 'Print label',
@@ -1742,9 +1759,9 @@ class _ItemWarehouseHeroHeader extends StatelessWidget {
       _ => const Color(0xFF2E7D32),
     };
     final unit = (stock?['unit'] ?? item['default_unit'] ?? '').toString().trim();
-    final curN = (stock?['current_stock'] as num?)?.toDouble() ?? 0;
-    final kgBag = (item['default_kg_per_bag'] as num?)?.toDouble();
-    final kgTin = (item['default_weight_per_tin'] as num?)?.toDouble();
+    final curN = coerceToDouble(stock?['current_stock']);
+    final kgBag = coerceToDoubleNullable(item['default_kg_per_bag']);
+    final kgTin = coerceToDoubleNullable(item['default_weight_per_tin']);
     final unitForDisplay = unit.isEmpty ? 'bag' : unit;
     final onHandPrimary = stockDisplayPrimary(curN, unitForDisplay);
     final onHandSecondary =

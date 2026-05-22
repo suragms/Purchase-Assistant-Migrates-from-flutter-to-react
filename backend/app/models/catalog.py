@@ -59,7 +59,9 @@ class CatalogItem(Base):
     default_items_per_box: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
     default_weight_per_tin: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
     hsn_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    # Internal / ERP product code (optional; matches seed JSON "code").
+    # Packaging barcode (scanner / EAN); unique per business when set.
+    barcode: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # Internal business tracking code (shelf label, PDFs, reports).
     item_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     tax_percent: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     default_landing_cost: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)

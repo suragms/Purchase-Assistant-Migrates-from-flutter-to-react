@@ -72,7 +72,9 @@ import '../../features/admin/presentation/super_admin_page.dart';
 import '../../features/get_started/presentation/get_started_page.dart';
 import '../../features/operations/presentation/daily_usage_page.dart';
 import '../../features/operations/presentation/staff_checklist_page.dart';
+import '../../features/catalog/presentation/barcode_quick_create_page.dart';
 import '../../features/catalog/presentation/catalog_duplicates_page.dart';
+import '../../features/stock/presentation/stock_missing_labels_page.dart';
 import '../../features/stock/presentation/stock_operational_list_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
@@ -94,6 +96,7 @@ bool _isStaffAllowedRoute(String loc) {
   if (loc == '/catalog/missing-codes' ||
       loc == '/stock/missing-barcodes' ||
       loc == '/catalog/quick-add' ||
+      loc == '/catalog/quick-add-from-scan' ||
       loc.startsWith('/catalog/item/')) {
     return true;
   }
@@ -306,7 +309,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/stock/missing-barcodes',
-        redirect: (_, __) => '/catalog/missing-codes',
+        pageBuilder: (context, state) => iosPushPage(
+          key: state.pageKey,
+          child: const StockMissingLabelsPage(),
+        ),
+      ),
+      GoRoute(
+        path: '/catalog/quick-add-from-scan',
+        pageBuilder: (context, state) {
+          final barcode =
+              state.uri.queryParameters['barcode']?.trim() ?? '';
+          return iosPushPage(
+            key: state.pageKey,
+            child: BarcodeQuickCreatePage(barcode: barcode),
+          );
+        },
       ),
       GoRoute(
         path: '/catalog/setup-reorder-levels',

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -6,10 +7,11 @@ import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../core/json_coerce.dart';
 import '../../../core/router/post_auth_route.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/providers/stock_providers.dart';
-import '../../../core/theme/hexa_colors.dart';
 import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/widgets/hexa_error_card.dart';
 import '../services/barcode_pdf_service.dart';
@@ -23,8 +25,8 @@ class BulkBarcodePrintPage extends ConsumerStatefulWidget {
 }
 
 class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
-  final _selected = <String>{};
   final _searchCtrl = TextEditingController();
+  Timer? _searchDebounce;
   static const LabelSize _thermalSize = LabelSize.medium;
   int _copies = 1;
   int _perRow = 2;
@@ -39,27 +41,54 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
   bool _denseA4 = true;
   BarcodeSymbolMode _symbol = BarcodeSymbolMode.code128WithQr;
   String? _pdfStatus;
+  int _labelProgressDone = 0;
+  int _labelProgressTotal = 0;
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
   }
 
+  Set<String> get _selected => ref.read(bulkBarcodeSelectionProvider);
+
+  void _setSelected(Set<String> next) {
+    ref.read(bulkBarcodeSelectionProvider.notifier).state = next;
+  }
+
+  void _toggleSelected(String id, bool on) {
+    final next = Set<String>.from(_selected);
+    if (on) {
+      next.add(id);
+    } else {
+      next.remove(id);
+    }
+    _setSelected(next);
+  }
+
   Future<List<BarcodeLabelData>> _fetchLabels() async {
     final session = ref.read(sessionProvider);
-    if (session == null || _selected.isEmpty) return [];
-    final ids = _selected.toList();
+    final ids = ref.read(bulkBarcodeSelectionProvider).toList();
+    if (session == null || ids.isEmpty) return [];
+    if (mounted) {
+      setState(() {
+        _labelProgressTotal = ids.length;
+        _labelProgressDone = 0;
+      });
+    }
     const chunkSize = 200;
     final api = ref.read(hexaApiProvider);
     final batch = <BarcodeLabelData>[];
     for (var i = 0; i < ids.length; i += chunkSize) {
       if (!mounted) break;
       final end = (i + chunkSize < ids.length) ? i + chunkSize : ids.length;
-      setState(
-        () => _pdfStatus =
-            'Fetching labels… ${end.clamp(0, ids.length)}/${ids.length}',
-      );
+      if (mounted) {
+        setState(() {
+          _labelProgressDone = end;
+          _pdfStatus = 'Preparing labels… $end / ${ids.length}';
+        });
+      }
       final labels = await api.barcodeLabelBatch(
         businessId: session.primaryBusiness.id,
         itemIds: ids.sublist(i, end),
@@ -85,11 +114,13 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
         session != null && !sessionCanSeeFinancials(session);
     try {
       if (_denseA4) {
+        final cols = MediaQuery.sizeOf(context).width >= 600 ? 4 : 2;
         return BarcodePdfService.generateBatchA4Dense(
           items: batch,
           size: _thermalSize,
           copiesPerItem: _copies,
           hideFinancials: hideFinancials,
+          columns: cols,
         );
       }
       return BarcodePdfService.generateBatch(
@@ -218,14 +249,15 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
     if (_lowStockOnly && st != 'low' && st != 'critical') {
       return false;
     }
-    final code = it['item_code']?.toString().trim() ?? '';
-    if (_missingCodeOnly && code.isNotEmpty) {
+    final barcode = it['barcode']?.toString().trim() ?? '';
+    if (_missingCodeOnly && barcode.isNotEmpty) {
       return false;
     }
     if (q.isEmpty) return true;
     final name = it['name']?.toString().toLowerCase() ?? '';
     final codeQ = it['item_code']?.toString().toLowerCase() ?? '';
-    return name.contains(q) || codeQ.contains(q);
+    final barcodeQ = it['barcode']?.toString().toLowerCase() ?? '';
+    return name.contains(q) || codeQ.contains(q) || barcodeQ.contains(q);
   }
 
   String _bulkBarcodeFilename() {
@@ -256,29 +288,42 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
 
   @override
   Widget build(BuildContext context) {
+    final selected = ref.watch(bulkBarcodeSelectionProvider);
     final listQ = ref.watch(stockListQueryProvider);
     final listAsync = ref.watch(bulkStockListProvider);
     final catsAsync = ref.watch(itemCategoriesListProvider);
 
+    final progress = _labelProgressTotal > 0
+        ? _labelProgressDone / _labelProgressTotal
+        : null;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _selected.isEmpty
+          selected.isEmpty
               ? 'Bulk print barcodes'
-              : 'Bulk print (${_selected.length})',
+              : 'Bulk print (${selected.length})',
         ),
         actions: [
-          if (_selected.isNotEmpty)
+          if (selected.isNotEmpty)
             TextButton(
-              onPressed: () => setState(_selected.clear),
+              onPressed: () => _setSelected({}),
               child: const Text('Clear'),
             ),
         ],
       ),
-      body: Column(
-        children: [
+      bottomNavigationBar: _buildStickyBar(selected, progress),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 900;
+          final filters = <Widget>[
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const EdgeInsets.fromLTRB(
+              HexaOp.pageGutter,
+              8,
+              HexaOp.pageGutter,
+              0,
+            ),
             child: TextField(
               controller: _searchCtrl,
               decoration: InputDecoration(
@@ -289,16 +334,15 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onChanged: (v) =>
-                  setState(() => _searchText = v.trim().toLowerCase()),
+              onChanged: (v) {
+                _searchDebounce?.cancel();
+                _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+                  if (mounted) setState(() => _searchText = v.trim().toLowerCase());
+                });
+              },
             ),
           ),
           const SizedBox(height: 6),
-          ExpansionTile(
-            tilePadding: const EdgeInsets.symmetric(horizontal: 12),
-            title: const Text('Filters', style: TextStyle(fontSize: 14)),
-            initiallyExpanded: false,
-            children: [
           catsAsync.when(
             loading: () => const Padding(
               padding: EdgeInsets.symmetric(horizontal: 12),
@@ -445,7 +489,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                   },
                 ),
                 FilterChip(
-                  label: const Text('Missing code',
+                  label: const Text('Missing barcode',
                       style: TextStyle(fontSize: 12)),
                   selected: _missingCodeOnly,
                   onSelected: (_) {
@@ -475,10 +519,8 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
               ],
             ),
           ),
-            ],
-          ),
-          Expanded(
-            child: listAsync.when(
+          ];
+          final listPane = listAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => HexaErrorCard.fromError(
                 error: e,
@@ -492,9 +534,10 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                     if (e is Map) Map<String, dynamic>.from(e),
                 ];
                 final visible = _filterItems(items);
-                final total = (data['total'] as num?)?.toInt();
-                final loaded =
-                    (data['loaded'] as num?)?.toInt() ?? items.length;
+                final total = coerceToIntNullable(data['total']);
+                final loadedRaw = coerceToInt(data['loaded']);
+                final loadedShown =
+                    loadedRaw > 0 ? loadedRaw : items.length;
                 return Column(
                   children: [
                     Padding(
@@ -503,9 +546,9 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                         children: [
                           Expanded(
                             child: Text(
-                              '${_selected.length} selected · '
+                              '${selected.length} selected · '
                               '${visible.length} shown'
-                              '${total != null ? ' · $loaded of $total loaded' : ''}',
+                              '${total != null ? ' · $loadedShown of $total loaded' : ''}',
                               style:
                                   const TextStyle(fontWeight: FontWeight.w800),
                             ),
@@ -513,14 +556,9 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                           TextButton(
                             onPressed: visible.isEmpty
                                 ? null
-                                : () => setState(() {
-                                      _selected
-                                        ..clear()
-                                        ..addAll(
-                                          visible
-                                              .map((e) => e['id']?.toString())
-                                              .whereType<String>(),
-                                        );
+                                : () => _setSelected({
+                                      for (final e in visible)
+                                        if (e['id'] != null) e['id'].toString(),
                                     }),
                             child: const Text('Select all'),
                           ),
@@ -535,39 +573,21 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                           final id = it['id']?.toString() ?? '';
                           final name = it['name']?.toString() ?? '';
                           final code = it['item_code']?.toString() ?? '';
+                          final barcode = it['barcode']?.toString() ?? '';
                           final st = it['stock_status']?.toString() ?? '';
                           final stock = it['current_stock']?.toString() ?? '—';
-                          return CheckboxListTile(
-                            dense: true,
-                            value: _selected.contains(id),
-                            onChanged: (v) => setState(() {
-                              if (v == true) {
-                                _selected.add(id);
-                              } else {
-                                _selected.remove(id);
-                              }
-                            }),
-                            title: Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            subtitle: Text(
-                              code.isEmpty ? 'No code · $st' : '$code · $st',
-                            ),
-                            secondary: Text(
-                              stock,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: st == 'low' || st == 'critical'
-                                    ? const Color(0xFFE65100)
-                                    : null,
-                              ),
-                            ),
+                          final sub = barcode.isEmpty
+                              ? (code.isEmpty ? 'No barcode · $st' : '$code · $st')
+                              : (code.isEmpty
+                                  ? '$barcode · $st'
+                                  : '$code · $barcode · $st');
+                          return _BulkPrintRow(
+                            selected: selected.contains(id),
+                            name: name,
+                            subtitle: sub,
+                            stock: stock,
+                            stockHighlight: st == 'low' || st == 'critical',
+                            onChanged: (v) => _toggleSelected(id, v),
                           );
                         },
                       ),
@@ -575,178 +595,213 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                   ],
                 );
               },
-            ),
+            );
+          if (wide) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SizedBox(
+                  width: 300,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: filters,
+                    ),
+                  ),
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: listPane),
+              ],
+            );
+          }
+          return Column(
+            children: [
+              ...filters,
+              Expanded(child: listPane),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStickyBar(Set<String> selected, double? progress) {
+    return Material(
+      elevation: 8,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            HexaOp.pageGutter,
+            8,
+            HexaOp.pageGutter,
+            8,
           ),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  blurRadius: 8,
-                  color: Colors.black.withValues(alpha: 0.08),
-                  offset: const Offset(0, -2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (progress != null || _pdfStatus != null) ...[
+                LinearProgressIndicator(
+                  minHeight: 3,
+                  value: progress,
+                ),
+                if (_pdfStatus != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      _pdfStatus!,
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                  ),
+                const SizedBox(height: 8),
+              ],
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: [
+                  FilterChip(
+                    label: const Text('A4', style: TextStyle(fontSize: 12)),
+                    selected: _denseA4,
+                    onSelected: _busy ? null : (_) => setState(() => _denseA4 = true),
+                  ),
+                  FilterChip(
+                    label: const Text('Thermal', style: TextStyle(fontSize: 12)),
+                    selected: !_denseA4,
+                    onSelected:
+                        _busy ? null : (_) => setState(() => _denseA4 = false),
+                  ),
+                  DropdownButton<int>(
+                    value: _copies,
+                    isDense: true,
+                    items: [
+                      for (final n in [1, 2, 3, 4, 5])
+                        DropdownMenuItem(value: n, child: Text('$n×')),
+                    ],
+                    onChanged: _busy ? null : (v) => setState(() => _copies = v ?? 1),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: selected.isEmpty || _busy ? null : _preview,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(HexaOp.buttonHeight),
+                      ),
+                      child: const Text('Preview'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: selected.isEmpty || _busy ? null : _downloadPdf,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(HexaOp.buttonHeight),
+                      ),
+                      child: const Text('PDF'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: selected.isEmpty || _busy ? null : _print,
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(HexaOp.buttonHeight),
+                      ),
+                      child: _busy
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text('Print'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BulkPrintRow extends StatelessWidget {
+  const _BulkPrintRow({
+    required this.selected,
+    required this.name,
+    required this.subtitle,
+    required this.stock,
+    required this.stockHighlight,
+    required this.onChanged,
+  });
+
+  final bool selected;
+  final String name;
+  final String subtitle;
+  final String stock;
+  final bool stockHighlight;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: HexaOp.listRowMax,
+      child: Material(
+        color: Colors.white,
+        child: InkWell(
+          onTap: () => onChanged(!selected),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              children: [
+                Checkbox(
+                  value: selected,
+                  onChanged: (v) => onChanged(v ?? false),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11, color: Colors.black54),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  stock,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    color: stockHighlight ? const Color(0xFFE65100) : null,
+                  ),
                 ),
               ],
             ),
-            child: SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_pdfStatus != null) ...[
-                      LinearProgressIndicator(minHeight: 3),
-                      const SizedBox(height: 6),
-                      Text(
-                        _pdfStatus!,
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        FilterChip(
-                          label: const Text('A4 grid'),
-                          selected: _denseA4,
-                          onSelected: _busy
-                              ? null
-                              : (_) => setState(() => _denseA4 = true),
-                        ),
-                        FilterChip(
-                          label: const Text('Thermal 50×25'),
-                          selected: !_denseA4,
-                          onSelected: _busy
-                              ? null
-                              : (_) => setState(() => _denseA4 = false),
-                        ),
-                        FilterChip(
-                          label: const Text('Code128'),
-                          selected: _symbol == BarcodeSymbolMode.code128,
-                          onSelected: _busy
-                              ? null
-                              : (_) => setState(
-                                    () => _symbol = BarcodeSymbolMode.code128,
-                                  ),
-                        ),
-                        FilterChip(
-                          label: const Text('QR'),
-                          selected: _symbol == BarcodeSymbolMode.qrCode,
-                          onSelected: _busy
-                              ? null
-                              : (_) => setState(
-                                    () => _symbol = BarcodeSymbolMode.qrCode,
-                                  ),
-                        ),
-                      ],
-                    ),
-                    if (!_denseA4) ...[
-                      const SizedBox(height: 6),
-                      SegmentedButton<int>(
-                        segments: const [
-                          ButtonSegment(value: 2, label: Text('2/row')),
-                          ButtonSegment(value: 3, label: Text('3/row')),
-                        ],
-                        selected: {_perRow},
-                        onSelectionChanged: (s) =>
-                            setState(() => _perRow = s.first),
-                      ),
-                    ],
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      dense: true,
-                      title: const Text('A4 dense grid'),
-                      subtitle: Text(
-                        _denseA4
-                            ? 'Max labels per page (5mm margin, 2mm gap)'
-                            : 'Classic layout: labels per row on A4',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                      value: _denseA4,
-                      onChanged:
-                          _busy ? null : (v) => setState(() => _denseA4 = v),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text(
-                          'Copies per item',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                        const Spacer(),
-                        DropdownButton<int>(
-                          value: _copies,
-                          items: [
-                            for (final n in [1, 2, 3, 4, 5])
-                              DropdownMenuItem(
-                                value: n,
-                                child: Text('$n'),
-                              ),
-                          ],
-                          onChanged: _busy
-                              ? null
-                              : (v) => setState(() => _copies = v ?? 1),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed:
-                                (_selected.isEmpty || _busy) ? null : _preview,
-                            icon: const Icon(Icons.preview_outlined),
-                            label: const Text('Preview'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: (_selected.isEmpty || _busy)
-                                ? null
-                                : _downloadPdf,
-                            icon: const Icon(Icons.picture_as_pdf_outlined),
-                            label: const Text('PDF'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          flex: 2,
-                          child: FilledButton.icon(
-                            onPressed:
-                                (_selected.isEmpty || _busy) ? null : _print,
-                            icon: _busy
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(Icons.print_rounded),
-                            label: Text(
-                              _busy ? '…' : 'Print',
-                            ),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: _selected.isEmpty
-                                  ? Colors.grey
-                                  : HexaColors.brandPrimary,
-                              minimumSize: const Size.fromHeight(48),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ),
-        ],
+        ),
       ),
     );
   }

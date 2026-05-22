@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/theme/hexa_colors.dart';
 
-/// Two-row compact circular quick actions (4 columns for owner).
+/// Compact 2×3 quick actions (warehouse operational density).
 class HomeQuickActionsGrid extends StatelessWidget {
   const HomeQuickActionsGrid({
     super.key,
@@ -13,7 +14,6 @@ class HomeQuickActionsGrid extends StatelessWidget {
     required this.onReports,
     required this.onPrint,
     this.onDaily,
-    required this.onUsers,
   });
 
   final bool isOwner;
@@ -23,7 +23,6 @@ class HomeQuickActionsGrid extends StatelessWidget {
   final VoidCallback onReports;
   final VoidCallback onPrint;
   final VoidCallback? onDaily;
-  final VoidCallback onUsers;
 
   @override
   Widget build(BuildContext context) {
@@ -65,22 +64,15 @@ class HomeQuickActionsGrid extends StatelessWidget {
           color: const Color(0xFF5D4037),
           onTap: onDaily!,
         ),
-      if (isOwner)
-        _QuickActionSpec(
-          label: 'Users',
-          icon: Icons.group_outlined,
-          color: const Color(0xFF6A1B9A),
-          onTap: onUsers,
-        ),
     ];
 
     return GridView.count(
-      crossAxisCount: 4,
+      crossAxisCount: 3,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 4,
-      crossAxisSpacing: 4,
-      childAspectRatio: 1.05,
+      mainAxisSpacing: 8,
+      crossAxisSpacing: 8,
+      childAspectRatio: 0.92,
       children: [
         for (final a in actions)
           _CompactCircularAction(
@@ -123,31 +115,31 @@ class _CompactCircularAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 48,
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: HexaOp.quickActionIcon,
+              height: HexaOp.quickActionIcon,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 18, color: color),
+              child: Icon(icon, size: 22, color: color),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 6),
             Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 10,
+                fontSize: 12,
                 fontWeight: FontWeight.w700,
                 color: Color(0xFF334155),
               ),

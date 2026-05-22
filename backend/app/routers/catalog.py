@@ -146,6 +146,7 @@ class CatalogItemCreate(BaseModel):
     default_sale_unit: str | None = Field(default=None, pattern=_UNIT_PATTERN)
     hsn_code: str | None = Field(default=None, max_length=32)
     item_code: str | None = Field(default=None, max_length=64)
+    barcode: str | None = Field(default=None, max_length=64)
     tax_percent: float | None = Field(default=None, ge=0, le=100)
     default_landing_cost: float | None = Field(default=None, ge=0)
     default_selling_cost: float | None = Field(default=None, ge=0)
@@ -282,6 +283,7 @@ class CatalogItemOut(BaseModel):
     default_sale_unit: str | None = None
     hsn_code: str | None = None
     item_code: str | None = None
+    barcode: str | None = None
     tax_percent: float | None = None
     default_landing_cost: float | None = None
     default_selling_cost: float | None = None
@@ -664,6 +666,7 @@ def _catalog_item_out(
         default_sale_unit=getattr(i, "default_sale_unit", None),
         hsn_code=getattr(i, "hsn_code", None),
         item_code=getattr(i, "item_code", None),
+        barcode=getattr(i, "barcode", None),
         tax_percent=float(i.tax_percent) if getattr(i, "tax_percent", None) is not None else None,
         default_landing_cost=float(i.default_landing_cost)
         if getattr(i, "default_landing_cost", None) is not None
@@ -1627,6 +1630,115 @@ async def list_catalog_items(
 
 
 _ITM_CODE_RE = re.compile(r"^ITM-(\d+)$", re.IGNORECASE)
+_ITEM_CODE_SLUG_RE = re.compile(r"^[A-Z0-9_-]+$")
+
+
+def _normalize_item_code(raw: str) -> str:
+    return re.sub(r"\s+", "", raw.strip().upper())
+
+
+def _normalize_barcode(raw: str) -> str:
+    return raw.strip()
+
+
+async def _assert_unique_barcode(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    barcode: str,
+    *,
+    exclude_id: uuid.UUID | None = None,
+) -> None:
+    stmt = select(CatalogItem.id).where(
+        CatalogItem.business_id == business_id,
+        CatalogItem.barcode == barcode,
+        CatalogItem.deleted_at.is_(None),
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(CatalogItem.id != exclude_id)
+    if (await db.execute(stmt)).first() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Barcode already exists")
+
+
+async def _assert_unique_item_code(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    item_code: str,
+    *,
+    exclude_id: uuid.UUID | None = None,
+) -> None:
+    stmt = select(CatalogItem.id).where(
+        CatalogItem.business_id == business_id,
+        func.upper(CatalogItem.item_code) == item_code,
+        CatalogItem.deleted_at.is_(None),
+    )
+    if exclude_id is not None:
+        stmt = stmt.where(CatalogItem.id != exclude_id)
+    if (await db.execute(stmt)).first() is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="Item code already exists")
+
+
+class CatalogItemFromScanIn(BaseModel):
+    """Minimal create after unknown barcode scan — no auto ITM, no supplier."""
+
+    barcode: str = Field(min_length=1, max_length=64)
+    item_code: str = Field(min_length=1, max_length=64)
+    name: str = Field(min_length=1, max_length=512)
+    type_id: uuid.UUID
+    default_unit: str = Field(pattern=_UNIT_PATTERN)
+    default_kg_per_bag: float | None = Field(default=None, gt=0)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _strip_name(cls, v: object) -> object:
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+    @field_validator("item_code", mode="after")
+    @classmethod
+    def _validate_item_code(cls, v: str) -> str:
+        n = _normalize_item_code(v)
+        if not _ITEM_CODE_SLUG_RE.match(n):
+            raise ValueError("Item code: use A-Z, 0-9, hyphen, underscore only")
+        return n
+
+    @field_validator("barcode", mode="after")
+    @classmethod
+    def _validate_barcode(cls, v: str) -> str:
+        b = _normalize_barcode(v)
+        if not b:
+            raise ValueError("Barcode is required")
+        return b
+
+    @model_validator(mode="after")
+    def _unit_conditional_scan(self) -> "CatalogItemFromScanIn":
+        if self.default_unit == "bag" and self.default_kg_per_bag is None:
+            raise ValueError("default_kg_per_bag is required when default_unit is bag")
+        return self
+
+
+class ItemCodePatchIn(BaseModel):
+    item_code: str = Field(min_length=1, max_length=64)
+
+    @field_validator("item_code", mode="after")
+    @classmethod
+    def _validate(cls, v: str) -> str:
+        n = _normalize_item_code(v)
+        if not _ITEM_CODE_SLUG_RE.match(n):
+            raise ValueError("Item code: use A-Z, 0-9, hyphen, underscore only")
+        return n
+
+
+class BarcodePatchIn(BaseModel):
+    barcode: str = Field(min_length=1, max_length=64)
+
+    @field_validator("barcode", mode="after")
+    @classmethod
+    def _validate(cls, v: str) -> str:
+        b = _normalize_barcode(v)
+        if not b:
+            raise ValueError("Barcode is required")
+        return b
 
 
 async def _next_item_code(db: AsyncSession, business_id: uuid.UUID) -> str:
@@ -1645,6 +1757,137 @@ async def _next_item_code(db: AsyncSession, business_id: uuid.UUID) -> str:
         if m:
             max_n = max(max_n, int(m.group(1)))
     return f"ITM-{max_n + 1:04d}"
+
+
+@router.post(
+    "/catalog-items/from-scan",
+    response_model=CatalogItemOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_catalog_item_from_scan(
+    business_id: uuid.UUID,
+    _m: Annotated[Membership, Depends(require_membership)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: CatalogItemFromScanIn,
+):
+    del _m
+    has_type_col = await catalog_items_has_type_id_column(db)
+    tr = await db.execute(
+        select(CategoryType.id, CategoryType.category_id)
+        .join(ItemCategory, ItemCategory.id == CategoryType.category_id)
+        .where(
+            CategoryType.id == body.type_id,
+            ItemCategory.business_id == business_id,
+        )
+    )
+    row = tr.first()
+    if row is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="type_id not found in this business")
+    type_uuid, category_id = row[0], row[1]
+    await _assert_unique_barcode(db, business_id, body.barcode)
+    await _assert_unique_item_code(db, business_id, body.item_code)
+    if await _item_dup(
+        db, business_id, category_id, type_uuid, body.name, has_type_col=has_type_col
+    ):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail="An item with this name already exists for this subcategory",
+        )
+    u = body.default_unit
+    dkg = body.default_kg_per_bag if u == "bag" else None
+    i = CatalogItem(
+        business_id=business_id,
+        category_id=category_id,
+        type_id=type_uuid,
+        name=body.name.strip(),
+        default_unit=u,
+        default_kg_per_bag=dkg,
+        barcode=body.barcode,
+        item_code=body.item_code,
+    )
+    db.add(i)
+    await db.flush()
+    crn = await db.execute(
+        select(ItemCategory.name).where(
+            ItemCategory.id == category_id,
+            ItemCategory.business_id == business_id,
+        )
+    )
+    cat_n = crn.scalar_one_or_none()
+    ur = resolve_for_catalog_item(
+        i,
+        item_name=i.name,
+        category_name=str(cat_n) if cat_n else None,
+        brand_detected=False,
+    )
+    merge_unit_resolution_into_catalog_row(i, ur)
+    await db.commit()
+    await db.refresh(i)
+    tn = None
+    if i.type_id is not None:
+        trn = await db.execute(select(CategoryType.name).where(CategoryType.id == i.type_id))
+        tn = trn.scalar_one_or_none()
+    return _catalog_item_out(i, tn, category_name=str(cat_n) if cat_n else None)
+
+
+@router.patch("/catalog-items/{item_id}/item-code", response_model=CatalogItemOut)
+async def patch_catalog_item_code(
+    business_id: uuid.UUID,
+    item_id: uuid.UUID,
+    _m: Annotated[Membership, Depends(require_membership)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: ItemCodePatchIn,
+):
+    del _m
+    r = await db.execute(
+        select(CatalogItem).where(
+            CatalogItem.id == item_id,
+            CatalogItem.business_id == business_id,
+            CatalogItem.deleted_at.is_(None),
+        )
+    )
+    item = r.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found")
+    await _assert_unique_item_code(db, business_id, body.item_code, exclude_id=item_id)
+    item.item_code = body.item_code
+    await db.commit()
+    await db.refresh(item)
+    tn = None
+    if item.type_id:
+        tr = await db.execute(select(CategoryType.name).where(CategoryType.id == item.type_id))
+        tn = tr.scalar_one_or_none()
+    return _catalog_item_out(item, tn)
+
+
+@router.patch("/catalog-items/{item_id}/barcode", response_model=CatalogItemOut)
+async def patch_catalog_item_barcode(
+    business_id: uuid.UUID,
+    item_id: uuid.UUID,
+    _m: Annotated[Membership, Depends(require_membership)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    body: BarcodePatchIn,
+):
+    del _m
+    r = await db.execute(
+        select(CatalogItem).where(
+            CatalogItem.id == item_id,
+            CatalogItem.business_id == business_id,
+            CatalogItem.deleted_at.is_(None),
+        )
+    )
+    item = r.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found")
+    await _assert_unique_barcode(db, business_id, body.barcode, exclude_id=item_id)
+    item.barcode = body.barcode
+    await db.commit()
+    await db.refresh(item)
+    tn = None
+    if item.type_id:
+        tr = await db.execute(select(CategoryType.name).where(CategoryType.id == item.type_id))
+        tn = tr.scalar_one_or_none()
+    return _catalog_item_out(item, tn)
 
 
 @router.post("/catalog-items", response_model=CatalogItemOut, status_code=status.HTTP_201_CREATED)
@@ -1716,6 +1959,7 @@ async def create_catalog_item(
         default_sale_unit=body.default_sale_unit,
         hsn_code=(body.hsn_code or "").strip() or None,
         item_code=final_item_code,
+        barcode=_normalize_barcode(body.barcode) if getattr(body, "barcode", None) else None,
         tax_percent=body.tax_percent,
         default_landing_cost=body.default_landing_cost,
         default_selling_cost=body.default_selling_cost,

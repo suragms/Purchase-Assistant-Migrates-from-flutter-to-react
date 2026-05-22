@@ -1975,6 +1975,54 @@ class HexaApi {
     return res.data ?? {};
   }
 
+  Future<Map<String, dynamic>> createCatalogItemFromScan({
+    required String businessId,
+    required String barcode,
+    required String itemCode,
+    required String name,
+    required String typeId,
+    required String defaultUnit,
+    double? defaultKgPerBag,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/catalog-items/from-scan',
+      data: {
+        'barcode': barcode.trim(),
+        'item_code': itemCode.trim(),
+        'name': name.trim(),
+        'type_id': typeId,
+        'default_unit': defaultUnit,
+        if (defaultKgPerBag != null && defaultKgPerBag > 0)
+          'default_kg_per_bag': defaultKgPerBag,
+      },
+    );
+    return res.data ?? {};
+  }
+
+  Future<Map<String, dynamic>> patchCatalogItemCode({
+    required String businessId,
+    required String itemId,
+    required String itemCode,
+  }) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/catalog-items/$itemId/item-code',
+      data: {'item_code': itemCode.trim()},
+    );
+    return res.data ?? {};
+  }
+
+  Future<Map<String, dynamic>> patchCatalogItemBarcode({
+    required String businessId,
+    required String itemId,
+    required String barcode,
+  }) async {
+    final res = await _dio.patch<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/catalog-items/$itemId/barcode',
+      data: {'barcode': barcode.trim()},
+    );
+    return res.data ?? {};
+  }
+
   /// Batch-create catalog items (same shape as `CatalogBatchItemIn`).
   Future<Map<String, dynamic>> createCatalogItemsBatch({
     required String businessId,

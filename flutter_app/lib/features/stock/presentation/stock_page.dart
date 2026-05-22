@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../core/json_coerce.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/utils/operational_date_format.dart';
@@ -42,7 +44,7 @@ class _StockPageState extends ConsumerState<StockPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(stockListQueryProvider.notifier).state =
-          const StockListQuery(perPage: 200, page: 1);
+          const StockListQuery(perPage: 50, page: 1);
     });
   }
 
@@ -73,7 +75,7 @@ class _StockPageState extends ConsumerState<StockPage> {
     final q = ref.read(stockListQueryProvider);
     final data = ref.read(stockListProvider).valueOrNull;
     if (data == null) return;
-    final total = (data['total'] as num?)?.toInt() ?? 0;
+    final total = coerceToInt(data['total']);
     final loaded = (data['items'] as List?)?.length ?? 0;
     if (loaded >= total) return;
     setState(() => _loadingMore = true);
@@ -102,7 +104,11 @@ class _StockPageState extends ConsumerState<StockPage> {
   @override
   Widget build(BuildContext context) {
     ref.listen(stockListProvider, (prev, next) {
-      if (next is AsyncData) setState(() => _loadingMore = false);
+      if (next is! AsyncData) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _loadingMore = false);
+      });
     });
     final listAsync = ref.watch(stockListProvider);
     final categories = ref.watch(itemCategoriesListProvider);
@@ -280,7 +286,12 @@ class _StockPageState extends ConsumerState<StockPage> {
   Widget _buildFilterChips(AsyncValue<List<Map<String, dynamic>>> categoriesAsync) {
     final cats = categoriesAsync.valueOrNull ?? [];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      padding: const EdgeInsets.fromLTRB(
+        HexaOp.pageGutter,
+        8,
+        HexaOp.pageGutter,
+        4,
+      ),
       child: Wrap(
         spacing: 8,
         runSpacing: 8,
@@ -383,10 +394,10 @@ class _StockEaseRow extends StatelessWidget {
     final unit = item['unit']?.toString() ?? '';
     final cat = item['category_name']?.toString() ?? '';
     final sub = item['subcategory_name']?.toString() ?? '';
-    final cur = (item['current_stock'] as num?)?.toDouble() ?? 0;
-    final reorder = (item['reorder_level'] as num?)?.toDouble() ?? 0;
-    final bought = (item['purchased_today_qty'] as num?)?.toDouble() ?? 0;
-    final used = (item['usage_today_qty'] as num?)?.toDouble() ?? 0;
+    final cur = coerceToDouble(item['current_stock']);
+    final reorder = coerceToDouble(item['reorder_level']);
+    final bought = coerceToDouble(item['purchased_today_qty']);
+    final used = coerceToDouble(item['usage_today_qty']);
     final days = item['days_since_last_purchase'] as int?;
 
     double? progress;
@@ -417,8 +428,13 @@ class _StockEaseRow extends StatelessWidget {
       color: Colors.white,
       child: InkWell(
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: HexaOp.listRowMax),
+          child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: HexaOp.pageGutter,
+            vertical: 8,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -537,6 +553,7 @@ class _StockEaseRow extends StatelessWidget {
                 ),
             ],
           ),
+        ),
         ),
       ),
     );

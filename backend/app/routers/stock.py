@@ -140,7 +140,9 @@ def _item_to_list_row(
         days_since_last_purchase=_days_since_last_purchase(item),
         needs_eviction=_needs_eviction(item, is_perishable=is_perishable, current=cur),
         is_perishable=is_perishable,
-        missing_barcode=not (item.item_code and str(item.item_code).strip()),
+        missing_barcode=not (getattr(item, "barcode", None) and str(item.barcode).strip()),
+        missing_item_code=not (item.item_code and str(item.item_code).strip()),
+        barcode=getattr(item, "barcode", None),
     )
 
 
@@ -532,20 +534,31 @@ async def barcode_lookup(
     _m: Annotated[Membership, Depends(require_membership)],
     code: str = Query(..., min_length=1),
 ):
+    code_s = code.strip()
     r = await db.execute(
         select(CatalogItem).where(
             CatalogItem.business_id == business_id,
-            CatalogItem.item_code == code.strip(),
+            CatalogItem.barcode == code_s,
             CatalogItem.deleted_at.is_(None),
         )
     )
     item = r.scalar_one_or_none()
+    if item is None:
+        r2 = await db.execute(
+            select(CatalogItem).where(
+                CatalogItem.business_id == business_id,
+                CatalogItem.item_code == code_s,
+                CatalogItem.deleted_at.is_(None),
+            )
+        )
+        item = r2.scalar_one_or_none()
     if not item:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found")
     return BarcodeLookupOut(
         id=item.id,
         name=item.name,
         item_code=item.item_code,
+        barcode=getattr(item, "barcode", None),
         current_stock=catalog_stock_qty(item),
         reorder_level=catalog_reorder(item),
         unit=item.stock_unit or item.default_unit,
@@ -605,13 +618,14 @@ async def stock_alerts_summary(
 ):
     """Operational alert counts for owner home strip."""
     today = date.today()
-    low = crit = missing_code = eviction = 0
+    low = crit = missing_barcode = missing_item_code = eviction = 0
     ir = await db.execute(
         select(
             CatalogItem.id,
             CatalogItem.current_stock,
             CatalogItem.reorder_level,
             CatalogItem.item_code,
+            CatalogItem.barcode,
             CatalogItem.last_purchase_at,
             CatalogItem.eviction_days,
             ItemCategory.is_perishable,
@@ -623,7 +637,7 @@ async def stock_alerts_summary(
         )
     )
     for row in ir.all():
-        _iid, cur, ro, code, lpa, ev_days, perish = row
+        _iid, cur, ro, code, barcode, lpa, ev_days, perish = row
         cur_d = Decimal(cur or 0)
         ro_d = Decimal(ro or 0)
         st = stock_status(cur_d, ro_d)
@@ -631,8 +645,10 @@ async def stock_alerts_summary(
             low += 1
         elif st in ("critical", "out"):
             crit += 1
+        if not (barcode and str(barcode).strip()):
+            missing_barcode += 1
         if not (code and str(code).strip()):
-            missing_code += 1
+            missing_item_code += 1
         if perish and cur_d > 0 and ev_days and lpa:
             days = max(0, (datetime.now(timezone.utc) - lpa).days)
             if days > int(ev_days):
@@ -655,7 +671,7 @@ async def stock_alerts_summary(
     return StockAlertsSummaryOut(
         low_stock=low,
         critical_stock=crit,
-        missing_barcode=missing_code,
+        missing_barcode=missing_barcode,
         missing_usage_logs=max(0, active - logged),
         eviction_count=eviction,
     )
@@ -763,8 +779,10 @@ async def _barcode_label(
         cat_name = cr.scalar_one_or_none()
     purchases = await _recent_purchases(db, item.id, limit=1)
     lp = purchases[0] if purchases else None
+    bc = getattr(item, "barcode", None) or item.item_code
     return BarcodeLabelOut(
         id=item.id,
+        barcode=bc,
         item_code=item.item_code,
         item_name=item.name,
         category_name=cat_name,

@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:barcode/barcode.dart';
 import 'package:flutter/foundation.dart';
+
+import '../../../core/json_coerce.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
@@ -15,6 +17,7 @@ class BarcodeLabelData {
   const BarcodeLabelData({
     required this.itemCode,
     required this.itemName,
+    this.barcode,
     this.unit,
     this.currentStock,
     this.lastPurchaseDate,
@@ -23,6 +26,9 @@ class BarcodeLabelData {
     this.lastPurchaseRate,
   });
 
+  /// Scannable packaging barcode (Code128/QR payload).
+  final String? barcode;
+  /// Internal shelf / ERP code (printed as text).
   final String itemCode;
   final String itemName;
   final String? unit;
@@ -32,7 +38,15 @@ class BarcodeLabelData {
   final String? lastPurchaseUnit;
   final double? lastPurchaseRate;
 
+  /// Value encoded in the barcode image (barcode column, else item_code).
+  String get symbologyValue {
+    final b = barcode?.trim() ?? '';
+    if (b.isNotEmpty) return b;
+    return itemCode.trim();
+  }
+
   Map<String, dynamic> toJson() => {
+        'barcode': barcode,
         'itemCode': itemCode,
         'itemName': itemName,
         'unit': unit,
@@ -50,34 +64,37 @@ class BarcodeLabelData {
       lpDate = DateTime.tryParse(lpRaw);
     }
     return BarcodeLabelData(
+      barcode: j['barcode'] as String?,
       itemCode: j['itemCode'] as String? ?? '',
       itemName: j['itemName'] as String? ?? '',
       unit: j['unit'] as String?,
-      currentStock: (j['currentStock'] as num?)?.toDouble(),
+      currentStock: coerceToDoubleNullable(j['currentStock']),
       lastPurchaseDate: lpDate,
-      lastPurchaseQty: (j['lastPurchaseQty'] as num?)?.toDouble(),
+      lastPurchaseQty: coerceToDoubleNullable(j['lastPurchaseQty']),
       lastPurchaseUnit: j['lastPurchaseUnit'] as String?,
-      lastPurchaseRate: (j['lastPurchaseRate'] as num?)?.toDouble(),
+      lastPurchaseRate: coerceToDoubleNullable(j['lastPurchaseRate']),
     );
   }
 
   static BarcodeLabelData? fromApiMap(Map<String, dynamic> j) {
-    final code = j['item_code']?.toString() ?? '';
-    if (code.isEmpty) return null;
+    final ic = j['item_code']?.toString().trim() ?? '';
+    final bc = j['barcode']?.toString().trim() ?? '';
+    if (ic.isEmpty && bc.isEmpty) return null;
     DateTime? lpDate;
     final lpRaw = j['last_purchase_date'];
     if (lpRaw is String && lpRaw.isNotEmpty) {
       lpDate = DateTime.tryParse(lpRaw);
     }
     return BarcodeLabelData(
-      itemCode: code,
-      itemName: j['item_name']?.toString() ?? code,
+      barcode: bc.isEmpty ? null : bc,
+      itemCode: ic.isEmpty ? bc : ic,
+      itemName: j['item_name']?.toString() ?? (ic.isNotEmpty ? ic : bc),
       unit: j['unit']?.toString(),
-      currentStock: (j['current_stock'] as num?)?.toDouble(),
+      currentStock: coerceToDoubleNullable(j['current_stock']),
       lastPurchaseDate: lpDate,
-      lastPurchaseQty: (j['last_purchase_qty'] as num?)?.toDouble(),
+      lastPurchaseQty: coerceToDoubleNullable(j['last_purchase_qty']),
       lastPurchaseUnit: j['last_purchase_unit']?.toString(),
-      lastPurchaseRate: (j['last_purchase_rate'] as num?)?.toDouble(),
+      lastPurchaseRate: coerceToDoubleNullable(j['last_purchase_rate']),
     );
   }
 }
@@ -208,6 +225,7 @@ class BarcodePdfService {
     int copiesPerItem = 1,
     bool showLastPurchase = true,
     bool hideFinancials = false,
+    int columns = 4,
   }) async {
     final expanded = <BarcodeLabelData>[];
     for (final data in items) {
@@ -223,6 +241,7 @@ class BarcodePdfService {
       'size': size.index,
       'showLastPurchase': showLastPurchase,
       'hideFinancials': hideFinancials,
+      'maxCols': columns.clamp(1, 6),
     };
     if (kIsWeb) {
       return _barcodeA4DenseFromPayload(payload);
@@ -257,7 +276,11 @@ class BarcodePdfService {
     const sheet = PdfPageFormat.a4;
     final innerW = sheet.width - 2 * margin;
     final innerH = sheet.height - 2 * margin;
-    final cols = math.max(1, ((innerW + gap) / (labelW + gap)).floor());
+    final maxCols = (payload['maxCols'] as int?) ?? 4;
+    final cols = math.min(
+      maxCols,
+      math.max(1, ((innerW + gap) / (labelW + gap)).floor()),
+    );
     final rows = math.max(1, ((innerH + gap) / (labelH + gap)).floor());
     final perPage = cols * rows;
 
@@ -357,7 +380,8 @@ class BarcodePdfService {
     bool hideFinancials = false,
     BarcodeSymbolMode symbol = BarcodeSymbolMode.code128WithQr,
   }) {
-    final code = data.itemCode.trim().isEmpty ? data.itemName : data.itemCode;
+    final code = data.symbologyValue.isEmpty ? data.itemName : data.symbologyValue;
+    final codeLine = data.itemCode.trim().isEmpty ? code : data.itemCode.trim();
     final (titleSize, codeSize, bcHeight, qrSize) = _sizes(size);
 
     final children = <pw.Widget>[
@@ -389,7 +413,17 @@ class BarcodePdfService {
         ),
       );
     }
-    children.add(pw.Text(code, style: pw.TextStyle(fontSize: codeSize)));
+    children.add(pw.Text(codeLine, style: pw.TextStyle(fontSize: codeSize)));
+    if (data.barcode != null &&
+        data.barcode!.trim().isNotEmpty &&
+        data.barcode!.trim() != codeLine) {
+      children.add(
+        pw.Text(
+          'BC ${data.barcode!.trim()}',
+          style: pw.TextStyle(fontSize: codeSize - 1),
+        ),
+      );
+    }
 
     if (qrSize > 0 &&
         symbol == BarcodeSymbolMode.code128WithQr) {

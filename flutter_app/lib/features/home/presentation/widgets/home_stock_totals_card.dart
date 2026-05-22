@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
+import '../../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/stock_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../../core/widgets/friendly_load_error.dart';
 
-/// Owner home: on-hand totals + purchase vs stock variance for selected period.
+/// Owner home: compact on-hand totals + period movement row.
 class HomeStockTotalsCard extends ConsumerWidget {
   const HomeStockTotalsCard({super.key});
 
@@ -24,7 +26,7 @@ class HomeStockTotalsCard extends ConsumerWidget {
     return totalsAsync.when(
       loading: () => const Card(
         child: Padding(
-          padding: EdgeInsets.all(16),
+          padding: EdgeInsets.all(HexaOp.cardPadding),
           child: LinearProgressIndicator(minHeight: 2),
         ),
       ),
@@ -33,11 +35,11 @@ class HomeStockTotalsCard extends ConsumerWidget {
         onRetry: () => ref.invalidate(stockTotalsProvider),
       ),
       data: (totals) {
-        final bags = (totals['total_bags'] as num?)?.toDouble() ?? 0;
-        final kg = (totals['total_kg'] as num?)?.toDouble() ?? 0;
-        final boxes = (totals['total_boxes'] as num?)?.toDouble() ?? 0;
-        final tins = (totals['total_tins'] as num?)?.toDouble() ?? 0;
-        final items = (totals['total_items'] as num?)?.toInt() ?? 0;
+        final bags = coerceToDouble(totals['total_bags']);
+        final kg = coerceToDouble(totals['total_kg']);
+        final boxes = coerceToDouble(totals['total_boxes']);
+        final tins = coerceToDouble(totals['total_tins']);
+        final items = coerceToInt(totals['total_items']);
 
         final purchasedBags = dash.snapshot.data.totalBags;
         final variance = bags - purchasedBags;
@@ -45,12 +47,12 @@ class HomeStockTotalsCard extends ConsumerWidget {
             ? (variance.abs() / purchasedBags * 100)
             : 0.0;
         final alert = purchasedBags <= 0
-            ? 'No purchases in this period to compare'
+            ? 'No purchases in period'
             : pct > 25
-                ? 'High variance — manual audit recommended'
+                ? 'High variance — audit'
                 : pct > 10
-                    ? 'Stock variance — check with staff'
-                    : 'Stock levels look normal';
+                    ? 'Variance — check staff'
+                    : 'Normal';
         final alertColor = purchasedBags <= 0
             ? HexaDsColors.textMuted
             : pct > 25
@@ -59,79 +61,89 @@ class HomeStockTotalsCard extends ConsumerWidget {
                     ? const Color(0xFFE65100)
                     : const Color(0xFF2E7D32);
 
-        Widget tile(String label, String value) {
-          return Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-              decoration: BoxDecoration(
-                color: HexaColors.brandPrimary.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    value,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 15,
-                    ),
+        Widget miniStat(String label, String value) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            child: Column(
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
                   ),
-                  Text(
-                    label,
-                    style: HexaDsType.label(10, color: HexaDsColors.textMuted),
-                  ),
-                ],
-              ),
+                ),
+                Text(
+                  label,
+                  style: HexaDsType.label(10, color: HexaDsColors.textMuted),
+                ),
+              ],
             ),
           );
         }
 
         return Card(
           child: Padding(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(HexaOp.cardPadding),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Total stock on hand',
-                  style: HexaDsType.heading(15, color: HexaDsColors.textPrimary),
+                  'Stock on hand',
+                  style: HexaOp.cardTitle(context),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    tile('BAGS', _fmtNum(bags)),
-                    const SizedBox(width: 6),
-                    tile('KG', _fmtNum(kg)),
-                    const SizedBox(width: 6),
-                    tile('BOXES', _fmtNum(boxes)),
-                    const SizedBox(width: 6),
-                    tile('TINS', _fmtNum(tins)),
+                    miniStat('Bags', _fmtNum(bags)),
+                    miniStat('Kg', _fmtNum(kg)),
+                    miniStat('Box', _fmtNum(boxes)),
+                    miniStat('Tin', _fmtNum(tins)),
                   ],
                 ),
-                const SizedBox(height: 8),
                 Text(
-                  '$items items tracked',
-                  style: HexaDsType.body(12, color: HexaDsColors.textMuted),
+                  '$items items',
+                  style: HexaOp.caption(context),
                 ),
-                const Divider(height: 20),
-                Text(
-                  'This period movement',
-                  style: HexaDsType.heading(14, color: HexaDsColors.textPrimary),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Purchased: ${_fmtNum(purchasedBags)} BAGS · Current: ${_fmtNum(bags)} BAGS',
-                  style: HexaDsType.body(13),
-                ),
-                Text(
-                  'Variance: ${variance >= 0 ? '+' : ''}${_fmtNum(variance)} BAGS',
-                  style: HexaDsType.body(13, color: HexaDsColors.textMuted),
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: HexaColors.brandPrimary.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _movementCell(
+                          'Purchased',
+                          '${_fmtNum(purchasedBags)} bags',
+                        ),
+                      ),
+                      Expanded(
+                        child: _movementCell(
+                          'Current',
+                          '${_fmtNum(bags)} bags',
+                        ),
+                      ),
+                      Expanded(
+                        child: _movementCell(
+                          'Variance',
+                          '${variance >= 0 ? '+' : ''}${_fmtNum(variance)}',
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   alert,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: alertColor,
                   ),
@@ -141,6 +153,23 @@ class HomeStockTotalsCard extends ConsumerWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _movementCell(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          value,
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          textAlign: TextAlign.center,
+        ),
+        Text(
+          label,
+          style: HexaDsType.label(10, color: HexaDsColors.textMuted),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }

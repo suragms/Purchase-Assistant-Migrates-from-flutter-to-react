@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/json_coerce.dart';
+
 /// Dense timeline row for stock adjustment audit entries.
 class StockTodayFeed extends StatelessWidget {
   const StockTodayFeed({
@@ -26,8 +28,8 @@ class StockTodayFeed extends StatelessWidget {
   }
 
   static double _delta(Map<String, dynamic> r) {
-    final n = (r['new_qty'] as num?)?.toDouble() ?? 0;
-    final o = (r['old_qty'] as num?)?.toDouble() ?? 0;
+    final n = coerceToDouble(r['new_qty']);
+    final o = coerceToDouble(r['old_qty']);
     return n - o;
   }
 

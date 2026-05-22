@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/json_coerce.dart';
 import '../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/utils/unit_utils.dart';
@@ -39,7 +40,7 @@ class _QuickStockPatchBodyState extends ConsumerState<_QuickStockPatchBody> {
   @override
   void initState() {
     super.initState();
-    _current = (widget.item['current_stock'] as num?)?.toDouble() ?? 0;
+    _current = coerceToDouble(widget.item['current_stock']);
   }
 
   Future<void> _applyDelta(double delta) async {

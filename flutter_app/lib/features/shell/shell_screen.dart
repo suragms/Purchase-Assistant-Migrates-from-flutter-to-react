@@ -22,6 +22,7 @@ import '../../core/providers/reports_provider.dart';
 import '../../core/providers/trade_purchases_provider.dart'
     show invalidateTradePurchaseCaches;
 import '../../core/design_system/hexa_ds_tokens.dart';
+import '../../core/design_system/hexa_operational_tokens.dart';
 import '../../core/theme/hexa_colors.dart';
 import 'responsive_shell_layout.dart';
 import 'shell_branch_provider.dart';
@@ -253,7 +254,7 @@ class _ShellBottomBar extends StatelessWidget {
   final int stockBadgeCount;
   final ValueChanged<int> onDestinationSelected;
 
-  static const _fabOuter = 52.0;
+  static const _fabOuter = HexaOp.fabSize;
 
   @override
   Widget build(BuildContext context) {
@@ -272,8 +273,10 @@ class _ShellBottomBar extends StatelessWidget {
             color: cs.surface.withValues(alpha: 0.90),
             child: SafeArea(
               top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(4, 6, 8, 6),
+              child: SizedBox(
+                height: HexaOp.bottomNavMax,
+                child: Padding(
+                padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -354,6 +357,7 @@ class _ShellBottomBar extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
               ),
             ),
           ),

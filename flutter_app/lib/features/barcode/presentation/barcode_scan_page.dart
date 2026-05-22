@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/auth/auth_error_messages.dart';
@@ -17,6 +18,9 @@ import '../../../core/router/navigation_ext.dart';
 import '../../../shared/widgets/search_picker_sheet.dart';
 import '../../stock/presentation/quick_stock_patch_sheet.dart';
 import '../../stock/presentation/stock_undo_snackbar.dart';
+import '../../stock/presentation/widgets/scan_stock_result_sheet.dart';
+import 'barcode_scan_web_stub.dart'
+    if (dart.library.js_interop) 'barcode_scan_web.dart';
 
 const _kMaxRecent = 10;
 const _kDebounceMs = 1500;
@@ -33,6 +37,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     with SingleTickerProviderStateMixin {
   MobileScannerController? _camera;
   final _manualCtrl = TextEditingController();
+  final _manualFocus = FocusNode();
   bool _torch = false;
   bool _busy = false;
   String? _lastCode;
@@ -50,12 +55,51 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
     unawaited(_loadRecent());
-    if (!kIsWeb) {
-      unawaited(_initCamera());
+    unawaited(_initCamera());
+  }
+
+  Future<void> _scanFromImage() async {
+    if (_busy) return;
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery);
+    if (file == null || !mounted) return;
+    String? code;
+    try {
+      if (_camera != null) {
+        final cap = await _camera!.analyzeImage(file.path);
+        if (cap != null && cap.barcodes.isNotEmpty) {
+          code = cap.barcodes.first.rawValue?.trim();
+        }
+      }
+      if ((code == null || code.isEmpty) && kIsWeb) {
+        final bytes = await file.readAsBytes();
+        code = await decodeBarcodeFromImageBytes(bytes);
+      }
+    } catch (_) {}
+    if (code != null && code.isNotEmpty) {
+      await _lookupAndNavigate(code);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No barcode found in photo')),
+      );
     }
   }
 
   Future<void> _initCamera() async {
+    if (kIsWeb) {
+      try {
+        _camera = MobileScannerController(
+          detectionSpeed: DetectionSpeed.normal,
+          facing: CameraFacing.back,
+          formats: const [BarcodeFormat.code128, BarcodeFormat.qrCode],
+        );
+        if (mounted) setState(() {});
+        return;
+      } catch (_) {
+        if (mounted) setState(() => _cameraDenied = true);
+        return;
+      }
+    }
     final status = await Permission.camera.status;
     if (status.isDenied) {
       final req = await Permission.camera.request();
@@ -150,10 +194,10 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
       return;
     }
     try {
-      await ref.read(hexaApiProvider).updateCatalogItem(
+      await ref.read(hexaApiProvider).patchCatalogItemBarcode(
             businessId: session.primaryBusiness.id,
             itemId: picked,
-            itemCode: code,
+            barcode: code,
           );
       ref.invalidate(catalogItemsListProvider);
       if (!mounted) return;
@@ -168,6 +212,20 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
       );
       await _resumeScan();
     }
+  }
+
+  Future<void> _showFoundActions(
+    Map<String, dynamic> row,
+    String id,
+    String name,
+  ) async {
+    if (!mounted) return;
+    await showScanStockResultSheet(
+      context: context,
+      ref: ref,
+      item: Map<String, dynamic>.from(row),
+    );
+    await _resumeScan();
   }
 
   Future<void> _showNotFoundSheet(String code) async {
@@ -200,7 +258,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                 onPressed: () {
                   Navigator.pop(ctx);
                   context.push(
-                    '/catalog/quick-add?itemCode=${Uri.encodeComponent(code)}&source=scan',
+                    '/catalog/quick-add-from-scan?barcode=${Uri.encodeComponent(code)}',
                   );
                 },
                 icon: const Icon(Icons.add_box_outlined),
@@ -216,6 +274,14 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                 label: const Text('Assign to existing item'),
               ),
               const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  _manualFocus.requestFocus();
+                },
+                icon: const Icon(Icons.keyboard),
+                label: const Text('Enter manually'),
+              ),
               OutlinedButton.icon(
                 onPressed: () {
                   Navigator.pop(ctx);
@@ -285,7 +351,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
         if (mounted) context.pop();
         return;
       }
-      context.push('/catalog/item/$id?source=scan');
+      await _showFoundActions(row, id, name);
     } on TimeoutException {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -337,6 +403,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   void dispose() {
     _scanLineCtrl.dispose();
     _manualCtrl.dispose();
+    _manualFocus.dispose();
     _camera?.dispose();
     super.dispose();
   }
@@ -369,38 +436,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (kIsWeb)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Material(
-                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
-                borderRadius: BorderRadius.circular(12),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.qr_code_scanner_rounded,
-                        size: 40,
-                        color: theme.colorScheme.primary,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          'Barcode scanning requires the mobile app. '
-                          'Enter the item code below, or install the app on your phone to use the camera.',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            height: 1.35,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else if (_cameraDenied)
+          if (_cameraDenied)
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
@@ -432,6 +468,34 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                       },
                       child: const Text('Allow camera'),
                     ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Scanner unavailable on this device.',
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _manualFocus.requestFocus(),
+                    icon: const Icon(Icons.keyboard),
+                    label: const Text('Enter barcode manually'),
+                  ),
+                  if (!kIsWeb)
+                    OutlinedButton.icon(
+                      onPressed: _scanFromImage,
+                      icon: const Icon(Icons.photo_outlined),
+                      label: const Text('Upload barcode photo'),
+                    ),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _cameraDenied = false;
+                        _cameraPermanent = false;
+                      });
+                      unawaited(_initCamera());
+                    },
+                    child: const Text('Retry'),
+                  ),
                 ],
               ),
             )
@@ -508,6 +572,16 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                 ],
               ),
             ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Text(
+              'Barcode = on the package · Item code = your shelf code',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                height: 1.35,
+              ),
+            ),
+          ),
           if (_recent.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -569,6 +643,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                       children: [
                         Expanded(
                           child: TextField(
+                            focusNode: _manualFocus,
                             controller: _manualCtrl,
                             textCapitalization: TextCapitalization.characters,
                             decoration: InputDecoration(

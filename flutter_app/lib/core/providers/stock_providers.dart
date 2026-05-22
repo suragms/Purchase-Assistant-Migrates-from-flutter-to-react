@@ -120,6 +120,9 @@ final stockListProvider = FutureProvider.autoDispose((ref) async {
 
 /// Loads **all** stock rows matching [stockListQueryProvider] filters (paged API calls).
 /// Used by bulk barcode print so the list is not limited to the stock screen page size.
+/// Selected catalog item ids for bulk barcode PDF (stable across list rebuilds).
+final bulkBarcodeSelectionProvider = StateProvider<Set<String>>((ref) => {});
+
 final bulkStockListProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
   final session = ref.watch(sessionProvider);

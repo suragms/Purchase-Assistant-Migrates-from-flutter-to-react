@@ -133,7 +133,7 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
             Positioned(
               right: 16,
               bottom: 72 + MediaQuery.viewPaddingOf(context).bottom,
-              child: FloatingActionButton.large(
+              child: FloatingActionButton(
                 heroTag: 'staff_scan_fab',
                 tooltip: 'Scan barcode',
                 onPressed: () {

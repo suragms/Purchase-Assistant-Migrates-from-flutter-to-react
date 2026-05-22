@@ -126,7 +126,7 @@ class _CatalogMissingCodesPageState extends ConsumerState<CatalogMissingCodesPag
                               onPressed: id.isEmpty
                                   ? null
                                   : () => context.push(
-                                        '/barcode/bulk-print',
+                                        '/barcode/print/${Uri.encodeComponent(id)}',
                                       ),
                               icon: const Icon(Icons.print_outlined),
                             ),

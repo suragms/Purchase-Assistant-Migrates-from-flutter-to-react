@@ -1,6 +1,6 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-05-22 (Sprints 12–15 StockEase)
+**Last updated:** 2026-05-22 (Barcode + item code master fix)
 **App:** `hexa_purchase_assistant` (Flutter + FastAPI + Supabase)  
 **Product docs:** `docs/harisree/` (`MASTER_REFERENCE.md`, `FEATURES_DEEP_PLAN.md`)
 
@@ -141,6 +141,41 @@
 | SE-26 | P1 | Done | Checklist Morning/Midday/Evening tabs + summary API |
 | SE-27 | P1 | Done | `/stock/dead`, `/stock/fast-moving`, `/stock/slow-moving` + reports chips |
 | SE-28 | P2 | Done | Operational reports drill-down from Reports section |
+
+---
+
+## Barcode + item code master fix (May 22 2026)
+
+| ID | Priority | Status | Summary |
+|----|----------|--------|---------|
+| BC-01 | P0 | Done | Migration `030`: `catalog_items.barcode` + unique index |
+| BC-02 | P0 | Done | API: from-scan create, PATCH item-code/barcode, lookup + 409 |
+| BC-03 | P0 | Done | `/catalog/quick-add-from-scan` minimal create (no ITM auto) |
+| BC-04 | P1 | Done | `/stock/missing-barcodes` TabBar + assign/edit sheets; print → single |
+| BC-05 | P1 | Done | Scanner: web camera attempt, manual/photo/retry fallback, found-actions sheet |
+| BC-06 | P1 | Done | Labels: symbology=barcode, PDF 2/4-col; bulk selection provider + debounce |
+| BC-07 | P1 | Done | `pytest test_barcode_item_code.py`; docs matrix in `MASTER_REFERENCE.md` |
+
+**Deploy:** `030_catalog_barcode` applied on Supabase **2026-05-22** via MCP (`harisree_030_catalog_barcode`). Redeploy backend/Flutter if still broken after hard refresh.
+
+**E2E prod (2026-05-22):** Use **https://purchase-assiastant.vercel.app** (not `purchase-assistant.vercel.app`). `/stock` crash root cause: `as num?` on API decimal **strings** — fixed with `coerceToDouble` in stock rows. Push + Vercel redeploy required.
+
+---
+
+## Sprint 16 — StockEase UX rescue (May 22 2026)
+
+| ID | Priority | Status | Summary |
+|----|----------|--------|---------|
+| UX-01 | P0 | Done | `HexaOp` operational tokens (16dp gutter, 44dp buttons, 64–72dp rows) |
+| UX-02 | P0 | Done | Owner home: 3×2 quick grid, horizontal alert pills, compact totals, 52dp accordions |
+| UX-03 | P1 | Done | Staff home: scan-first 64dp CTA, alert pills, dense low-stock rows |
+| UX-04 | P1 | Done | Scanner: post-scan `scan_stock_result_sheet` (+1/+5); web photo via `analyzeImage`; not-found manual |
+| UX-05 | P1 | Done | Bulk print: sticky bottom bar, 64dp rows, Wrap filters, determinate progress, desktop 2-col ≥900px |
+| UX-06 | P1 | Done | Item code edit on catalog detail + barcode print; missing-labels 64dp rows |
+| UX-07 | P1 | Done | Shell FAB 56dp / bottom bar 60dp; stock `perPage` 50 + `coerceToDouble` audit on hot paths |
+| UX-08 | P2 | Pending deploy | Push `main` → Vercel prod; smoke: `/home`, `/stock`, `/barcode/scan`, `/barcode/bulk-print` |
+
+**E2E checklist (purchase-assiastant):** hard refresh → home tabs/accordions → stock scroll + filters → scan manual code → bulk select + PDF preview → missing-labels tabs.
 
 ---
 

@@ -187,6 +187,7 @@ bool _hexaFlutterErrorLikelyNonFatal(FlutterErrorDetails details) {
       s.contains('TimeoutException') ||
       s.contains('FormatException') ||
       s.contains('type \'Null\' is not') ||
+      s.contains('is not a subtype of type') ||
       s.contains('NoSuchMethodError') ||
       s.contains('PlatformException') ||
       s.contains('StaleHomeDashboardFetch') ||
@@ -261,6 +262,14 @@ class _HexaErrorBoundaryState extends State<_HexaErrorBoundary> {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
+                if (kDebugMode && _error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    _error.toString().split('\n').first,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Wrap(
                   alignment: WrapAlignment.center,
