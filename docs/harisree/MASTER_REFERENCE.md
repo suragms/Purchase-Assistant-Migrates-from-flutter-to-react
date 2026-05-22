@@ -20,7 +20,7 @@
 | Wrong domain | `purchase-assistant.vercel.app` is a **different** app — do not use for Harisree |
 | Mobile app | Flutter — iOS 16+ / Android ✅ |
 | Database | Supabase PostgreSQL (free tier) |
-| Migrations | 023 Alembic versions (all applied) |
+| Migrations | Alembic head `030_catalog_barcode` (029 StockEase ops + 030 barcode on Supabase) |
 | Active blockers | 5 (see ALL_REMAINING_BLOCKERS.md) |
 | Doc hub | `docs/harisree/` (this file) |
 
