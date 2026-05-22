@@ -8,7 +8,7 @@ import '../../../../shared/widgets/operational_ui.dart';
 import '../../stock_period_utils.dart';
 
 const _kUnitLabels = ['BAG', 'KG', 'BOX', 'TIN', 'PIECE'];
-const _kStatusLabels = ['Low', 'Critical', 'Missing', 'Eviction'];
+const _kStatusLabels = ['Low', 'Critical', 'Missing Code', 'Out', 'Reorder'];
 
 /// Pinned sticky filter chrome for stock list.
 class StockPageFilterHeader extends ConsumerWidget {
@@ -45,10 +45,12 @@ class StockPageFilterHeader extends ConsumerWidget {
         : [HomePeriod.today, HomePeriod.week, HomePeriod.month];
 
     String? selectedStatus;
-    if (op.evictionOnly) {
-      selectedStatus = 'Eviction';
+    if (op.reorderOnly) {
+      selectedStatus = 'Reorder';
     } else if (op.missingItemCodeOnly) {
-      selectedStatus = 'Missing';
+      selectedStatus = 'Missing Code';
+    } else if (q.status == 'out') {
+      selectedStatus = 'Out';
     } else if (q.status == 'critical') {
       selectedStatus = 'Critical';
     } else if (q.status == 'low') {
@@ -151,46 +153,58 @@ class StockPageFilterHeader extends ConsumerWidget {
     final op = ref.read(stockOperationalFiltersProvider);
 
     if (label == 'Low') {
-      final on = q.status == 'low' && !op.evictionOnly && !op.missingItemCodeOnly;
+      final on = q.status == 'low' && !op.reorderOnly && !op.missingItemCodeOnly;
       ref.read(stockListQueryProvider.notifier).state = q.copyWith(
         status: on ? 'all' : 'low',
         page: 1,
       );
       ref.read(stockOperationalFiltersProvider.notifier).state = op.copyWith(
-        clearEviction: true,
+        reorderOnly: false,
         clearMissingItemCode: true,
       );
       return;
     }
     if (label == 'Critical') {
       final on =
-          q.status == 'critical' && !op.evictionOnly && !op.missingItemCodeOnly;
+          q.status == 'critical' && !op.reorderOnly && !op.missingItemCodeOnly;
       ref.read(stockListQueryProvider.notifier).state = q.copyWith(
         status: on ? 'all' : 'critical',
         page: 1,
       );
       ref.read(stockOperationalFiltersProvider.notifier).state = op.copyWith(
-        clearEviction: true,
+        reorderOnly: false,
         clearMissingItemCode: true,
       );
       return;
     }
-    if (label == 'Missing') {
+    if (label == 'Out') {
+      final on = q.status == 'out' && !op.reorderOnly && !op.missingItemCodeOnly;
+      ref.read(stockListQueryProvider.notifier).state = q.copyWith(
+        status: on ? 'all' : 'out',
+        page: 1,
+      );
+      ref.read(stockOperationalFiltersProvider.notifier).state = op.copyWith(
+        reorderOnly: false,
+        clearMissingItemCode: true,
+      );
+      return;
+    }
+    if (label == 'Missing Code') {
       final on = op.missingItemCodeOnly;
       ref.read(stockListQueryProvider.notifier).state =
           q.copyWith(status: 'all', page: 1);
       ref.read(stockOperationalFiltersProvider.notifier).state = op.copyWith(
         missingItemCodeOnly: !on,
-        clearEviction: true,
+        reorderOnly: false,
       );
       return;
     }
-    if (label == 'Eviction') {
-      final on = op.evictionOnly;
+    if (label == 'Reorder') {
+      final on = op.reorderOnly;
       ref.read(stockListQueryProvider.notifier).state =
           q.copyWith(status: 'all', page: 1);
       ref.read(stockOperationalFiltersProvider.notifier).state = op.copyWith(
-        evictionOnly: !on,
+        reorderOnly: !on,
         clearMissingItemCode: true,
       );
     }

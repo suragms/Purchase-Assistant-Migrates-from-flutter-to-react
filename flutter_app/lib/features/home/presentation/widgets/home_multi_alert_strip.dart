@@ -18,42 +18,49 @@ class HomeMultiAlertStrip extends ConsumerWidget {
     final lowTotal = a.lowStock + a.criticalStock;
     if (lowTotal > 0) {
       pills.add((
-        label: '⚠ $lowTotal low stock',
+        label: '$lowTotal Reorder Needed',
         color: const Color(0xFFBA7517),
         onTap: () => context.go('/stock'),
       ));
     }
     if (a.missingUsageLogs > 0) {
       pills.add((
-        label: '⚠ ${a.missingUsageLogs} usage',
+        label: '${a.missingUsageLogs} Usage Missing',
         color: const Color(0xFFBA7517),
         onTap: () => context.push('/operations/usage'),
       ));
     }
     if (a.missingBarcode > 0) {
       pills.add((
-        label: '⚠ ${a.missingBarcode} barcode',
+        label: '${a.missingBarcode} Missing barcode labels',
         color: const Color(0xFFA32D2D),
         onTap: () => context.push('/stock/missing-barcodes'),
       ));
     }
+    if (a.pendingVerifications > 0) {
+      pills.add((
+        label: '${a.pendingVerifications} Stock Mismatch',
+        color: const Color(0xFFA32D2D),
+        onTap: () => context.go('/reports'),
+      ));
+    }
     if (a.evictionCount > 0) {
       pills.add((
-        label: '⚠ ${a.evictionCount} eviction',
+        label: '${a.evictionCount} Eviction Needed',
         color: const Color(0xFFA32D2D),
         onTap: () => context.go('/stock'),
       ));
     }
     if (a.pendingDeliveries > 0) {
       pills.add((
-        label: '⚠ ${a.pendingDeliveries} delivery',
+        label: '${a.pendingDeliveries} Pending Delivery',
         color: const Color(0xFF3B6D11),
         onTap: () => context.go('/purchase'),
       ));
     }
     if (a.incompleteChecklist) {
       pills.add((
-        label: '⚠ checklist',
+        label: 'Checklist Incomplete',
         color: const Color(0xFFBA7517),
         onTap: () => context.push('/operations/checklist'),
       ));
@@ -100,7 +107,7 @@ class _AlertPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         child: Container(
           height: HexaOp.chipHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
@@ -109,7 +116,7 @@ class _AlertPill extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
               color: color,
             ),

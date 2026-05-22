@@ -5,7 +5,6 @@ import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/json_coerce.dart';
 import '../../../../core/utils/operational_date_format.dart';
 import '../../../../core/utils/unit_utils.dart';
-import '../stock_quick_edit_sheet.dart';
 import 'edit_item_code_sheet.dart';
 
 /// Dense 72dp warehouse stock row.
@@ -31,6 +30,7 @@ class StockOperationalRow extends ConsumerWidget {
     final unit = item['unit']?.toString() ?? '';
     final cat = item['category_name']?.toString() ?? '';
     final sub = item['subcategory_name']?.toString() ?? '';
+    final supplier = item['supplier_name']?.toString() ?? '';
     final cur = coerceToDouble(item['current_stock']);
     final kgPerBag = coerceToDoubleNullable(item['default_kg_per_bag']) ??
         coerceToDoubleNullable(item['kg_per_bag']);
@@ -44,15 +44,23 @@ class StockOperationalRow extends ConsumerWidget {
     final purchasedLabel = purchased > 0
         ? '+${stockDisplayPrimary(purchased, unit)}'
         : '';
+    final movement = purchased > 0 ? cur - purchased : -coerceToDouble(item['usage_today_qty']);
+    final movementLabel = movement == 0
+        ? '—'
+        : '${movement > 0 ? '+' : ''}${movement == movement.roundToDouble() ? movement.round() : movement.toStringAsFixed(1)}';
 
     final status = (item['stock_status']?.toString() ?? 'healthy').toLowerCase();
-    final badge = _statusBadge(status);
+    final missingBarcode = item['missing_barcode'] == true;
+    final badge = _statusBadge(status, missingBarcode: missingBarcode);
     final updateLine = formatStockRowUpdateLine(
       updatedBy: item['last_stock_updated_by']?.toString(),
       updatedAtIso: item['last_stock_updated_at']?.toString(),
     );
 
-    final catLine = [cat, sub].where((s) => s.isNotEmpty).join(' · ');
+    final catLine = [
+      [cat, sub].where((s) => s.isNotEmpty).join(' · '),
+      supplier,
+    ].where((s) => s.isNotEmpty).join(' • ');
     final itemId = item['id']?.toString() ?? '';
 
     return Material(
@@ -60,7 +68,7 @@ class StockOperationalRow extends ConsumerWidget {
       child: InkWell(
         onTap: onTap,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: HexaOp.listRowMax),
+          constraints: const BoxConstraints(maxHeight: 78),
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: HexaOp.pageGutter,
@@ -74,7 +82,7 @@ class StockOperationalRow extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      flex: 5,
+                      flex: 6,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -136,10 +144,14 @@ class StockOperationalRow extends ConsumerWidget {
                       ),
                     ),
                     Expanded(
-                      flex: 4,
+                      flex: 5,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
+                          const Text(
+                            'Purchased',
+                            style: TextStyle(fontSize: 9, color: Colors.black38),
+                          ),
                           if (purchasedLabel.isNotEmpty)
                             Text(
                               purchasedLabel,
@@ -150,14 +162,7 @@ class StockOperationalRow extends ConsumerWidget {
                               ),
                               textAlign: TextAlign.center,
                             ),
-                          Text(
-                            stockPrimary,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
+                          _tinyValue('Current', stockPrimary),
                           if (stockSecondary != null)
                             Text(
                               stockSecondary
@@ -172,24 +177,14 @@ class StockOperationalRow extends ConsumerWidget {
                         ],
                       ),
                     ),
+                    Expanded(
+                      flex: 2,
+                      child: _tinyValue('Moved', movementLabel),
+                    ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         badge,
-                        if (canEdit)
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined, size: 18),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 40,
-                              minHeight: 40,
-                            ),
-                            onPressed: () => showStockQuickEditSheet(
-                              context: context,
-                              ref: ref,
-                              item: item,
-                            ),
-                          ),
                       ],
                     ),
                   ],
@@ -209,10 +204,32 @@ class StockOperationalRow extends ConsumerWidget {
     );
   }
 
-  Widget _statusBadge(String status) {
+  Widget _tinyValue(String label, String value) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 9, color: Colors.black38),
+          textAlign: TextAlign.center,
+        ),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ],
+    );
+  }
+
+  Widget _statusBadge(String status, {required bool missingBarcode}) {
     String label;
     Color bg;
     Color fg;
+    if (missingBarcode) {
+      return _badge('NO BARCODE', const Color(0xFFF3E8FF), const Color(0xFF7E22CE));
+    }
     switch (status) {
       case 'low':
         label = 'LOW';
@@ -234,6 +251,10 @@ class StockOperationalRow extends ConsumerWidget {
         bg = const Color(0xFFE8F5E0);
         fg = const Color(0xFF3B6D11);
     }
+    return _badge(label, bg, fg);
+  }
+
+  Widget _badge(String label, Color bg, Color fg) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(

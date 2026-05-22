@@ -192,8 +192,8 @@ class _StockPageState extends ConsumerState<StockPage> {
           ),
           if (!_isStaffMode)
             IconButton(
-              icon: const Icon(Icons.qr_code_scanner),
-              tooltip: 'Scan',
+              icon: const Icon(Icons.qr_code_2_rounded),
+              tooltip: 'Barcode',
               onPressed: () => context.push('/barcode/scan?return=stock'),
             ),
           if (!_isStaffMode)
@@ -204,23 +204,7 @@ class _StockPageState extends ConsumerState<StockPage> {
             ),
         ],
       ),
-      floatingActionButton: _isStaffMode
-          ? null
-          : AnimatedSlide(
-              duration: const Duration(milliseconds: 200),
-              offset: _fabVisible ? Offset.zero : const Offset(0, 2),
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 200),
-                opacity: _fabVisible ? 1 : 0,
-                child: FloatingActionButton.small(
-                  heroTag: 'stock-scan',
-                  backgroundColor: const Color(0xFF3B6D11),
-                  foregroundColor: Colors.white,
-                  onPressed: () => context.push('/barcode/scan?return=stock'),
-                  child: const Icon(Icons.qr_code_scanner, size: 22),
-                ),
-              ),
-            ),
+      floatingActionButton: null,
       body: listAsync.when(
         loading: () => const ListSkeleton(rowCount: 10),
         error: (e, _) => FriendlyLoadError(

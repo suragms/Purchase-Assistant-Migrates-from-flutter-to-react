@@ -458,6 +458,38 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             ),
             const SizedBox(height: 20),
           ],
+          Text(
+            'Quick filters',
+            style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w800, fontSize: 17),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ActionChip(
+                avatar: const Icon(Icons.warning_amber_rounded, size: 18),
+                label: const Text('Low stock'),
+                onPressed: () => context.push('/stock'),
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.qr_code_2_rounded, size: 18),
+                label: const Text('Missing barcode'),
+                onPressed: () => context.push('/barcode/print'),
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.edit_note_rounded, size: 18),
+                label: const Text('Recently updated'),
+                onPressed: () => context.push('/stock'),
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.history_rounded, size: 18),
+                label: const Text('Recent scans'),
+                onPressed: () => context.push('/barcode/scan?return=search'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
@@ -472,14 +504,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     } else {
       scrollBody = searchAsync.when(
         skipLoadingOnReload: true,
-        loading: () => ListView(
+        loading: () => _SearchLoadingFallback(
           padding: listPadding,
-          children: const [
-            Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-          ],
+          recents: recents,
+          onApplyQuery: _applyQuery,
         ),
         error: (_, __) => ListView(
           padding: listPadding,
@@ -741,7 +769,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                       Padding(
                         padding: const EdgeInsets.only(top: 8),
                         child: Text(
-                          'No matches in catalog, bills, suppliers, or brokers for this query.',
+                          'No matching items found. Try recent items, low stock, missing barcode, or scan history.',
                           style: tt.bodySmall?.copyWith(
                             color: cs.onSurfaceVariant,
                           ),
@@ -1178,6 +1206,66 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           Expanded(child: scrollBody),
         ],
       ),
+    );
+  }
+}
+
+class _SearchLoadingFallback extends StatefulWidget {
+  const _SearchLoadingFallback({
+    required this.padding,
+    required this.recents,
+    required this.onApplyQuery,
+  });
+
+  final EdgeInsets padding;
+  final List<String> recents;
+  final ValueChanged<String> onApplyQuery;
+
+  @override
+  State<_SearchLoadingFallback> createState() => _SearchLoadingFallbackState();
+}
+
+class _SearchLoadingFallbackState extends State<_SearchLoadingFallback> {
+  bool _showFallback = false;
+
+  @override
+  void initState() {
+    super.initState();
+    Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _showFallback = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_showFallback) {
+      return ListView(
+        padding: widget.padding,
+        children: const [
+          Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ],
+      );
+    }
+    return ListView(
+      padding: widget.padding,
+      children: [
+        const Text(
+          'Search is taking longer than expected. You can keep navigating or try a recent item.',
+          style: TextStyle(fontSize: 13, color: Colors.black54),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final r in widget.recents.take(8))
+              ActionChip(label: Text(r), onPressed: () => widget.onApplyQuery(r)),
+          ],
+        ),
+      ],
     );
   }
 }

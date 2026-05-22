@@ -19,8 +19,6 @@ class HomeLowStockSection extends ConsumerStatefulWidget {
 }
 
 class _HomeLowStockSectionState extends ConsumerState<HomeLowStockSection> {
-  bool _expanded = false;
-
   Color _statusColor(String? status) {
     final s = (status ?? '').toLowerCase();
     if (s.contains('critical') || s.contains('out')) {
@@ -71,7 +69,7 @@ class _HomeLowStockSectionState extends ConsumerState<HomeLowStockSection> {
               ),
             );
           }
-          final visible = _expanded ? rows : rows.take(4).toList();
+          final visible = rows.take(5).toList();
           return Column(
             children: [
               for (var i = 0; i < visible.length; i++) ...[
@@ -136,13 +134,19 @@ class _HomeLowStockSectionState extends ConsumerState<HomeLowStockSection> {
                 if (i < visible.length - 1)
                   const Divider(height: 1, indent: 12, endIndent: 12),
               ],
-              if (rows.length > 4)
-                TextButton(
-                  onPressed: () => setState(() => _expanded = !_expanded),
-                  child: Text(
-                    _expanded
-                        ? 'Show less'
-                        : 'Show all ${rows.length} low items',
+              if (rows.length > 5)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: () {
+                      ref.read(stockListQueryProvider.notifier).state =
+                          const StockListQuery(status: 'low', sort: 'stock_asc');
+                      context.go('/stock');
+                    },
+                    child: Text(
+                      'View all ${rows.length} low stock items',
+                      style: const TextStyle(fontSize: 12),
+                    ),
                   ),
                 ),
             ],

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
@@ -53,8 +52,18 @@ class HomeRecentChangesSection extends ConsumerWidget {
         ),
       ),
       data: (items) {
-        if (items.isEmpty) return const SizedBox.shrink();
-        final groups = groupHomeActivityByDay(items);
+        if (items.isEmpty) {
+          return wrapSection(
+            child: const Padding(
+              padding: EdgeInsets.fromLTRB(12, 8, 12, 12),
+              child: Text(
+                'No recent warehouse activity',
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+              ),
+            ),
+          );
+        }
+        final visible = items.take(5).toList();
         return wrapSection(
           trailing: TextButton(
             onPressed: () => context.go('/purchase'),
@@ -63,22 +72,10 @@ class HomeRecentChangesSection extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (var g = 0; g < groups.length; g++) ...[
-                Padding(
-                  padding: EdgeInsets.fromLTRB(12, g == 0 ? 4 : 10, 12, 4),
-                  child: Text(
-                    groups[g].header,
-                    style: HexaDsType.labelCaps(context).copyWith(
-                      color: HexaDsColors.textMuted,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-                for (var i = 0; i < groups[g].items.length; i++) ...[
-                  _RecentChangeRow(item: groups[g].items[i]),
-                  if (i < groups[g].items.length - 1)
-                    const Divider(height: 1, indent: 12, endIndent: 12),
-                ],
+              for (var i = 0; i < visible.length; i++) ...[
+                _RecentChangeRow(item: visible[i]),
+                if (i < visible.length - 1)
+                  const Divider(height: 1, indent: 12, endIndent: 12),
               ],
               const SizedBox(height: 4),
             ],
@@ -98,10 +95,11 @@ class _RecentChangeRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final isPurchase = item.kind == 'purchase';
     final icon =
-        isPurchase ? Icons.receipt_long_outlined : Icons.swap_vert_rounded;
+        isPurchase ? Icons.add_shopping_cart_outlined : Icons.swap_vert_rounded;
     final color =
         isPurchase ? HexaColors.brandPrimary : const Color(0xFF0D9488);
-    final dateLabel = DateFormat('d MMM').format(item.at);
+    final timeLabel = homeTimeAgo(item.at);
+    final actor = item.actor?.trim();
 
     return ListTile(
       dense: true,
@@ -121,7 +119,8 @@ class _RecentChangeRow extends StatelessWidget {
       subtitle: Text(
         [
           if (item.subtitle.isNotEmpty) item.subtitle,
-          dateLabel,
+          if (actor != null && actor.isNotEmpty) actor,
+          timeLabel,
         ].join(' · '),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -136,7 +135,16 @@ class _RecentChangeRow extends StatelessWidget {
                 color: HexaColors.brandPrimary,
               ),
             )
-          : null,
+          : (item.qtyChange != null && item.qtyChange!.isNotEmpty
+              ? Text(
+                  item.qtyChange!,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    color: Color(0xFF0D9488),
+                  ),
+                )
+              : null),
       onTap: () {
         final id = item.routeId;
         if (id == null || id.isEmpty) return;

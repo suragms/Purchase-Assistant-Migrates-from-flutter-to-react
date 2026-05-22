@@ -8,6 +8,7 @@ import '../../../core/widgets/hexa_error_card.dart';
 import '../../../core/providers/brokers_list_provider.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/providers/home_dashboard_provider.dart';
+import '../../../core/providers/stock_providers.dart';
 import '../../../core/providers/suppliers_list_provider.dart';
 import '../../../shared/widgets/inline_search_field.dart';
 
@@ -23,8 +24,11 @@ class QuickAddCatalogItemPage extends ConsumerStatefulWidget {
 class _QuickAddCatalogItemPageState
     extends ConsumerState<QuickAddCatalogItemPage> {
   final _nameCtrl = TextEditingController();
+  final _itemCodeCtrl = TextEditingController();
   final _kgCtrl = TextEditingController();
   final _hsnCtrl = TextEditingController();
+  final _purchaseRateCtrl = TextEditingController();
+  final _sellingRateCtrl = TextEditingController();
   final _typeSearchCtrl = TextEditingController();
   final _supplierSearchCtrl = TextEditingController();
   final _brokerSearchCtrl = TextEditingController();
@@ -39,8 +43,11 @@ class _QuickAddCatalogItemPageState
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _itemCodeCtrl.dispose();
     _kgCtrl.dispose();
     _hsnCtrl.dispose();
+    _purchaseRateCtrl.dispose();
+    _sellingRateCtrl.dispose();
     _typeSearchCtrl.dispose();
     _supplierSearchCtrl.dispose();
     _brokerSearchCtrl.dispose();
@@ -185,6 +192,9 @@ class _QuickAddCatalogItemPageState
       return;
     }
     final hsn = _hsnCtrl.text.trim();
+    final itemCode = _itemCodeCtrl.text.trim().toUpperCase();
+    final purchaseRate = double.tryParse(_purchaseRateCtrl.text.trim());
+    final sellingRate = double.tryParse(_sellingRateCtrl.text.trim());
     final brokerIds = (_brokerId != null && _brokerId!.isNotEmpty)
         ? <String>[_brokerId!]
         : const <String>[];
@@ -198,20 +208,28 @@ class _QuickAddCatalogItemPageState
             defaultSupplierIds: [supplierId],
             defaultBrokerIds: brokerIds,
             hsnCode: hsn.isEmpty ? null : hsn,
+            itemCode: itemCode.isEmpty ? null : itemCode,
             defaultKgPerBag: _unit == 'bag'
                 ? double.tryParse(_kgCtrl.text.trim())
                 : null,
+            defaultLandingCost: purchaseRate,
+            defaultSellingCost: sellingRate,
           );
       ref.invalidate(catalogItemsListProvider);
       ref.invalidate(categoryTypesIndexProvider);
       ref.invalidate(homeDashboardDataProvider);
+      ref.invalidate(stockListProvider);
+      ref.invalidate(bulkStockListProvider);
       if (!mounted) return;
       if (addMore) {
         setState(() {
           _saving = false;
           _nameCtrl.clear();
+          _itemCodeCtrl.clear();
           _kgCtrl.clear();
           _hsnCtrl.clear();
+          _purchaseRateCtrl.clear();
+          _sellingRateCtrl.clear();
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Saved "$name". Add another item.')),
@@ -407,6 +425,16 @@ class _QuickAddCatalogItemPageState
             ),
             const SizedBox(height: 12),
             TextField(
+              controller: _itemCodeCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Item code (optional)',
+                helperText: 'Leave empty to auto-generate later. Staff should verify before printing labels.',
+                border: OutlineInputBorder(),
+              ),
+              textCapitalization: TextCapitalization.characters,
+            ),
+            const SizedBox(height: 12),
+            TextField(
               controller: _hsnCtrl,
               decoration: const InputDecoration(
                 labelText: 'HSN code (optional)',
@@ -455,6 +483,37 @@ class _QuickAddCatalogItemPageState
                 ),
               ),
             ],
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _purchaseRateCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Purchase rate',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _sellingRateCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Selling rate',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Barcode option: add item code now, or generate barcode from item detail after saving.',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
             if (_error != null) ...[
               const SizedBox(height: 12),
               Text(_error!, style: const TextStyle(color: Colors.red)),

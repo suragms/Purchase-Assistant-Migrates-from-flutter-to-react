@@ -66,7 +66,7 @@ class _HomePeriodFilterRowState extends ConsumerState<HomePeriodFilterRow> {
     return OperationalPillRow(
       labels: labels,
       selected: selected,
-      height: 34,
+      height: 32,
       onSelected: (label) {
         final match = HomePeriod.values.where((p) => p.label == label);
         if (match.isEmpty) return;

@@ -124,7 +124,6 @@ class _OperationalFilterBodyState extends ConsumerState<_OperationalFilterBody> 
           missingBarcodeOnly: _missingBarcode,
           missingItemCodeOnly: _missingItemCode,
           reorderOnly: _reorderOnly,
-          evictionOnly: ref.read(stockOperationalFiltersProvider).evictionOnly,
           unit: ref.read(stockOperationalFiltersProvider).unit,
         );
     ref.read(stockSelectedItemIdProvider.notifier).state = null;
@@ -133,7 +132,6 @@ class _OperationalFilterBodyState extends ConsumerState<_OperationalFilterBody> 
   }
 
   void _clear() {
-    final op = ref.read(stockOperationalFiltersProvider);
     ref.read(stockListQueryProvider.notifier).state =
         ref.read(stockListQueryProvider).copyWith(
               category: '',
@@ -143,7 +141,7 @@ class _OperationalFilterBodyState extends ConsumerState<_OperationalFilterBody> 
               page: 1,
             );
     ref.read(stockOperationalFiltersProvider.notifier).state =
-        StockOperationalFilters(unit: op.unit, evictionOnly: op.evictionOnly);
+        StockOperationalFilters(unit: ref.read(stockOperationalFiltersProvider).unit);
     widget.subcategoryCtrl?.clear();
     _subcatField.clear();
     setState(() {
@@ -292,7 +290,7 @@ class _OperationalFilterBodyState extends ConsumerState<_OperationalFilterBody> 
               showStockBulkActionsSheet(context: context, ref: ref);
             },
             icon: const Icon(Icons.layers_outlined, size: 18),
-            label: const Text('Bulk actions'),
+            label: const Text('Barcode bulk print'),
           ),
         ],
       ],
@@ -311,7 +309,6 @@ String stockActiveFilterSummary(StockListQuery q, StockOperationalFilters op) {
   if (op.missingBarcodeOnly) parts.add('No barcode');
   if (op.missingItemCodeOnly) parts.add('No code');
   if (op.reorderOnly) parts.add('Reorder');
-  if (op.evictionOnly) parts.add('Eviction');
   if (op.unit.isNotEmpty) parts.add(op.unit.toUpperCase());
   if (q.sort == 'recent') parts.add('Recent');
   return parts.join(' · ');

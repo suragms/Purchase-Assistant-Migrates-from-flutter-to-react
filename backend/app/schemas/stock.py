@@ -9,7 +9,7 @@ class StockPatchIn(BaseModel):
     new_qty: Decimal = Field(ge=0)
     adjustment_type: str = Field(
         default="verification",
-        pattern="^(purchase|manual|damaged|expired|correction|verification)$",
+        pattern="^(purchase|sale|usage|transfer|manual|damaged|expired|correction|verification)$",
     )
     reason: str | None = None
 
@@ -20,6 +20,12 @@ class StockListItemOut(BaseModel):
     name: str
     category_name: str | None
     subcategory_name: str | None
+    supplier_name: str | None = None
+    broker_name: str | None = None
+    barcode: str | None = None
+    default_kg_per_bag: Decimal | None = None
+    last_stock_updated_at: datetime | None = None
+    last_stock_updated_by: str | None = None
     current_stock: Decimal
     reorder_level: Decimal
     unit: str | None
@@ -78,6 +84,9 @@ class StockTotalsOut(BaseModel):
 
 
 class RecentPurchaseOut(BaseModel):
+    id: uuid.UUID | None = None
+    invoice_number: str | None = None
+    human_id: str | None = None
     purchase_date: datetime | None
     qty: Decimal | None
     unit: str | None

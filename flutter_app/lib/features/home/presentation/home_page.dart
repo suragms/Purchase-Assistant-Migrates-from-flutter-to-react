@@ -29,8 +29,6 @@ import '../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../purchase/presentation/widgets/purchase_saved_sheet.dart';
 import '../../purchase/presentation/widgets/resume_purchase_draft_banner.dart';
-import 'widgets/daily_stock_report_sheet.dart';
-import 'widgets/home_collapsible_section.dart';
 import 'widgets/home_compact_header.dart';
 import 'widgets/home_low_stock_section.dart';
 import 'widgets/home_multi_alert_strip.dart';
@@ -321,7 +319,6 @@ class _HomePageState extends ConsumerState<HomePage>
 
     final session = ref.watch(sessionProvider);
     final isOwner = session != null && _sessionIsOwner(session);
-    final variances = ref.watch(stockVariancesTodayProvider);
     final conn = ref.watch(connectivityResultsProvider);
     final offline =
         conn.valueOrNull != null && isOfflineResult(conn.valueOrNull!);
@@ -336,7 +333,7 @@ class _HomePageState extends ConsumerState<HomePage>
               HexaOp.pageGutter,
               8,
               HexaOp.pageGutter,
-              20,
+              120,
             ),
             children: [
               HomeCompactHeader(
@@ -354,8 +351,9 @@ class _HomePageState extends ConsumerState<HomePage>
               const SizedBox(height: 12),
               const ResumePurchaseDraftBanner(),
               if (isOwner) ...[
+                const SizedBox(height: 8),
                 const HomePeriodFilterRow(),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
               ],
               HomeQuickActionsGrid(
                 isOwner: isOwner,
@@ -363,104 +361,22 @@ class _HomePageState extends ConsumerState<HomePage>
                 onStock: () => context.go('/stock'),
                 onPurchase: () => context.push('/purchase/new'),
                 onReports: () => context.go('/reports'),
-                onPrint: () => context.push('/barcode/bulk-print'),
-                onDaily: isOwner
-                    ? () => DailyStockReportSheet.show(context)
-                    : null,
+                onBarcode: () => context.push('/barcode/bulk-print'),
+                onUsers: () => context.push('/settings/users'),
               ),
               const SizedBox(height: HexaOp.cardGap),
               if (isOwner) ...[
                 const HomeMultiAlertStrip(),
                 const SizedBox(height: HexaOp.cardGap),
-                const HomeStockTotalsCard(),
+                HomeStockTotalsCard(lastUpdatedAt: _homeLastRefreshedAt),
                 const SizedBox(height: 12),
-                HomeCollapsibleSection(
-                  title: 'Recent changes',
-                  initiallyExpanded: false,
-                  child: const HomeRecentChangesSection(embedded: true),
-                ),
+                const HomeRecentChangesSection(),
                 const SizedBox(height: 12),
               ],
-              HomeCollapsibleSection(
-                title: 'Low stock',
-                initiallyExpanded: false,
-                trailing: isOwner
-                    ? Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          TextButton(
-                            onPressed: () => context.push('/stock/reorder'),
-                            child: const Text('Reorder',
-                                style: TextStyle(fontSize: 12)),
-                          ),
-                        ],
-                      )
-                    : null,
-                child: const HomeLowStockSection(embedded: true),
-              ),
-              variances.when(
-                loading: () => const SizedBox.shrink(),
-                error: (_, __) => const SizedBox.shrink(),
-                data: (rows) {
-                  if (rows.isEmpty) return const SizedBox.shrink();
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 12, bottom: 12),
-                    child: Material(
-                      color: const Color(0xFFFFF5F5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: const BorderSide(color: Color(0xFFC62828)),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(
-                                  Icons.warning_amber_rounded,
-                                  color: Color(0xFFC62828),
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    'Pending verification · ${rows.length}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            for (final v in rows.take(3))
-                              Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 2),
-                                child: Text(
-                                  '${v['item_name'] ?? 'Item'}: expected '
-                                  '${v['expected_qty'] ?? '—'} · found '
-                                  '${v['found_qty'] ?? '—'}',
-                                  style: const TextStyle(fontSize: 11),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
+              const HomeLowStockSection(),
               if (isOwner) ...[
                 const SizedBox(height: 12),
-                HomeCollapsibleSection(
-                  title: 'Stock movement',
-                  initiallyExpanded: false,
-                  child: const HomeStockMovementSection(embedded: true),
-                ),
+                const HomeStockMovementSection(),
               ],
             ],
           ),

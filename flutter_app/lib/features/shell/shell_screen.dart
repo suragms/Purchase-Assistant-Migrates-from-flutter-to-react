@@ -455,13 +455,25 @@ class _FabButton extends StatelessWidget {
                 ListTile(
                   leading: Icon(Icons.add_shopping_cart_outlined,
                       color: HexaColors.brandPrimary),
-                  title: Text('New purchase',
+                  title: Text('Add purchase',
                       style: HexaDsType.body(16,
                           color: HexaDsColors.textPrimary,
                           weight: FontWeight.w700)),
                   onTap: () {
                     Navigator.of(ctx).pop();
                     context.push('/purchase/new');
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.inventory_outlined,
+                      color: HexaColors.brandPrimary),
+                  title: Text('Add item',
+                      style: HexaDsType.body(16,
+                          color: HexaDsColors.textPrimary,
+                          weight: FontWeight.w700)),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    context.push('/catalog/quick-add');
                   },
                 ),
                 ListTile(
@@ -477,27 +489,27 @@ class _FabButton extends StatelessWidget {
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.document_scanner_outlined,
+                  leading: Icon(Icons.qr_code_2_rounded,
                       color: HexaColors.brandPrimary),
-                  title: Text('Scan bill',
+                  title: Text('Print labels',
                       style: HexaDsType.body(16,
                           color: HexaDsColors.textPrimary,
                           weight: FontWeight.w700)),
                   onTap: () {
                     Navigator.of(ctx).pop();
-                    context.push('/purchase/scan');
+                    context.push('/barcode/bulk-print');
                   },
                 ),
                 ListTile(
-                  leading: Icon(Icons.inventory_outlined,
+                  leading: Icon(Icons.tune_rounded,
                       color: HexaColors.brandPrimary),
-                  title: Text('Add catalog item',
+                  title: Text('Stock adjustment',
                       style: HexaDsType.body(16,
                           color: HexaDsColors.textPrimary,
                           weight: FontWeight.w700)),
                   onTap: () {
                     Navigator.of(ctx).pop();
-                    context.push('/catalog/quick-add');
+                    context.go('/stock');
                   },
                 ),
               ],

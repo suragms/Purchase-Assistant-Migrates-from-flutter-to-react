@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/auth/session_notifier.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/providers/notifications_provider.dart';
 import '../../../../core/theme/hexa_colors.dart';
 
-/// Compact operational header: business avatar, date, notifications, settings.
+/// Compact operational header: warehouse identity, sync, alerts, settings.
 class HomeCompactHeader extends ConsumerWidget {
   const HomeCompactHeader({
     super.key,
@@ -23,9 +22,14 @@ class HomeCompactHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider);
     final bellCount = ref.watch(notificationsUnreadCountProvider);
-    final title = session?.primaryBusiness.effectiveDisplayTitle ?? 'Home';
+    final title = _shortWarehouseName(
+      session?.primaryBusiness.effectiveDisplayTitle ?? 'Warehouse',
+    );
     final code = _warehouseCode(session?.primaryBusiness.id);
     final initial = title.trim().isNotEmpty ? title.trim()[0].toUpperCase() : 'H';
+    final role = (session?.primaryBusiness.role ?? 'owner').toUpperCase();
+    final syncColor = offline ? const Color(0xFFC62828) : const Color(0xFF2E7D32);
+    final syncLabel = offline ? 'Offline' : 'Synced';
 
     return SizedBox(
       height: 56,
@@ -54,51 +58,62 @@ class HomeCompactHeader extends ConsumerWidget {
                   overflow: TextOverflow.ellipsis,
                   style: HexaDsType.heading(15, color: HexaDsColors.textPrimary),
                 ),
-                Text(
-                  code,
-                  style: HexaDsType.labelCaps(context).copyWith(
-                    fontSize: 10,
-                    color: HexaDsColors.textMuted,
-                  ),
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        code,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: HexaDsType.labelCaps(context).copyWith(
+                          fontSize: 10,
+                          color: HexaDsColors.textMuted,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: HexaColors.brandPrimary.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        role,
+                        style: HexaDsType.labelCaps(context).copyWith(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          color: HexaColors.brandPrimary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
+          Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                DateFormat('EEE, d MMM').format(DateTime.now()),
-                style: HexaDsType.bodySm(context).copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: HexaDsColors.textPrimary,
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: syncColor,
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: offline
-                          ? const Color(0xFF9E9E9E)
-                          : const Color(0xFF2E7D32),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    offline ? 'Offline' : 'Synced',
-                    style: HexaDsType.labelCaps(context).copyWith(
-                      fontSize: 10,
-                      color: offline
-                          ? HexaDsColors.textMuted
-                          : const Color(0xFF2E7D32),
-                    ),
-                  ),
-                ],
+              const SizedBox(width: 4),
+              Text(
+                syncLabel,
+                style: HexaDsType.labelCaps(context).copyWith(
+                  fontSize: 10,
+                  color: syncColor,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ],
           ),
@@ -129,5 +144,15 @@ class HomeCompactHeader extends ConsumerWidget {
     final clean = businessId.replaceAll('-', '');
     if (clean.length >= 4) return 'WH-${clean.substring(0, 4).toUpperCase()}';
     return 'WH-${clean.toUpperCase()}';
+  }
+
+  static String _shortWarehouseName(String raw) {
+    final cleaned = raw
+        .replaceAll(RegExp(r'\b(Purchase|Purchases|Assistant|Agency)\b', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (cleaned.isEmpty) return raw;
+    if (cleaned.length <= 18) return cleaned;
+    return cleaned.substring(0, 18).trim();
   }
 }

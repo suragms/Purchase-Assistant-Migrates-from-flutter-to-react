@@ -225,7 +225,12 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
 
   bool _passesOperational(Map<String, dynamic> it, StockOperationalFilters op) {
     if (op.missingBarcodeOnly && it['missing_barcode'] != true) return false;
-    if (op.evictionOnly && it['needs_eviction'] != true) return false;
+    if (op.missingItemCodeOnly && it['missing_item_code'] != true) return false;
+    if (op.reorderOnly) {
+      final reorder = double.tryParse('${it['reorder_level']}') ?? 0;
+      final current = double.tryParse('${it['current_stock']}') ?? 0;
+      if (reorder <= 0 || current > reorder) return false;
+    }
     if (op.unit.isNotEmpty) {
       final u = (it['unit']?.toString() ?? '').toLowerCase();
       if (u != op.unit) return false;
@@ -290,6 +295,66 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
     );
   }
 
+  Widget _quickFilterChips() {
+    final q = ref.watch(stockListQueryProvider);
+    final op = ref.watch(stockOperationalFiltersProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(HexaOp.pageGutter, 2, HexaOp.pageGutter, 6),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          FilterChip(
+            label: const Text('Missing code', style: TextStyle(fontSize: 11)),
+            selected: op.missingItemCodeOnly,
+            onSelected: (_) {
+              ref.read(stockOperationalFiltersProvider.notifier).state = op.copyWith(
+                missingItemCodeOnly: !op.missingItemCodeOnly,
+              );
+            },
+            visualDensity: VisualDensity.compact,
+          ),
+          FilterChip(
+            label: const Text('Missing barcode', style: TextStyle(fontSize: 11)),
+            selected: op.missingBarcodeOnly,
+            onSelected: (_) {
+              ref.read(stockOperationalFiltersProvider.notifier).state = op.copyWith(
+                missingBarcodeOnly: !op.missingBarcodeOnly,
+              );
+            },
+            visualDensity: VisualDensity.compact,
+          ),
+          FilterChip(
+            label: const Text('Low stock', style: TextStyle(fontSize: 11)),
+            selected: q.status == 'low',
+            onSelected: (_) {
+              ref.read(stockListQueryProvider.notifier).state = q.copyWith(
+                status: q.status == 'low' ? 'all' : 'low',
+                page: 1,
+              );
+            },
+            visualDensity: VisualDensity.compact,
+          ),
+          FilterChip(
+            label: const Text('Reorder', style: TextStyle(fontSize: 11)),
+            selected: op.reorderOnly,
+            onSelected: (_) {
+              ref.read(stockOperationalFiltersProvider.notifier).state = op.copyWith(
+                reorderOnly: !op.reorderOnly,
+              );
+            },
+            visualDensity: VisualDensity.compact,
+          ),
+          ActionChip(
+            label: const Text('Category/Supplier', style: TextStyle(fontSize: 11)),
+            onPressed: () => showOperationalStockFilter(context: context, ref: ref),
+            visualDensity: VisualDensity.compact,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final selected = ref.watch(bulkBarcodeSelectionProvider);
@@ -340,6 +405,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _searchRow(),
+              _quickFilterChips(),
               _filterSummaryChip(),
               Expanded(
                 child: listAsync.when(

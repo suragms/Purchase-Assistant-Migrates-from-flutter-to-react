@@ -162,6 +162,34 @@
 
 ---
 
+## Sprint 19 — Owner dashboard warehouse rebuild (May 22 2026)
+
+| ID | Priority | Status | Summary |
+|----|----------|--------|---------|
+| OD-01 | P0 | Done | Owner `/home`: direct warehouse control-center order; no dead collapsed Recent/Low/Movement cards |
+| OD-02 | P0 | Done | Header/live strip: short warehouse name, WH code + OWNER pill, synced/offline clarity, health center sheet |
+| OD-03 | P0 | Done | Stock overview: stock value, tracked items, purchased/current/moved-sold comparison bar, owner-friendly language |
+| OD-04 | P1 | Done | Quick grid + alert pills: Scan/Stock/Purchase, Reports/Barcode/Users; business terms for delivery, reorder, missing labels |
+| OD-05 | P1 | Done | Warehouse analytics bottom sheet reuses ring/tabs/ranked list; shell FAB quick actions aligned with warehouse workflow |
+
+**E2E:** hard refresh `/home` → status strip/health sheet → period tabs → stock overview analytics → recent/low/movement rows → FAB quick actions.
+
+---
+
+## Sprint 20 — Stock detail + ledger operations rebuild (May 22 2026)
+
+| ID | Priority | Status | Summary |
+|----|----------|--------|---------|
+| SL-01 | P0 | Done | Stock list: purchased/current/moved/status columns, no duplicate scan FAB, no eviction status chip |
+| SL-02 | P0 | Done | Quick edit: +1/+5/+10 and -1/-5/-10, Sale/Usage/Damage/Correction/Transfer ledger reasons |
+| SL-03 | P0 | Done | Item detail: stock summary, purchase rows with invoice/detail navigation, barcode generate/print/copy actions, ledger tabs |
+| SL-04 | P1 | Done | Search: quick filters and 2-second fallback instead of stuck skeletons |
+| SL-05 | P1 | Done | Add item + bulk print: optional item code/rates, barcode guidance, compact missing-code/barcode/reorder filters |
+
+**E2E:** `/stock` filters → row detail → barcode generate → quick stock edit sale/damage → item ledger tabs → search empty/loading fallback → bulk print preview/PDF.
+
+---
+
 ## Sprint 18 — Stock warehouse list rebuild (May 22 2026)
 
 | ID | Priority | Status | Summary |

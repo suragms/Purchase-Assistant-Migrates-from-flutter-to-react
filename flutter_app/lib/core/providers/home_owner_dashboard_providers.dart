@@ -252,6 +252,8 @@ class HomeActivityItem {
     required this.at,
     this.amountInr,
     this.routeId,
+    this.actor,
+    this.qtyChange,
   });
 
   final String kind; // purchase | stock
@@ -260,6 +262,8 @@ class HomeActivityItem {
   final DateTime at;
   final double? amountInr;
   final String? routeId;
+  final String? actor;
+  final String? qtyChange;
 }
 
 /// Group label + items for the recent-changes section.
@@ -351,10 +355,15 @@ final homeRecentActivityFeedProvider =
     items.add(
       HomeActivityItem(
         kind: 'purchase',
-        title: p['supplier_name']?.toString() ??
+        title: 'Purchase added',
+        subtitle: p['supplier_name']?.toString() ??
             p['human_id']?.toString() ??
+            p['invoice_number']?.toString() ??
             'Purchase',
-        subtitle: p['human_id']?.toString() ??
+        actor: p['created_by_name']?.toString() ??
+            p['staff_name']?.toString() ??
+            p['user_name']?.toString(),
+        qtyChange: p['human_id']?.toString() ??
             p['invoice_number']?.toString() ??
             p['bill_no']?.toString() ??
             '',
@@ -375,9 +384,13 @@ final homeRecentActivityFeedProvider =
       HomeActivityItem(
         kind: 'stock',
         title: itemName,
-        subtitle: delta != null ? 'Stock ${delta.toString()}' : 'Stock updated',
+        subtitle: 'Stock changed',
         at: at.toLocal(),
         routeId: a['item_id']?.toString(),
+        actor: a['updated_by']?.toString() ??
+            a['updated_by_name']?.toString() ??
+            a['user_name']?.toString(),
+        qtyChange: delta?.toString(),
       ),
     );
   }

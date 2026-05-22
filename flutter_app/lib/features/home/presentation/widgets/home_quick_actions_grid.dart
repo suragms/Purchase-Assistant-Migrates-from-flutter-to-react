@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/theme/hexa_colors.dart';
 
 /// Compact 2×3 quick actions (warehouse operational density).
@@ -12,8 +11,8 @@ class HomeQuickActionsGrid extends StatelessWidget {
     required this.onStock,
     required this.onPurchase,
     required this.onReports,
-    required this.onPrint,
-    this.onDaily,
+    required this.onBarcode,
+    required this.onUsers,
   });
 
   final bool isOwner;
@@ -21,8 +20,8 @@ class HomeQuickActionsGrid extends StatelessWidget {
   final VoidCallback onStock;
   final VoidCallback onPurchase;
   final VoidCallback onReports;
-  final VoidCallback onPrint;
-  final VoidCallback? onDaily;
+  final VoidCallback onBarcode;
+  final VoidCallback onUsers;
 
   @override
   Widget build(BuildContext context) {
@@ -35,35 +34,34 @@ class HomeQuickActionsGrid extends StatelessWidget {
       ),
       _QuickActionSpec(
         label: 'Stock',
-        icon: Icons.inventory_2_outlined,
+        icon: Icons.inventory_2_rounded,
         color: const Color(0xFF1565C0),
         onTap: onStock,
       ),
       _QuickActionSpec(
         label: 'Purchase',
-        icon: Icons.add_shopping_cart_outlined,
+        icon: Icons.add_shopping_cart_rounded,
         color: HexaColors.brandPrimary,
         onTap: onPurchase,
       ),
       _QuickActionSpec(
         label: 'Reports',
-        icon: Icons.bar_chart_outlined,
+        icon: Icons.bar_chart_rounded,
         color: const Color(0xFF0D9488),
         onTap: onReports,
       ),
       _QuickActionSpec(
-        label: 'Print',
-        icon: Icons.print_outlined,
+        label: 'Barcode',
+        icon: Icons.qr_code_2_rounded,
         color: const Color(0xFF455A64),
-        onTap: onPrint,
+        onTap: onBarcode,
       ),
-      if (isOwner && onDaily != null)
-        _QuickActionSpec(
-          label: 'Daily',
-          icon: Icons.summarize_outlined,
-          color: const Color(0xFF5D4037),
-          onTap: onDaily!,
-        ),
+      _QuickActionSpec(
+        label: 'Users',
+        icon: Icons.group_rounded,
+        color: const Color(0xFF5D4037),
+        onTap: onUsers,
+      ),
     ];
 
     return GridView.count(
@@ -72,7 +70,7 @@ class HomeQuickActionsGrid extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 8,
       crossAxisSpacing: 8,
-      childAspectRatio: 0.92,
+      childAspectRatio: 1.14,
       children: [
         for (final a in actions)
           _CompactCircularAction(
@@ -124,8 +122,8 @@ class _CompactCircularAction extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: HexaOp.quickActionIcon,
-              height: HexaOp.quickActionIcon,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.12),
                 shape: BoxShape.circle,

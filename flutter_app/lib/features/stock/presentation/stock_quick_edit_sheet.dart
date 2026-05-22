@@ -13,9 +13,11 @@ import '../../../core/utils/unit_utils.dart';
 
 const _kReasons = <String, ({String type, String label})>{
   'Purchase': (type: 'purchase', label: 'Purchase'),
-  'Usage': (type: 'manual', label: 'Usage'),
+  'Sale': (type: 'sale', label: 'Sale'),
+  'Usage': (type: 'usage', label: 'Usage'),
   'Damage': (type: 'damaged', label: 'Damage'),
   'Correction': (type: 'correction', label: 'Correction'),
+  'Transfer': (type: 'transfer', label: 'Transfer'),
 };
 
 Future<bool> showStockQuickEditSheet({
@@ -83,6 +85,8 @@ class _StockQuickEditBodyState extends ConsumerState<_StockQuickEditBody> {
           );
       invalidateWarehouseSurfaces(ref);
       ref.invalidate(stockListProvider);
+      ref.invalidate(stockItemIntelligenceProvider(id));
+      ref.invalidate(bulkStockListProvider);
       if (context.mounted) Navigator.of(context).pop(true);
     } on DioException catch (e) {
       if (mounted) {
@@ -138,15 +142,16 @@ class _StockQuickEditBodyState extends ConsumerState<_StockQuickEditBody> {
             style: const TextStyle(fontSize: 14),
           ),
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
             children: [
-              Expanded(child: _qtyBtn('+1', () => _applyDelta(1))),
-              const SizedBox(width: 6),
-              Expanded(child: _qtyBtn('+5', () => _applyDelta(5))),
-              const SizedBox(width: 6),
-              Expanded(child: _qtyBtn('-1', () => _applyDelta(-1))),
-              const SizedBox(width: 6),
-              Expanded(child: _qtyBtn('-5', () => _applyDelta(-5))),
+              _qtyBtn('+1', () => _applyDelta(1)),
+              _qtyBtn('+5', () => _applyDelta(5)),
+              _qtyBtn('+10', () => _applyDelta(10)),
+              _qtyBtn('-1', () => _applyDelta(-1)),
+              _qtyBtn('-5', () => _applyDelta(-5)),
+              _qtyBtn('-10', () => _applyDelta(-10)),
             ],
           ),
           const SizedBox(height: 12),
@@ -194,6 +199,7 @@ class _StockQuickEditBodyState extends ConsumerState<_StockQuickEditBody> {
 
   Widget _qtyBtn(String label, VoidCallback onTap) {
     return SizedBox(
+      width: 72,
       height: 44,
       child: FilledButton(
         onPressed: _saving

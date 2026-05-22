@@ -25,7 +25,7 @@ void applyStockPagePeriod(WidgetRef ref, HomePeriod p) {
   ref.read(stockSelectedItemIdProvider.notifier).state = null;
 }
 
-/// Client-side filters for operational stock list (unit, eviction, missing code, reorder).
+/// Client-side filters for operational stock list (unit, missing code, reorder).
 List<Map<String, dynamic>> filterStockListClient(
   List<Map<String, dynamic>> items,
   StockOperationalFilters op,
@@ -33,7 +33,6 @@ List<Map<String, dynamic>> filterStockListClient(
   return items.where((it) {
     if (op.missingBarcodeOnly && it['missing_barcode'] != true) return false;
     if (op.missingItemCodeOnly && it['missing_item_code'] != true) return false;
-    if (op.evictionOnly && it['needs_eviction'] != true) return false;
     if (op.reorderOnly) {
       final ro = _num(it['reorder_level']);
       final cur = _num(it['current_stock']);
@@ -52,14 +51,18 @@ double _num(dynamic v) {
   return double.tryParse('$v') ?? 0;
 }
 
-/// Warehouse priority sort: eviction → low/critical/out → name.
+/// Warehouse priority sort: recently updated → low/out → missing barcode/code → name.
 int stockRowSortKey(Map<String, dynamic> item) {
-  if (item['needs_eviction'] == true) return 0;
+  final updated = item['last_stock_updated_at']?.toString();
+  if (updated != null && updated.isNotEmpty) return 0;
   final st = item['stock_status']?.toString() ?? '';
   if (st == 'out') return 1;
   if (st == 'critical') return 2;
   if (st == 'low') return 3;
-  return 4;
+  if (item['missing_barcode'] == true || item['missing_item_code'] == true) {
+    return 4;
+  }
+  return 5;
 }
 
 void sortStockListOperational(List<Map<String, dynamic>> items) {

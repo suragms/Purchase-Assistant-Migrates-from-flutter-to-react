@@ -857,6 +857,9 @@ async def _recent_purchases(db: AsyncSession, item_id: uuid.UUID, limit: int = 5
                 pd = datetime.combine(pd, datetime.min.time(), tzinfo=timezone.utc)
         out.append(
             RecentPurchaseOut(
+                id=tp.id,
+                invoice_number=tp.invoice_number,
+                human_id=tp.human_id,
                 purchase_date=pd,
                 qty=line.qty,
                 unit=line.unit,
@@ -994,6 +997,7 @@ async def get_stock_intelligence(
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found")
     item, cat_name, type_name = row
+    supplier_name = await _supplier_name(db, item)
     cur = catalog_stock_qty(item)
     ro = catalog_reorder(item)
     unit = item.stock_unit or item.default_unit or item.selling_unit
@@ -1027,6 +1031,11 @@ async def get_stock_intelligence(
         name=item.name,
         category_name=cat_name,
         subcategory_name=type_name,
+        supplier_name=supplier_name,
+        barcode=getattr(item, "barcode", None),
+        default_kg_per_bag=getattr(item, "default_kg_per_bag", None),
+        last_stock_updated_at=getattr(item, "last_stock_updated_at", None),
+        last_stock_updated_by=getattr(item, "last_stock_updated_by", None),
         current_stock=cur,
         reorder_level=ro,
         unit=unit,

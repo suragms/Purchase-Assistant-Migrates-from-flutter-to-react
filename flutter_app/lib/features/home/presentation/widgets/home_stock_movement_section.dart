@@ -7,6 +7,7 @@ import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/widgets/friendly_load_error.dart';
 import '../../../../shared/widgets/operational_ui.dart';
 import '../../../stock/presentation/widgets/stock_today_feed.dart';
+import 'home_formatters.dart';
 import 'home_recent_changes_section.dart';
 
 /// Period-filtered stock movement feed.
@@ -18,6 +19,7 @@ class HomeStockMovementSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final period = ref.watch(homePeriodProvider);
+    final dash = ref.watch(homeDashboardDataProvider).snapshot.data;
     final audits = ref.watch(stockAuditPeriodProvider);
     final title = switch (period) {
       HomePeriod.today => "Today's stock movement",
@@ -58,15 +60,85 @@ class HomeStockMovementSection extends ConsumerWidget {
         ),
       ),
       data: (rows) {
-        if (rows.isEmpty) return const SizedBox.shrink();
+        final summary = _MovementSummary(
+          purchased: dash.totalBags,
+          adjusted: rows.length,
+        );
+        if (rows.isEmpty) {
+          return wrap(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                summary,
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(12, 8, 12, 12),
+                  child: Text(
+                    'No warehouse movement logged in this period',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         return wrap(
           trailing: TextButton(
             onPressed: () => context.push('/stock/today-feed'),
             child: const Text('View all', style: TextStyle(fontSize: 12)),
           ),
-          child: StockTodayFeed(rows: rows, maxRows: 6),
+          child: Column(
+            children: [
+              summary,
+              StockTodayFeed(rows: rows, maxRows: 5),
+            ],
+          ),
         );
       },
+    );
+  }
+}
+
+class _MovementSummary extends StatelessWidget {
+  const _MovementSummary({required this.purchased, required this.adjusted});
+
+  final double purchased;
+  final int adjusted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+      child: Row(
+        children: [
+          _cell('Purchased', '${homeFmtQty(purchased)} bags'),
+          _cell('Adjusted', '$adjusted logs'),
+          _cell('Sold', 'No data yet'),
+          _cell('Transferred', 'No data yet'),
+        ],
+      ),
+    );
+  }
+
+  Widget _cell(String label, String value) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            value,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+          ),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+          ),
+        ],
+      ),
     );
   }
 }

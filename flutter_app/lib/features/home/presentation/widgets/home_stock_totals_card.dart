@@ -5,13 +5,18 @@ import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
+import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/providers/stock_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../../core/widgets/friendly_load_error.dart';
+import 'home_formatters.dart';
+import 'home_warehouse_analytics_sheet.dart';
 
-/// Owner home: compact on-hand totals + period movement row.
+/// Owner home: compact warehouse stock overview + movement comparison.
 class HomeStockTotalsCard extends ConsumerWidget {
-  const HomeStockTotalsCard({super.key});
+  const HomeStockTotalsCard({super.key, this.lastUpdatedAt});
+
+  final DateTime? lastUpdatedAt;
 
   static String _fmtNum(double n) {
     if (n == n.roundToDouble()) return n.round().toString();
@@ -21,6 +26,7 @@ class HomeStockTotalsCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final totalsAsync = ref.watch(stockTotalsProvider);
+    final invAsync = ref.watch(homeInventorySummaryProvider);
     final dash = ref.watch(homeDashboardDataProvider);
 
     return totalsAsync.when(
@@ -39,38 +45,36 @@ class HomeStockTotalsCard extends ConsumerWidget {
         final kg = coerceToDouble(totals['total_kg']);
         final boxes = coerceToDouble(totals['total_boxes']);
         final tins = coerceToDouble(totals['total_tins']);
-        final items = coerceToInt(totals['total_items']);
+        final inv = invAsync.valueOrNull ?? HomeInventorySummary.empty;
+        final items = inv.itemCount > 0
+            ? inv.itemCount
+            : coerceToInt(totals['total_items']);
 
         final purchasedBags = dash.snapshot.data.totalBags;
-        final variance = bags - purchasedBags;
-        final pct = purchasedBags > 0
-            ? (variance.abs() / purchasedBags * 100)
-            : 0.0;
-        final alert = purchasedBags <= 0
-            ? 'No purchases in period'
-            : pct > 25
-                ? 'High variance — audit'
-                : pct > 10
-                    ? 'Variance — check staff'
-                    : 'Normal';
-        final alertColor = purchasedBags <= 0
-            ? HexaDsColors.textMuted
-            : pct > 25
-                ? HexaColors.loss
-                : pct > 10
-                    ? const Color(0xFFE65100)
-                    : const Color(0xFF2E7D32);
+        final moved = (purchasedBags - bags).clamp(0, double.infinity).toDouble();
+        final totalForBar = [
+          purchasedBags,
+          bags,
+          moved,
+        ].fold<double>(0, (a, b) => a + b);
 
         Widget miniStat(String label, String value) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
+          return Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              padding: const EdgeInsets.symmetric(vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
             child: Column(
               children: [
                 Text(
                   value,
                   style: const TextStyle(
                     fontWeight: FontWeight.w800,
-                    fontSize: 14,
+                    fontSize: 13,
                   ),
                 ),
                 Text(
@@ -79,76 +83,134 @@ class HomeStockTotalsCard extends ConsumerWidget {
                 ),
               ],
             ),
+            ),
           );
         }
 
         return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(HexaOp.cardPadding),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Stock on hand',
-                  style: HexaOp.cardTitle(context),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    miniStat('Bags', _fmtNum(bags)),
-                    miniStat('Kg', _fmtNum(kg)),
-                    miniStat('Box', _fmtNum(boxes)),
-                    miniStat('Tin', _fmtNum(tins)),
-                  ],
-                ),
-                Text(
-                  '$items items',
-                  style: HexaOp.caption(context),
-                ),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () => showWarehouseAnalyticsSheet(context: context, ref: ref),
+            child: Padding(
+              padding: const EdgeInsets.all(HexaOp.cardPadding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Warehouse Stock Overview',
+                        style: HexaOp.cardTitle(context),
+                      ),
+                      const Spacer(),
+                      const Icon(Icons.analytics_outlined, size: 18),
+                    ],
                   ),
-                  decoration: BoxDecoration(
-                    color: HexaColors.brandPrimary.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(8),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      miniStat('Bags', _fmtNum(bags)),
+                      miniStat('KG', _fmtNum(kg)),
+                      miniStat('Boxes', _fmtNum(boxes)),
+                      miniStat('Tins', _fmtNum(tins)),
+                    ],
                   ),
-                  child: Row(
+                  const SizedBox(height: 10),
+                  Row(
                     children: [
                       Expanded(
-                        child: _movementCell(
-                          'Purchased',
-                          '${_fmtNum(purchasedBags)} bags',
+                        child: Text(
+                          'Total stock value: ${homeInr(inv.totalValueInr)}',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
-                      Expanded(
-                        child: _movementCell(
-                          'Current',
-                          '${_fmtNum(bags)} bags',
-                        ),
+                      Text(
+                        'Items tracked: $items',
+                        style: HexaOp.caption(context),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Last updated: ${homeRefreshAgo(lastUpdatedAt)}',
+                    style: HexaOp.caption(context),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: HexaColors.brandPrimary.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _movementCell(
+                                'Purchased this period',
+                                '${_fmtNum(purchasedBags)} bags',
+                              ),
+                            ),
+                            Expanded(
+                              child: _movementCell(
+                                'Current warehouse stock',
+                                '${_fmtNum(bags)} bags',
+                              ),
+                            ),
+                            Expanded(
+                              child: _movementCell(
+                                'Moved/sold',
+                                '${_fmtNum(moved)} bags',
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(999),
+                          child: SizedBox(
+                            height: 8,
+                            child: Row(
+                              children: [
+                                _barSegment(
+                                  totalForBar == 0 ? 1 : purchasedBags / totalForBar,
+                                  const Color(0xFF1565C0),
+                                ),
+                                _barSegment(
+                                  totalForBar == 0 ? 1 : bags / totalForBar,
+                                  const Color(0xFF2E7D32),
+                                ),
+                                _barSegment(
+                                  totalForBar == 0 ? 1 : moved / totalForBar,
+                                  const Color(0xFFE65100),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.info_outline, size: 14, color: Color(0xFF64748B)),
+                      const SizedBox(width: 4),
                       Expanded(
-                        child: _movementCell(
-                          'Variance',
-                          '${variance >= 0 ? '+' : ''}${_fmtNum(variance)}',
+                        child: Text(
+                          'Difference may include sales, transfers, wastage or adjustments.',
+                          style: HexaOp.caption(context),
                         ),
                       ),
                     ],
                   ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  alert,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: alertColor,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -161,7 +223,7 @@ class HomeStockTotalsCard extends ConsumerWidget {
       children: [
         Text(
           value,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
           textAlign: TextAlign.center,
         ),
         Text(
@@ -170,6 +232,13 @@ class HomeStockTotalsCard extends ConsumerWidget {
           textAlign: TextAlign.center,
         ),
       ],
+    );
+  }
+
+  Widget _barSegment(double flex, Color color) {
+    return Expanded(
+      flex: (flex * 1000).round().clamp(1, 1000).toInt(),
+      child: ColoredBox(color: color),
     );
   }
 }
