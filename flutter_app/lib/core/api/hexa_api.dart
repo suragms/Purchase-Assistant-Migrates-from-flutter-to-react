@@ -1415,6 +1415,30 @@ class HexaApi {
     return _parseJsonMapList(res.data);
   }
 
+  Future<Map<String, dynamic>> tradeReportPeriodComparison({
+    required String businessId,
+    required String from,
+    required String to,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/reports/period-comparison',
+      queryParameters: {'from': from, 'to': to},
+    );
+    return res.data ?? {};
+  }
+
+  Future<Map<String, dynamic>> tradeReportMovementSummary({
+    required String businessId,
+    required String from,
+    required String to,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/reports/movement-summary',
+      queryParameters: {'from': from, 'to': to},
+    );
+    return res.data ?? {};
+  }
+
   /// Per-day line profit sums (SSOT for overview charts; replaces listTradePurchases slicing).
   Future<List<Map<String, dynamic>>> tradeReportDailyProfit({
     required String businessId,
@@ -2335,6 +2359,100 @@ class HexaApi {
         'adjustment_type': adjustmentType,
         if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
       },
+    );
+    return res.data ?? {};
+  }
+
+  /// Physical count from barcode scan (mandatory reason when variance).
+  Future<Map<String, dynamic>> verifyStockCount({
+    required String businessId,
+    required String itemId,
+    required num countedQty,
+    required String reason,
+    String adjustmentType = 'verification',
+    String? notes,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/stock/$itemId/verify-count',
+      data: {
+        'counted_qty': countedQty,
+        'adjustment_type': adjustmentType,
+        'reason': reason.trim(),
+        if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+      },
+    );
+    return res.data ?? {};
+  }
+
+  Future<Map<String, dynamic>?> getActiveStockAudit({
+    required String businessId,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>?>(
+      '/v1/businesses/$businessId/stock-audits/active',
+    );
+    return res.data;
+  }
+
+  Future<Map<String, dynamic>> createStockAudit({
+    required String businessId,
+    String? notes,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/stock-audits',
+      data: {'notes': notes, 'items': []},
+    );
+    return res.data ?? {};
+  }
+
+  Future<Map<String, dynamic>> upsertStockAuditLine({
+    required String businessId,
+    required String auditId,
+    required String itemId,
+    required num countedQty,
+    String? adjustmentType,
+    String? reason,
+    String? notes,
+    bool applyImmediately = false,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/stock-audits/$auditId/lines',
+      data: {
+        'item_id': itemId,
+        'counted_qty': countedQty,
+        if (adjustmentType != null) 'adjustment_type': adjustmentType,
+        if (reason != null) 'reason': reason,
+        if (notes != null) 'notes': notes,
+        'apply_immediately': applyImmediately,
+      },
+    );
+    return res.data ?? {};
+  }
+
+  Future<Map<String, dynamic>> completeStockAudit({
+    required String businessId,
+    required String auditId,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/stock-audits/$auditId/complete',
+    );
+    return res.data ?? {};
+  }
+
+  Future<Map<String, dynamic>> getStockAudit({
+    required String businessId,
+    required String auditId,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/stock-audits/$auditId',
+    );
+    return res.data ?? {};
+  }
+
+  Future<Map<String, dynamic>> getStockAuditKpis({
+    required String businessId,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/stock-audits/kpis',
     );
     return res.data ?? {};
   }

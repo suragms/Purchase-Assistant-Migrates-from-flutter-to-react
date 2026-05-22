@@ -172,6 +172,39 @@ class OfflineStore {
     return out;
   }
 
+  /// Pending warehouse stock verify / audit line actions for [businessId].
+  static int pendingStockQueueCount(String businessId) {
+    var n = 0;
+    for (final e in getPendingEntries()) {
+      final data = e['data'];
+      if (data is! Map) continue;
+      if (data['businessId']?.toString() != businessId) continue;
+      final kind = data['kind']?.toString() ?? '';
+      if (kind == 'stock_verify' || kind == 'stock_audit_line') n++;
+    }
+    return n;
+  }
+
+  static Future<void> queueStockVerify({
+    required String businessId,
+    required String itemId,
+    required num countedQty,
+    required String reason,
+    String adjustmentType = 'verification',
+    String? notes,
+  }) async {
+    await queueEntry({
+      'kind': 'stock_verify',
+      'businessId': businessId,
+      'fingerprint': 'verify|$itemId|$countedQty',
+      'item_id': itemId,
+      'counted_qty': countedQty,
+      'reason': reason,
+      'adjustment_type': adjustmentType,
+      if (notes != null) 'notes': notes,
+    });
+  }
+
   static Future<void> markSynced(String id) async {
     await _entries.delete(id);
   }

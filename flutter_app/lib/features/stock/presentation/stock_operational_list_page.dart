@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/providers/operations_providers.dart';
 import '../../../core/widgets/friendly_load_error.dart';
+import '../../reports/presentation/widgets/slow_moving_row.dart';
 
 enum StockOperationalListKind { dead, fast, slow }
 
@@ -43,25 +44,13 @@ class StockOperationalListPage extends ConsumerWidget {
             return const Center(child: Text('No items in this list'));
           }
           return ListView.separated(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(vertical: 4),
             itemCount: items.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (ctx, i) {
-              final it = items[i];
-              final id = it['id']?.toString() ?? '';
-              final name = it['name']?.toString() ?? '—';
-              final sub = kind == StockOperationalListKind.dead
-                  ? 'No movement in 30+ days'
-                  : 'Used 7d: ${it['used_7d'] ?? 0}';
-              return ListTile(
-                title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(sub),
-                trailing: Text('${it['current_stock'] ?? 0}'),
-                onTap: id.isEmpty
-                    ? null
-                    : () => context.push('/stock/intelligence/$id'),
-              );
-            },
+            itemBuilder: (ctx, i) => SlowMovingRow(
+              item: items[i],
+              deadStyle: kind == StockOperationalListKind.dead,
+            ),
           );
         },
       ),

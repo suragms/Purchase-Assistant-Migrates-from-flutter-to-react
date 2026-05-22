@@ -16,7 +16,12 @@ class StockAudit(Base):
     auditor_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)  # Options: draft, completed
+    business_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(32), default="draft", nullable=False
+    )  # draft, pending_review, completed
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
@@ -48,6 +53,10 @@ class StockAuditItem(Base):
     system_qty: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     counted_qty: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     difference_qty: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    line_status: Mapped[str] = mapped_column(String(32), default="recorded", nullable=False)
+    adjustment_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     audit = relationship("StockAudit", back_populates="items")
     item = relationship("CatalogItem")

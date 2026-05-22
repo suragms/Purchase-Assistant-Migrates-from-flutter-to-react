@@ -205,7 +205,7 @@ Use `flutter_app/lib/core/design_system/hexa_operational_tokens.dart` on **opera
 | `bottomNavMax` | 56dp | Owner shell bottom bar (20dp nav icons) |
 | `fabSize` | 56dp | Center scan FAB |
 
-Owner home: warehouse control center. Header = avatar + short warehouse name + `WH-#### • OWNER`; live strip = `LIVE • Updated … • low stock • pending delivery`; quick grid = Scan / Stock / Purchase / Reports / Barcode / Users; alert pills use business language (`Missing barcode labels`, `Pending Delivery`, `Stock Mismatch`, `Reorder Needed`). Stock card = `Warehouse Stock Overview` with value, tracked items, Bags/KG/Boxes/Tins and Purchased / Current warehouse stock / Moved-sold comparison bar. Recent changes, Low stock, and Stock movement render directly (no empty collapsed cards). Analytics opens in a bottom sheet using Categories / Subcategories / Suppliers / Items ring tabs. **Stock list:** single dense list (`StockOperationalRow` max ~78dp); sticky 32dp period/unit/status pills on page; status pills are Low/Critical/Missing Code/Out/Reorder (no Eviction); rows show item/code/category-supplier plus Purchased, Current, Moved, and status. **Item detail:** stock summary, purchase rows with invoice/detail navigation, barcode generate/copy/print actions, and ledger tabs (Purchases/Sales/Usage/Damage/Corrections/Transfers). Quick edit `showStockQuickEditSheet` supports +/-1, +/-5, +/-10 and ledger reasons including Sale and Transfer. Bulk print: sticky Preview/PDF/Print, compact missing-code/missing-barcode/low/reorder/category-supplier chips, desktop preview panel ≥1100px. Errors: `barcodeMessageForUser` / `friendlyApiError` — never bare "Something went wrong" on barcode/PDF/stock patch paths.
+Owner home: warehouse control center. Header = avatar + short warehouse name + `WH-#### • OWNER`; live strip = `LIVE • Updated … • low stock • pending delivery`; quick grid = Scan / Stock / Purchase / Reports / Barcode / Users; alert pills use business language (`Missing barcode labels`, `Pending Delivery`, `Stock Mismatch`, `Reorder Needed`). Stock card = `Warehouse Stock Overview` with value, tracked items, Bags/KG/Boxes/Tins and Purchased / Current warehouse stock / Moved-sold comparison bar. Recent changes, Low stock, and Stock movement render directly (no empty collapsed cards). Analytics: bottom sheet preview on stock card tap; **Reports** icon opens `/reports?tab=subcategories` for full BI (ring + legend + 10 tabs). **Stock list:** single dense list (`StockOperationalRow` max ~78dp); sticky 32dp period/unit/status pills on page; status pills are Low/Critical/Missing Code/Out/Reorder (no Eviction); rows show item/code/category-supplier plus Purchased, Current, Moved, and status. **Item detail:** stock summary, purchase rows with invoice/detail navigation, barcode generate/copy/print actions, and ledger tabs (Purchases/Sales/Usage/Damage/Corrections/Transfers). Quick edit `showStockQuickEditSheet` supports +/-1, +/-5, +/-10 and ledger reasons including Sale and Transfer. Bulk print: sticky Preview/PDF/Print, compact missing-code/missing-barcode/low/reorder/category-supplier chips, desktop preview panel ≥1100px. Errors: `barcodeMessageForUser` / `friendlyApiError` — never bare "Something went wrong" on barcode/PDF/stock patch paths.
 
 ### Typography (warehouse-grade, old-person friendly)
 
@@ -544,7 +544,10 @@ ROUTE                          PAGE FILE                          ROLE    STATUS
 /home                          home_page.dart                     owner   ✅ done (warehouse control center: direct recent/low/movement cards; stock overview purchased/current/moved; health strip; analytics sheet)
 /stock                         stock_page.dart                    owner   ✅ done (flat warehouse list; sticky Today/Week/Month/Year + unit + status pills; 72dp row; filter sheet for category/supplier; quick edit sheet; mini FAB)
 /staff/stock                   stock_page.dart (staff mode)       staff   ✅ done (same list; no Year period chip; intelligence hides owner analytics)
-/reports                       reports_page.dart                  owner   ✅ done (KEEP RING CHART)
+/reports                       reports_page.dart                  owner   ✅ BI shell: 10 tabs (Overview/Categories/Subcategories/Items/…), summary card, period comparison, `?tab=` deep link
+/reports/item/:catalogItemId   reports_item_bi_page.dart          owner   ✅ stock intelligence + purchase history action
+/reports/category-drill        reports_category_drill_page.dart   owner   ✅ category spend drill from ring
+/reports/subcategory-drill     reports_subcategory_drill_page.dart owner  ✅ subcategory spend drill (`trade-types`)
 /purchase                      purchase_home_page.dart            all     ✅ done
 /search                        search_page.dart                   all     ✅ done
 
@@ -568,7 +571,10 @@ ROUTE                          PAGE FILE                          ROLE    STATUS
 /catalog/category/:id/...      (subcategory add)                  owner   ✅ done
 
 ── BARCODE ────────────────────────────────────────────────────────────────────
-/barcode/scan                  barcode_scan_page.dart             all     ✅ done (PWA camera try + manual/photo fallback)
+/barcode/scan                  barcode_scan_page.dart             all     ✅ warehouse scanner: counted stock sheet, audit session, history
+/barcode/scan-history          barcode_scan_history_page.dart     all     ✅ recent scans + pending approvals
+/barcode/audit-session         stock_audit_session_page.dart      all     ✅ draft session lines + complete
+/barcode/audit-summary         stock_audit_summary_page.dart      all     ✅ post-audit totals
 /barcode/print/:itemId         barcode_print_page.dart            all     ✅ done (symbology=barcode, text=item_code)
 /barcode/bulk-print            bulk_barcode_print_page.dart       all     ✅ done (2/4-col A4 dense, debounced search)
 /catalog/quick-add-from-scan   barcode_quick_create_page.dart     all     ✅ done (no ITM auto; barcode read-only)
@@ -602,7 +608,7 @@ ROUTE                          PAGE FILE                          ROLE    STATUS
 /contacts/item-wizard          item_wizard_page.dart              owner   ✅ done
 
 ── REPORTS ────────────────────────────────────────────────────────────────────
-/reports                       reports_page.dart (donut + tabs)   owner   ✅ KEEP AS-IS + add header card
+/reports                       reports_page.dart                  owner   ✅ mobile BI hub: ring + legend (`features/reports/widgets/bi/`), slow/dead tabs, movement summary API
 /home/breakdown/:type/:id      home_breakdown_list_page.dart      owner   ✅ done
 
 ── NOTIFICATIONS ──────────────────────────────────────────────────────────────

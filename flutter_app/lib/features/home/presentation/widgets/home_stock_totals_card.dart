@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_operational_tokens.dart';
@@ -104,7 +105,11 @@ class HomeStockTotalsCard extends ConsumerWidget {
                         style: HexaOp.cardTitle(context),
                       ),
                       const Spacer(),
-                      const Icon(Icons.analytics_outlined, size: 18),
+                      IconButton(
+                        tooltip: 'Open Reports analytics',
+                        icon: const Icon(Icons.analytics_outlined, size: 20),
+                        onPressed: () => context.push('/reports?tab=subcategories'),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 10),

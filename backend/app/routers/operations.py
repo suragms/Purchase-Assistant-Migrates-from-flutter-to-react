@@ -576,6 +576,7 @@ async def operational_reports_summary(
     rows = ir.all()
     item_ids = [item.id for item, _ in rows]
     usage_7d: dict[uuid.UUID, Decimal] = {}
+    last_adj: dict[uuid.UUID, datetime] = {}
     if item_ids:
         from datetime import timedelta
 
@@ -590,19 +591,40 @@ async def operational_reports_summary(
             .group_by(DailyUsageLog.item_id)
         )
         usage_7d = {row[0]: Decimal(row[1] or 0) for row in ur.all()}
+        adj_r = await db.execute(
+            select(
+                StockAdjustmentLog.item_id,
+                func.max(StockAdjustmentLog.updated_at),
+            )
+            .where(
+                StockAdjustmentLog.business_id == business_id,
+                StockAdjustmentLog.item_id.in_(item_ids),
+            )
+            .group_by(StockAdjustmentLog.item_id)
+        )
+        last_adj = {row[0]: row[1] for row in adj_r.all() if row[1] is not None}
     dead: list[dict] = []
     fast: list[dict] = []
     slow: list[dict] = []
     for item, cat_name in rows:
         cur = catalog_stock_qty(item)
         u = usage_7d.get(item.id, Decimal("0"))
+        idle_days = _idle_days_for_item(item, last_adj.get(item.id), u)
+        bucket, insight = _aging_bucket(idle_days, cur, u)
         entry = {
             "id": str(item.id),
             "name": item.name,
             "item_code": item.item_code,
             "category": cat_name,
+            "unit": item.stock_unit or item.default_unit,
             "current_stock": float(cur),
             "used_7d": float(u),
+            "last_movement_at": (
+                last_adj[item.id].isoformat() if item.id in last_adj else None
+            ),
+            "idle_days": idle_days,
+            "aging_bucket": bucket,
+            "insight_key": insight,
         }
         if cur > 0 and u <= 0:
             days = _days_since_last_purchase_ops(item)
@@ -642,3 +664,40 @@ def _days_since_last_purchase_ops(item: CatalogItem) -> int | None:
         return None
     delta = datetime.now(timezone.utc) - item.last_purchase_at
     return max(0, delta.days)
+
+
+def _idle_days_for_item(
+    item: CatalogItem,
+    last_adj_at: datetime | None,
+    used_7d: Decimal,
+) -> int:
+    now = datetime.now(timezone.utc)
+    candidates: list[datetime] = []
+    if last_adj_at is not None:
+        candidates.append(last_adj_at)
+    if item.last_purchase_at is not None:
+        candidates.append(item.last_purchase_at)
+    if used_7d > 0:
+        return 0
+    if not candidates:
+        return 999
+    latest = max(candidates)
+    if latest.tzinfo is None:
+        latest = latest.replace(tzinfo=timezone.utc)
+    return max(0, (now - latest).days)
+
+
+def _aging_bucket(idle_days: int, current_stock: Decimal, used_7d: Decimal) -> tuple[str, str]:
+    if current_stock <= 0:
+        return "out", "out_of_stock"
+    if used_7d > 0 and idle_days <= 7:
+        return "healthy", "active"
+    if idle_days >= 60:
+        return "60d", "dead_stock_risk"
+    if idle_days >= 30:
+        return "30d", "high_stock_low_usage"
+    if idle_days >= 15:
+        return "15d", "slowing"
+    if idle_days >= 7:
+        return "7d", "slowing"
+    return "healthy", "active"

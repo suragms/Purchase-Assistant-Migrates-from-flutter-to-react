@@ -45,6 +45,9 @@ import '../../features/purchase/presentation/purchase_entry_wizard_v2.dart';
 import '../../features/purchase/presentation/purchase_scan_draft_wizard_page.dart';
 import '../../features/purchase/presentation/scan_purchase_page.dart';
 import '../../features/reports/presentation/reports_item_detail_page.dart';
+import '../../features/reports/presentation/reports_item_bi_page.dart';
+import '../../features/reports/presentation/reports_category_drill_page.dart';
+import '../../features/reports/presentation/reports_subcategory_drill_page.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/settings/presentation/business_profile_page.dart';
 import '../../features/settings/presentation/maintenance_history_page.dart';
@@ -57,6 +60,9 @@ import '../../features/search/presentation/search_page.dart';
 import '../../features/barcode/presentation/barcode_print_page.dart';
 import '../../features/barcode/presentation/bulk_barcode_print_page.dart';
 import '../../features/barcode/presentation/barcode_scan_page.dart';
+import '../../features/barcode/presentation/barcode_scan_history_page.dart';
+import '../../features/barcode/presentation/stock_audit_session_page.dart';
+import '../../features/barcode/presentation/stock_audit_summary_page.dart';
 import '../../features/stock/presentation/stock_page.dart';
 import '../../features/stock/presentation/reorder_list_page.dart';
 import '../../features/stock/presentation/stock_history_page.dart';
@@ -278,6 +284,30 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => iosPushPage(
           key: state.pageKey,
           child: const BarcodeScanPage(),
+        ),
+      ),
+      GoRoute(
+        path: '/barcode/scan-history',
+        name: 'barcode_scan_history',
+        pageBuilder: (context, state) => iosPushPage(
+          key: state.pageKey,
+          child: const BarcodeScanHistoryPage(),
+        ),
+      ),
+      GoRoute(
+        path: '/barcode/audit-session',
+        name: 'stock_audit_session',
+        pageBuilder: (context, state) => iosPushPage(
+          key: state.pageKey,
+          child: const StockAuditSessionPage(),
+        ),
+      ),
+      GoRoute(
+        path: '/barcode/audit-summary',
+        name: 'stock_audit_summary',
+        pageBuilder: (context, state) => iosPushPage(
+          key: state.pageKey,
+          child: const StockAuditSummaryPage(),
         ),
       ),
       GoRoute(
@@ -793,6 +823,55 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: const StockOperationalListPage(kind: StockOperationalListKind.slow),
         ),
+      ),
+      GoRoute(
+        path: '/reports/category-drill',
+        name: 'reports_category_drill',
+        pageBuilder: (context, state) {
+          final extra = state.extra;
+          if (extra is ReportsCategoryDrillPage) {
+            return iosPushPage(key: state.pageKey, child: extra);
+          }
+          final name = Uri.decodeComponent(
+            state.uri.queryParameters['name'] ?? 'Category',
+          );
+          return iosPushPage(
+            key: state.pageKey,
+            child: ReportsCategoryDrillPage(categoryName: name),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/reports/subcategory-drill',
+        name: 'reports_subcategory_drill',
+        pageBuilder: (context, state) {
+          final extra = state.extra;
+          if (extra is ReportsSubcategoryDrillPage) {
+            return iosPushPage(key: state.pageKey, child: extra);
+          }
+          final name = Uri.decodeComponent(
+            state.uri.queryParameters['name'] ?? 'Subcategory',
+          );
+          return iosPushPage(
+            key: state.pageKey,
+            child: ReportsSubcategoryDrillPage(subcategoryName: name),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/reports/item/:catalogItemId',
+        name: 'reports_item_bi',
+        pageBuilder: (context, state) {
+          final id = state.pathParameters['catalogItemId'] ?? '';
+          final name = state.uri.queryParameters['name'];
+          return iosPushPage(
+            key: state.pageKey,
+            child: ReportsItemBiPage(
+              catalogItemId: id,
+              itemName: name != null ? Uri.decodeComponent(name) : null,
+            ),
+          );
+        },
       ),
       GoRoute(
         path: '/reports/item-detail',

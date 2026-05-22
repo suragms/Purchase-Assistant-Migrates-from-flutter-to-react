@@ -25,6 +25,7 @@ from app.models import (
 from app.models.notification import AppNotification
 from app.models.reorder_list import ReorderListEntry
 from app.models.stock_adjustment import StockAdjustmentLog
+from app.schemas.stock_audit import StockVerifyCountIn
 from app.schemas.stock import (
     BarcodeBatchIn,
     BarcodeBatchOut,
@@ -1078,6 +1079,73 @@ async def get_stock_item(
             for p in purchases
         ]
     return StockDetailOut(**base.model_dump(), recent_purchases=purchases)
+
+
+@router.post("/{item_id}/verify-count", response_model=StockDetailOut)
+async def verify_stock_count(
+    business_id: uuid.UUID,
+    item_id: uuid.UUID,
+    body: StockVerifyCountIn,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[User, Depends(get_current_user)],
+    membership: Annotated[Membership, Depends(require_permission("stock_edit"))],
+):
+    """Physical count from barcode scan — sets stock to counted qty with mandatory reason on variance."""
+    from app.services.stock_audit_service import apply_audit_line_to_stock
+    r = await db.execute(
+        select(CatalogItem)
+        .options(selectinload(CatalogItem.category))
+        .where(
+            CatalogItem.id == item_id,
+            CatalogItem.business_id == business_id,
+            CatalogItem.deleted_at.is_(None),
+        )
+    )
+    item = r.scalar_one_or_none()
+    if not item:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found")
+
+    old_qty = catalog_stock_qty(item)
+    counted = Decimal(body.counted_qty)
+    if counted < 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Stock cannot be negative")
+    diff = old_qty - counted
+    if diff != 0 and not (body.reason and body.reason.strip()):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail="Reason required when counted stock differs from system",
+        )
+
+    await apply_audit_line_to_stock(
+        db,
+        business_id=business_id,
+        user=user,
+        item=item,
+        counted_qty=counted,
+        adjustment_type=body.adjustment_type,
+        reason=body.reason + (f" — {body.notes}" if body.notes else ""),
+        audit_id=None,
+    )
+    await log_staff_activity(
+        db,
+        business_id=business_id,
+        user=user,
+        action_type="BARCODE_COUNT_VERIFY",
+        item_id=item_id,
+        item_name=item.name,
+        before_data={"qty": float(old_qty)},
+        after_data={"qty": float(counted), "type": body.adjustment_type},
+    )
+    await maybe_notify_stock_variance(
+        db,
+        business_id=business_id,
+        item_id=item_id,
+        adjustment_type=body.adjustment_type,
+        new_qty=counted,
+    )
+    await db.commit()
+    await db.refresh(item)
+    return await get_stock_item(business_id, item_id, db, membership)
 
 
 @router.patch("/{item_id}", response_model=StockDetailOut)

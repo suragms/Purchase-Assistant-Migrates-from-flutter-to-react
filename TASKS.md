@@ -190,6 +190,39 @@
 
 ---
 
+## Sprint 21 — Reports BI master rebuild (May 22 2026)
+
+| ID | Priority | Status | Summary |
+|----|----------|--------|---------|
+| RPT-01 | P0 | Done | `/reports` BI shell: scrollable tabs + More sheet, `ReportsSummaryCard`, `?tab=` deep link, export/share app bar |
+| RPT-02 | P0 | Done | Shared BI widgets: `WarehouseRingSection`, `BreakdownLegendList`, `ReportsBiSlice` under `features/reports/widgets/bi/` |
+| RPT-03 | P0 | Done | Categories + Subcategories tabs (`analyticsTypesTableProvider`); drill routes `/reports/category-drill`, `/reports/subcategory-drill` |
+| RPT-04 | P0 | Done | Slow/Dead tabs + `SlowMovingRow`; enriched `operations/reports/summary` (idle_days, aging_bucket, insight_key) |
+| RPT-05 | P1 | Done | `/reports/item/:catalogItemId` canonical item BI (embedded stock intelligence) |
+| RPT-06 | P1 | Done | `GET /reports/period-comparison`, `GET /reports/movement-summary`; `ReportsInsightsStrip` + movement tab |
+| RPT-07 | P1 | Done | Invalidation: `reportsPeriodComparisonProvider`, `reportsMovementSummaryProvider` in `invalidateAnalyticsData` |
+| RPT-08 | P2 | Done | Home stock card analytics icon → `/reports?tab=subcategories`; operational list uses `SlowMovingRow` |
+
+**E2E:** `/reports?tab=subcategories` from Home → ring tap drill → slow row → `/stock/intelligence/:id` → period comparison on summary → movement tab totals.
+
+---
+
+## Sprint 22 — Barcode scan + stock audit rebuild (May 22 2026)
+
+| ID | Priority | Status | Summary |
+|----|----------|--------|---------|
+| AUD-01 | P0 | Done | Backend: `business_id` on `stock_audits`, scoped `/stock-audits`, `complete` applies ledger, `verify-count`, approval threshold |
+| AUD-02 | P0 | Done | `WarehouseScanActionSheet`: counted stock, diff colors, mandatory reasons, mini ledger, save |
+| AUD-03 | P0 | Done | Scanner UX: light frame, history/audit actions, `?return=search`, pending sync banner |
+| AUD-04 | P1 | Done | Audit session pages + `activeStockAuditProvider` + complete → summary |
+| AUD-05 | P1 | Done | Scan history page; `HomeStockAuditStrip` KPIs |
+| AUD-06 | P1 | Done | `OfflineStore.queueStockVerify` + replay on sync |
+| AUD-07 | P2 | Done | `pytest` stock audit + verify-count; `dart analyze` barcode module |
+
+**E2E:** scan → counted qty + reason → stock updates → audit session → complete → home audit pills.
+
+---
+
 ## Sprint 18 — Stock warehouse list rebuild (May 22 2026)
 
 | ID | Priority | Status | Summary |

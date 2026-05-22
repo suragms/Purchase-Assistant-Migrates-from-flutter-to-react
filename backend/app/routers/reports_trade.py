@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from collections import OrderedDict
 from copy import deepcopy
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from time import monotonic
 from typing import Annotated, Any
 
@@ -18,6 +18,7 @@ from app.database import get_db
 from app.db_resilience import execute_with_retry
 from app.deps import get_current_user, require_membership, require_role
 from app.models import CatalogItem, CategoryType, ItemCategory, Membership, TradePurchase, TradePurchaseLine, User
+from app.models.stock_adjustment import StockAdjustmentLog
 from app.models.contacts import Supplier
 from app.read_cache_generation import trade_read_cache_generation
 from app.services import trade_mapping as trade_map
@@ -939,3 +940,126 @@ async def trade_types_breakdown(
     """Category → subcategory: spend grouped by CategoryType (catalog `type_id`) with parent category name."""
     del _m
     return await _fetch_trade_types_breakdown_rows(db, business_id, date_from, date_to)
+
+
+async def _purchase_totals_for_range(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    date_from: date,
+    date_to: date,
+) -> dict[str, Any]:
+    bf = _trade_purchase_date_filter(business_id, date_from, date_to)
+    purchase = await execute_with_retry(
+        lambda: db.execute(
+            select(func.coalesce(func.sum(_trade_line_amount_expr()), 0))
+            .select_from(TradePurchaseLine)
+            .join(TradePurchase, TradePurchase.id == TradePurchaseLine.trade_purchase_id)
+            .where(bf)
+        )
+    )
+    deals = await execute_with_retry(
+        lambda: db.execute(
+            select(func.count(TradePurchase.id.distinct()))
+            .select_from(TradePurchase)
+            .where(bf)
+        )
+    )
+    sups = await execute_with_retry(
+        lambda: db.execute(
+            select(func.count(TradePurchase.supplier_id.distinct()))
+            .select_from(TradePurchase)
+            .where(bf)
+        )
+    )
+    kg = await execute_with_retry(
+        lambda: db.execute(
+            select(func.coalesce(func.sum(tq.trade_line_weight_expr()), 0))
+            .select_from(TradePurchaseLine)
+            .join(TradePurchase, TradePurchase.id == TradePurchaseLine.trade_purchase_id)
+            .where(bf)
+        )
+    )
+    return {
+        "total_purchase": float(purchase.scalar() or 0),
+        "purchase_count": int(deals.scalar() or 0),
+        "supplier_count": int(sups.scalar() or 0),
+        "total_kg": float(kg.scalar() or 0),
+    }
+
+
+@router.get("/period-comparison")
+async def reports_period_comparison(
+    business_id: uuid.UUID,
+    _m: Annotated[Membership, Depends(require_membership)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    date_from: date = Query(..., alias="from"),
+    date_to: date = Query(..., alias="to"),
+) -> dict[str, Any]:
+    """Current period vs prior equal-length window (purchase value SSOT)."""
+    del _m
+    span = (date_to - date_from).days + 1
+    prior_end = date_from - timedelta(days=1)
+    prior_start = prior_end - timedelta(days=span - 1)
+    current = await _purchase_totals_for_range(db, business_id, date_from, date_to)
+    prior = await _purchase_totals_for_range(db, business_id, prior_start, prior_end)
+    cur_p = current["total_purchase"]
+    prev_p = prior["total_purchase"]
+    pct = None
+    if prev_p > 1e-6:
+        pct = round(((cur_p - prev_p) / prev_p) * 100, 1)
+    return {
+        "current": current,
+        "prior": prior,
+        "purchase_change_pct": pct,
+        "prior_from": prior_start.isoformat(),
+        "prior_to": prior_end.isoformat(),
+    }
+
+
+@router.get("/movement-summary")
+async def reports_movement_summary(
+    business_id: uuid.UUID,
+    _m: Annotated[Membership, Depends(require_membership)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    date_from: date = Query(..., alias="from"),
+    date_to: date = Query(..., alias="to"),
+) -> dict[str, Any]:
+    """Stock adjustment totals by type for the period (no financial totals)."""
+    del _m
+    start_dt = datetime.combine(date_from, datetime.min.time(), tzinfo=timezone.utc)
+    end_dt = datetime.combine(date_to, datetime.max.time(), tzinfo=timezone.utc)
+    r = await db.execute(
+        select(
+            StockAdjustmentLog.adjustment_type,
+            func.count(),
+            func.coalesce(func.sum(StockAdjustmentLog.new_qty - StockAdjustmentLog.old_qty), 0),
+        )
+        .where(
+            StockAdjustmentLog.business_id == business_id,
+            StockAdjustmentLog.updated_at >= start_dt,
+            StockAdjustmentLog.updated_at <= end_dt,
+        )
+        .group_by(StockAdjustmentLog.adjustment_type)
+    )
+    by_type: dict[str, dict[str, float | int]] = {}
+    for adj_type, cnt, delta in r.all():
+        key = str(adj_type or "manual")
+        by_type[key] = {"count": int(cnt or 0), "qty_delta": float(delta or 0)}
+    daily_r = await db.execute(
+        select(
+            func.date(StockAdjustmentLog.updated_at),
+            func.count(),
+        )
+        .where(
+            StockAdjustmentLog.business_id == business_id,
+            StockAdjustmentLog.updated_at >= start_dt,
+            StockAdjustmentLog.updated_at <= end_dt,
+        )
+        .group_by(func.date(StockAdjustmentLog.updated_at))
+        .order_by(func.date(StockAdjustmentLog.updated_at))
+    )
+    timeline = [
+        {"date": (d.isoformat() if hasattr(d, "isoformat") else str(d)), "events": int(c or 0)}
+        for d, c in daily_r.all()
+    ]
+    return {"by_type": by_type, "timeline": timeline}

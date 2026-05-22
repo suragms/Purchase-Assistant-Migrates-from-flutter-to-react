@@ -11,15 +11,18 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../core/theme/hexa_colors.dart';
 import '../../../core/errors/barcode_operation_errors.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/providers/barcode_recent_scans.dart';
+import '../../../core/providers/stock_audit_providers.dart';
+import '../../../core/providers/stock_offline_queue_provider.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/router/navigation_ext.dart';
 import '../../../shared/widgets/search_picker_sheet.dart';
 import '../../stock/presentation/quick_stock_patch_sheet.dart';
 import '../../stock/presentation/stock_undo_snackbar.dart';
-import '../../stock/presentation/widgets/scan_stock_result_sheet.dart';
+import 'warehouse_scan_action_sheet.dart';
 import 'barcode_scan_web_stub.dart'
     if (dart.library.html) 'barcode_scan_web.dart';
 
@@ -227,7 +230,12 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     String name,
   ) async {
     if (!mounted) return;
-    await showScanStockResultSheet(
+    final returnTo = GoRouterState.of(context).uri.queryParameters['return'];
+    if (returnTo == 'search') {
+      if (mounted) context.pop(Map<String, dynamic>.from(row));
+      return;
+    }
+    await showWarehouseScanActionSheet(
       context: context,
       ref: ref,
       item: Map<String, dynamic>.from(row),
@@ -397,6 +405,33 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     setState(() => _torch = !_torch);
   }
 
+  Future<void> _startAuditSession() async {
+    final session = ref.read(sessionProvider);
+    if (session == null) return;
+    try {
+      final existing = await ref.read(hexaApiProvider).getActiveStockAudit(
+            businessId: session.primaryBusiness.id,
+          );
+      if (existing != null && existing['id'] != null) {
+        if (!mounted) return;
+        context.push('/barcode/audit-session');
+        return;
+      }
+      await ref.read(hexaApiProvider).createStockAudit(
+            businessId: session.primaryBusiness.id,
+            notes: 'Mobile scan session',
+          );
+      ref.invalidate(activeStockAuditProvider);
+      if (!mounted) return;
+      context.push('/barcode/audit-session');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(barcodeMessageForUser(e, ctx: BarcodeOperationContext.scanner))),
+      );
+    }
+  }
+
   void _goBack(BuildContext context) {
     final p = GoRouterState.of(context).uri.path;
     if (p.startsWith('/staff')) {
@@ -419,7 +454,8 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final screenH = MediaQuery.sizeOf(context).height;
-    final cameraH = screenH * 0.55;
+    final cameraH = screenH * 0.42;
+    final pendingSync = ref.watch(stockOfflinePendingCountProvider);
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -428,6 +464,16 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
         ),
         title: const Text('Scan barcode'),
         actions: [
+          IconButton(
+            tooltip: 'Scan history',
+            icon: const Icon(Icons.history_rounded),
+            onPressed: () => context.push('/barcode/scan-history'),
+          ),
+          IconButton(
+            tooltip: 'Manual entry',
+            icon: const Icon(Icons.keyboard_rounded),
+            onPressed: () => _manualFocus.requestFocus(),
+          ),
           if (!kIsWeb)
             IconButton(
               tooltip: 'Torch',
@@ -438,11 +484,26 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                     : Icons.flashlight_off_rounded,
               ),
             ),
+          IconButton(
+            tooltip: 'Start audit session',
+            icon: const Icon(Icons.fact_check_outlined),
+            onPressed: _busy ? null : () => unawaited(_startAuditSession()),
+          ),
         ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (pendingSync > 0)
+            MaterialBanner(
+              content: Text('Pending sync: $pendingSync stock change(s)'),
+              actions: [
+                TextButton(
+                  onPressed: () => ref.read(stockOfflineSyncProvider.notifier).syncNow(),
+                  child: const Text('Sync now'),
+                ),
+              ],
+            ),
           if (_cameraDenied)
             Padding(
               padding: const EdgeInsets.all(24),
@@ -519,26 +580,37 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
           else
             SizedBox(
               height: cameraH,
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  if (_camera != null)
-                    MobileScanner(
-                      controller: _camera,
-                      onDetect: _onDetect,
-                    )
-                  else
-                    const Center(child: CircularProgressIndicator()),
-                  Center(
-                    child: Container(
-                      width: 280,
-                      height: 160,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: Colors.white, width: 2),
-                        borderRadius: BorderRadius.circular(8),
+              child: ColoredBox(
+                color: const Color(0xFFF1F5F9),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (_camera != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: MobileScanner(
+                            controller: _camera,
+                            onDetect: _onDetect,
+                          ),
+                        ),
+                      )
+                    else
+                      const Center(child: CircularProgressIndicator()),
+                    Center(
+                      child: Container(
+                        width: 260,
+                        height: 140,
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: HexaColors.brandPrimary,
+                            width: 2,
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                     ),
-                  ),
                   LayoutBuilder(
                     builder: (context, constraints) {
                       return AnimatedBuilder(
@@ -560,42 +632,28 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                       );
                     },
                   ),
-                  const Align(
-                    alignment: Alignment(0, 0.72),
-                    child: Text(
-                      'Align barcode within the frame',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        shadows: [
-                          Shadow(
-                            offset: Offset(0, 1),
-                            blurRadius: 6,
-                            color: Color(0xAA000000),
-                          ),
-                        ],
+                    if (_busy)
+                      Container(
+                        color: Colors.white54,
+                        alignment: Alignment.center,
+                        child: const SizedBox(
+                          width: 28,
+                          height: 28,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                       ),
-                    ),
-                  ),
-                  if (_busy)
-                    Container(
-                      color: Colors.black38,
-                      alignment: Alignment.center,
-                      child: const CircularProgressIndicator(
-                        color: Colors.white,
-                      ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: Text(
-              'Barcode = on the package · Item code = your shelf code',
+              'Scan item barcode or enter code manually.',
+              textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
-                height: 1.35,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -638,9 +696,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
             ),
           ],
           Expanded(
-            child: Material(
-              elevation: 6,
-              child: Padding(
+            child: Padding(
                 padding: EdgeInsets.fromLTRB(
                   16,
                   12,
@@ -650,12 +706,6 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Text(
-                      'Manual entry',
-                      style: theme.textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
@@ -686,7 +736,6 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                   ],
                 ),
               ),
-            ),
           ),
         ],
       ),
