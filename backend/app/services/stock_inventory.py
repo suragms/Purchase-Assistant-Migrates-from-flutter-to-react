@@ -1,4 +1,5 @@
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -97,27 +98,39 @@ async def compute_inventory_summary(
     }
 
 
-async def apply_confirmed_purchase_stock(
-    db: AsyncSession,
-    business_id: uuid.UUID,
-    user_id: uuid.UUID,
-    lines: list,
-    *,
-    purchase_human_id: str | None = None,
-) -> list[dict]:
-    """Increment catalog stock when a purchase is confirmed; return per-line updates for API."""
-    ur = await db.execute(select(User).where(User.id == user_id))
-    user = ur.scalar_one_or_none()
-    display = (user.name or user.username or user.email) if user else "System"
-    reason = f"Purchase received{f' ({purchase_human_id})' if purchase_human_id else ''}"
-    updates: list[dict] = []
-
+def _qty_by_catalog_item(lines: list) -> dict[uuid.UUID, Decimal]:
+    """Sum line qty per catalog_item_id (ORM lines or pydantic line bodies)."""
+    totals: dict[uuid.UUID, Decimal] = defaultdict(lambda: Decimal(0))
     for li in lines:
         cid = getattr(li, "catalog_item_id", None)
         if cid is None:
             continue
         qty = Decimal(getattr(li, "qty", 0) or 0)
         if qty <= 0:
+            continue
+        totals[uuid.UUID(str(cid))] += qty
+    return dict(totals)
+
+
+async def _apply_catalog_stock_deltas(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    user_id: uuid.UUID,
+    deltas: dict[uuid.UUID, Decimal],
+    *,
+    reason: str,
+    adjustment_type: str = "purchase",
+    touch_last_purchase_at: bool = False,
+) -> list[dict]:
+    """Apply signed qty deltas; rejects if on-hand would go negative."""
+    if not deltas:
+        return []
+    ur = await db.execute(select(User).where(User.id == user_id))
+    user = ur.scalar_one_or_none()
+    display = (user.name or user.username or user.email) if user else "System"
+    updates: list[dict] = []
+    for cid, delta in deltas.items():
+        if delta == 0:
             continue
         r = await db.execute(
             select(CatalogItem).where(
@@ -130,7 +143,12 @@ async def apply_confirmed_purchase_stock(
         if not item:
             continue
         old_qty = catalog_stock_qty(item)
-        new_qty = old_qty + qty
+        new_qty = old_qty + delta
+        if new_qty < 0:
+            raise ValueError(
+                f"Stock cannot be negative for {item.name or item.id} "
+                f"(on hand {old_qty}, adjustment {delta})"
+            )
         unit = item.stock_unit or item.default_unit or item.selling_unit
         db.add(
             StockAdjustmentLog(
@@ -138,7 +156,7 @@ async def apply_confirmed_purchase_stock(
                 item_id=item.id,
                 old_qty=old_qty,
                 new_qty=new_qty,
-                adjustment_type="purchase",
+                adjustment_type=adjustment_type,
                 reason=reason,
                 updated_by=user_id,
                 updated_by_name=display,
@@ -147,7 +165,8 @@ async def apply_confirmed_purchase_stock(
         item.current_stock = new_qty
         item.last_stock_updated_at = datetime.now(timezone.utc)
         item.last_stock_updated_by = display
-        item.last_purchase_at = datetime.now(timezone.utc)
+        if touch_last_purchase_at and delta > 0:
+            item.last_purchase_at = datetime.now(timezone.utc)
         updates.append(
             {
                 "catalog_item_id": item.id,
@@ -155,7 +174,85 @@ async def apply_confirmed_purchase_stock(
                 "unit": unit,
                 "old_qty": old_qty,
                 "new_qty": new_qty,
-                "delta": qty,
+                "delta": delta,
             }
         )
     return updates
+
+
+async def apply_confirmed_purchase_stock(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    user_id: uuid.UUID,
+    lines: list,
+    *,
+    purchase_human_id: str | None = None,
+) -> list[dict]:
+    """Increment catalog stock when a purchase is confirmed; return per-line updates for API."""
+    reason = f"Purchase received{f' ({purchase_human_id})' if purchase_human_id else ''}"
+    return await _apply_catalog_stock_deltas(
+        db,
+        business_id,
+        user_id,
+        _qty_by_catalog_item(lines),
+        reason=reason,
+        adjustment_type="purchase",
+        touch_last_purchase_at=True,
+    )
+
+
+async def revert_confirmed_purchase_stock(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    user_id: uuid.UUID,
+    lines: list,
+    *,
+    purchase_human_id: str | None = None,
+) -> list[dict]:
+    """Decrement stock for a previously confirmed purchase (cancel/delete/unconfirm)."""
+    by_item = _qty_by_catalog_item(lines)
+    if not by_item:
+        return []
+    deltas = {cid: -qty for cid, qty in by_item.items()}
+    reason = f"Purchase reversed{f' ({purchase_human_id})' if purchase_human_id else ''}"
+    return await _apply_catalog_stock_deltas(
+        db,
+        business_id,
+        user_id,
+        deltas,
+        reason=reason,
+        adjustment_type="purchase_reversal",
+        touch_last_purchase_at=False,
+    )
+
+
+async def sync_confirmed_purchase_stock_diff(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    user_id: uuid.UUID,
+    old_lines: list,
+    new_lines: list,
+    *,
+    purchase_human_id: str | None = None,
+) -> list[dict]:
+    """Apply qty delta when editing an already-confirmed purchase."""
+    old_map = _qty_by_catalog_item(old_lines)
+    new_map = _qty_by_catalog_item(new_lines)
+    all_ids = set(old_map) | set(new_map)
+    deltas: dict[uuid.UUID, Decimal] = {}
+    for cid in all_ids:
+        delta = new_map.get(cid, Decimal(0)) - old_map.get(cid, Decimal(0))
+        if delta != 0:
+            deltas[cid] = delta
+    if not deltas:
+        return []
+    reason = f"Purchase adjusted{f' ({purchase_human_id})' if purchase_human_id else ''}"
+    return await _apply_catalog_stock_deltas(
+        db,
+        business_id,
+        user_id,
+        deltas,
+        reason=reason,
+        adjustment_type="purchase_adjustment",
+        touch_last_purchase_at=any(d > 0 for d in deltas.values()),
+    )

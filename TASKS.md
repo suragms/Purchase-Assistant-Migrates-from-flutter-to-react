@@ -1,6 +1,17 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-05-23 (StockEase V7)
+**Last updated:** 2026-05-23 (Production audit P0 fixes)
+
+---
+
+## Production audit P0 (2026-05-23)
+
+- [x] Stock revert on cancel/delete confirmed purchase (`stock_inventory.py`, `trade_purchase_service.py`)
+- [x] Stock diff when editing confirmed purchase (qty change 10→8)
+- [x] RBAC: `purchase_create` / `purchase_edit` on trade routes; `export_access`; `analytics_access`; `stock_edit` on usage submit
+- [x] Flutter: friendly errors (duplicates, daily usage, audit session); staff activity hides totals; barcode PDF `hideFinancials` for staff; 408/429 copy
+- [x] Tests: `test_purchase_stock_reversal.py` (2 tests pass)
+- [ ] P1: atomic stock SQL / idempotency keys / staff home missing-code server endpoint / concurrent race tests
 
 ---
 

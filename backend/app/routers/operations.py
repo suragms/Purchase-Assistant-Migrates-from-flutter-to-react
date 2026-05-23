@@ -13,7 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
-from app.deps import get_current_user, require_membership
+from app.deps import get_current_user, require_membership, require_permission
 from app.models import (
     CatalogItem,
     CategoryType,
@@ -273,8 +273,9 @@ async def usage_submit(
     body: UsageSubmitIn,
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("stock_edit"))],
 ):
+    del _m
     today = date.today()
     display = user.name or user.username or user.email
     total_used = Decimal("0")

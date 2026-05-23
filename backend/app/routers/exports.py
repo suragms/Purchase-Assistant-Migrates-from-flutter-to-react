@@ -19,7 +19,7 @@ from sqlalchemy.orm import selectinload
 from starlette.responses import Response
 
 from app.database import get_db
-from app.deps import require_membership
+from app.deps import require_permission
 from app.models import Membership, TradePurchase, TradePurchaseLine
 from app.services import trade_query as tq
 
@@ -88,7 +88,7 @@ def _write_purchase_lines_csv(w: csv.writer, p: TradePurchase, lines: list[Trade
 @router.post("/backup")
 async def post_backup_zip(
     business_id: uuid.UUID,
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("export_access"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     body: BackupRequest,
 ):

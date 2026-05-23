@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/providers/catalog_providers.dart';
+import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 
 final catalogDuplicatesProvider =
@@ -78,7 +79,9 @@ class CatalogDuplicatesPage extends ConsumerWidget {
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Failed: $e')),
+                          SnackBar(
+                            content: Text(userFacingError(e)),
+                          ),
                         );
                       }
                     }

@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.db_resilience import execute_with_retry
-from app.deps import get_current_user, require_membership, require_role
+from app.deps import get_current_user, require_membership, require_permission, require_role
 from app.models import Membership, User
 from app.schemas.trade_purchases import (
     TradeDraftUpsertRequest,
@@ -249,7 +249,7 @@ async def create_trade_purchase(
     body: TradePurchaseCreateRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("purchase_create"))],
 ):
     try:
         return await tps.create_trade_purchase(db, business_id, user.id, body)
@@ -329,10 +329,13 @@ async def cancel_trade_purchase(
     purchase_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("purchase_edit"))],
 ):
     del user
-    out = await tps.cancel_trade_purchase(db, business_id, purchase_id)
+    try:
+        out = await tps.cancel_trade_purchase(db, business_id, purchase_id)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     if not out:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase not found")
     return out
@@ -345,7 +348,7 @@ async def update_trade_purchase(
     body: TradePurchaseUpdateRequest,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("purchase_edit"))],
 ):
     del user
     try:

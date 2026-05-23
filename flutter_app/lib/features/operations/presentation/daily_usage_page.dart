@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/providers/operations_providers.dart';
 import '../../../core/utils/unit_utils.dart';
+import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/list_skeleton.dart';
 
@@ -187,7 +188,7 @@ class _DailyUsagePageState extends ConsumerState<DailyUsagePage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not save: $e')),
+          SnackBar(content: Text(userFacingError(e))),
         );
       }
     } finally {

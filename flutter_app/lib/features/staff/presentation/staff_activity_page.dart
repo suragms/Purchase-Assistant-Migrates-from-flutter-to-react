@@ -137,11 +137,6 @@ class StaffActivityPage extends ConsumerWidget {
                       final actionRaw = r['action_type']?.toString() ?? '';
                       final action = _staffActivityLabel(actionRaw);
                       final item = r['item_name']?.toString();
-                      final details = r['details'];
-                      String? amount;
-                      if (details is Map) {
-                        amount = details['total_formatted']?.toString();
-                      }
                       DateTime when;
                       try {
                         when = DateTime.parse(
@@ -168,10 +163,7 @@ class StaffActivityPage extends ConsumerWidget {
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                         subtitle: Text(
-                          [
-                            if (item != null && item.isNotEmpty) item,
-                            if (amount != null && amount.isNotEmpty) amount,
-                          ].join(' · '),
+                          item != null && item.isNotEmpty ? item : '',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),

@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/router/post_auth_route.dart' show sessionCanSeeFinancials;
 import '../../../core/errors/barcode_operation_errors.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
@@ -87,11 +88,15 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
     if (label == null) return;
     setState(() => _busy = true);
     try {
+      final session = ref.read(sessionProvider);
+      final hideFinancials =
+          session == null || !sessionCanSeeFinancials(session);
       final bytes = await BarcodePdfService.generateSingleLabel(
         data: label,
         size: _size,
         copies: _copies,
         showLastPurchase: _showLastPurchase,
+        hideFinancials: hideFinancials,
       );
       if (kIsWeb) {
         await Printing.sharePdf(
@@ -125,11 +130,15 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
     if (label == null) return;
     setState(() => _busy = true);
     try {
+      final session = ref.read(sessionProvider);
+      final hideFinancials =
+          session == null || !sessionCanSeeFinancials(session);
       final bytes = await BarcodePdfService.generateSingleLabel(
         data: label,
         size: _size,
         copies: _copies,
         showLastPurchase: _showLastPurchase,
+        hideFinancials: hideFinancials,
       );
       await Printing.sharePdf(
         bytes: bytes,

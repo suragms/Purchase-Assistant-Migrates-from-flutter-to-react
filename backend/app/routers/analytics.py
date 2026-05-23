@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.db_resilience import execute_with_retry
-from app.deps import require_membership
+from app.deps import require_permission
 from app.services import trade_query as tq
 from app.models import (
     Broker,
@@ -39,7 +39,7 @@ class AnalyticsSummary(BaseModel):
 @router.get("/summary", response_model=AnalyticsSummary)
 async def analytics_summary(
     business_id: uuid.UUID,
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("analytics_access"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
@@ -153,7 +153,7 @@ class HomeInsights(BaseModel):
 @router.get("/insights", response_model=HomeInsights)
 async def home_insights(
     business_id: uuid.UUID,
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("analytics_access"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
@@ -281,7 +281,7 @@ class ItemAnalyticsRow(BaseModel):
 @router.get("/items", response_model=list[ItemAnalyticsRow])
 async def analytics_items(
     business_id: uuid.UUID,
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("analytics_access"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
@@ -476,7 +476,7 @@ class CategoryAnalyticsRow(BaseModel):
 @router.get("/categories", response_model=list[CategoryAnalyticsRow])
 async def analytics_categories(
     business_id: uuid.UUID,
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("analytics_access"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
@@ -590,7 +590,7 @@ class SupplierAnalyticsRow(BaseModel):
 @router.get("/suppliers", response_model=list[SupplierAnalyticsRow])
 async def analytics_suppliers(
     business_id: uuid.UUID,
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("analytics_access"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
@@ -653,7 +653,7 @@ class SupplierItemBreakdownRow(BaseModel):
 async def analytics_supplier_items(
     business_id: uuid.UUID,
     supplier_id: uuid.UUID,
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("analytics_access"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
@@ -721,7 +721,7 @@ class BrokerAnalyticsRow(BaseModel):
 @router.get("/brokers", response_model=list[BrokerAnalyticsRow])
 async def analytics_brokers(
     business_id: uuid.UUID,
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("analytics_access"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
@@ -792,7 +792,7 @@ class TradeInsightsOut(BaseModel):
 @router.get("/insights/trade", response_model=TradeInsightsOut)
 async def analytics_trade_insights(
     business_id: uuid.UUID,
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("analytics_access"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     from_date: date = Query(..., alias="from"),
     to_date: date = Query(..., alias="to"),
@@ -858,7 +858,7 @@ class BusinessGoalUpsert(BaseModel):
 @router.get("/goals", response_model=BusinessGoalOut | None)
 async def get_business_goal(
     business_id: uuid.UUID,
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("analytics_access"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     period: str = Query(..., min_length=7, max_length=7),
 ):
@@ -883,7 +883,7 @@ async def get_business_goal(
 async def upsert_business_goal(
     business_id: uuid.UUID,
     body: BusinessGoalUpsert,
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("analytics_access"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     period: str = Query(..., min_length=7, max_length=7),
 ):

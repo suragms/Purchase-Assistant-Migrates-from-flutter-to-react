@@ -210,6 +210,11 @@ String? authServerUnreachableDetail(DioException? e) {
 String friendlyApiError(Object error, {bool forAssistant = false}) {
   if (error is DioException) {
     final sc = error.response?.statusCode;
+    if (sc == 402) {
+      return forAssistant
+          ? 'Monthly AI token limit reached for this business. Try again next month or ask the owner.'
+          : 'Monthly AI usage limit reached. Ask your owner or try again next month.';
+    }
     if (sc == 401 || sc == 403) {
       return forAssistant
           ? 'Assistant could not verify your session. Open Settings or sign in again.'
@@ -217,6 +222,12 @@ String friendlyApiError(Object error, {bool forAssistant = false}) {
     }
     if (sc == 404) {
       return 'That record was not found. Try refreshing.';
+    }
+    if (sc == 408) {
+      return 'Request timed out. Please try again.';
+    }
+    if (sc == 429) {
+      return 'Too many requests. Wait a moment and try again.';
     }
     if (sc == 409) {
       final resp = error.response?.data;

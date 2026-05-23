@@ -6,6 +6,7 @@ import '../../../core/auth/session_notifier.dart';
 import '../../../core/json_coerce.dart';
 import '../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../core/providers/stock_audit_providers.dart';
+import '../../../core/widgets/hexa_error_card.dart';
 
 /// Active warehouse audit session — scanned lines and complete.
 class StockAuditSessionPage extends ConsumerWidget {
@@ -27,7 +28,12 @@ class StockAuditSessionPage extends ConsumerWidget {
       ),
       body: auditAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Could not load session: $e')),
+        error: (e, _) => Center(
+          child: HexaErrorCard.fromError(
+            error: e,
+            onRetry: () => ref.invalidate(activeStockAuditProvider),
+          ),
+        ),
         data: (audit) {
           if (audit == null) {
             return Center(

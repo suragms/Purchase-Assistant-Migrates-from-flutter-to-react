@@ -15,10 +15,18 @@ String loadStateErrorSubtitle(Object? error) {
         return 'Invalid request. Please check your input.';
       case 401:
         return 'Session expired. Please log in again.';
+      case 402:
+        return 'Monthly AI usage limit reached. Contact your owner or try again next month.';
       case 403:
         return "You don't have permission for this.";
       case 404:
         return 'Not found.';
+      case 408:
+        return 'Request timed out. Please try again.';
+      case 409:
+        return 'That conflicts with existing data. Try again.';
+      case 429:
+        return 'Too many requests. Wait a moment and try again.';
       case 503:
         return 'Server error. Please try again shortly.';
       default:
