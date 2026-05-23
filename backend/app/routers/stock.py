@@ -46,6 +46,7 @@ from app.schemas.stock import (
     StockTotalsOut,
     StockAlertsSummaryOut,
 )
+from app.services import trade_query as tq
 from app.services.staff_view import should_redact_financials
 from app.services.stock_inventory import (
     catalog_reorder,
@@ -82,7 +83,10 @@ async def _supplier_name(db: AsyncSession, item: CatalogItem) -> str | None:
 def _days_since_last_purchase(item: CatalogItem) -> int | None:
     if not item.last_purchase_at:
         return None
-    delta = datetime.now(timezone.utc) - item.last_purchase_at
+    last_purchase_at = item.last_purchase_at
+    if last_purchase_at.tzinfo is None:
+        last_purchase_at = last_purchase_at.replace(tzinfo=timezone.utc)
+    delta = datetime.now(timezone.utc) - last_purchase_at
     return max(0, delta.days)
 
 
@@ -304,14 +308,66 @@ async def stock_inventory_summary(
     return InventorySummaryOut(**payload)
 
 
+async def _stock_totals_purchased_in_period(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    date_from: date,
+    date_to: date,
+) -> StockTotalsOut:
+    """Sum purchased quantities in [date_from, date_to] for home period chips."""
+    bag_expr = tq.trade_line_qty_bags_expr()
+    box_expr = tq.trade_line_qty_boxes_expr()
+    tin_expr = tq.trade_line_qty_tins_expr()
+    kg_expr = tq.trade_line_weight_expr()
+    bf = tq.trade_purchase_date_filter(business_id, date_from, date_to)
+    deleted_filter = getattr(TradePurchase, "deleted_at", None)
+    if deleted_filter is not None:
+        bf = bf & TradePurchase.deleted_at.is_(None)
+    r = await db.execute(
+        select(
+            func.coalesce(func.sum(bag_expr), 0),
+            func.coalesce(func.sum(kg_expr), 0),
+            func.coalesce(func.sum(box_expr), 0),
+            func.coalesce(func.sum(tin_expr), 0),
+            func.count(func.distinct(TradePurchaseLine.catalog_item_id)),
+        )
+        .select_from(TradePurchaseLine)
+        .join(TradePurchase, TradePurchase.id == TradePurchaseLine.trade_purchase_id)
+        .where(bf)
+    )
+    row = r.one()
+    return StockTotalsOut(
+        total_items=int(row[4] or 0),
+        total_bags=float(row[0] or 0),
+        total_kg=float(row[1] or 0),
+        total_boxes=float(row[2] or 0),
+        total_tins=float(row[3] or 0),
+    )
+
+
 @router.get("/totals", response_model=StockTotalsOut)
 async def stock_totals(
     business_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
     _m: Annotated[Membership, Depends(require_membership)],
+    period_start: str | None = Query(None),
+    period_end: str | None = Query(None),
 ) -> StockTotalsOut:
-    """Sum on-hand stock by unit for owner home movement card."""
+    """On-hand totals by default; with period_start/end, purchased qty in range."""
     del _m
+    if period_start and period_end:
+        try:
+            d_from = date.fromisoformat(str(period_start)[:10])
+            d_to = date.fromisoformat(str(period_end)[:10])
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid period_start or period_end (use YYYY-MM-DD)",
+            ) from exc
+        if d_from > d_to:
+            d_from, d_to = d_to, d_from
+        return await _stock_totals_purchased_in_period(db, business_id, d_from, d_to)
+
     base = CatalogItem.business_id == business_id
     if hasattr(CatalogItem, "deleted_at"):
         base = base & CatalogItem.deleted_at.is_(None)
@@ -780,6 +836,7 @@ async def _barcode_label(
         cat_name = cr.scalar_one_or_none()
     purchases = await _recent_purchases(db, item.id, limit=1)
     lp = purchases[0] if purchases else None
+    sup = await _supplier_name(db, item)
     bc = getattr(item, "barcode", None) or item.item_code
     return BarcodeLabelOut(
         id=item.id,
@@ -793,6 +850,7 @@ async def _barcode_label(
         last_purchase_qty=lp.qty if lp else None,
         last_purchase_unit=lp.unit if lp else None,
         last_purchase_rate=lp.rate if lp else None,
+        supplier_name=sup,
     )
 
 
@@ -898,6 +956,9 @@ async def list_reorder_entries(
     for entry, item in rows:
         cur = catalog_stock_qty(item)
         ro = catalog_reorder(item)
+        sup = await _supplier_name(db, item)
+        purchases = await _recent_purchases(db, item.id, limit=1)
+        lp = purchases[0] if purchases else None
         items.append(
             ReorderListEntryOut(
                 id=entry.id,
@@ -909,6 +970,8 @@ async def list_reorder_entries(
                 unit=item.default_unit,
                 status=entry.status,
                 added_by_name=entry.added_by_name,
+                supplier_name=sup,
+                last_purchase_rate=lp.rate if lp else None,
                 created_at=entry.created_at,
                 updated_at=entry.updated_at,
             )

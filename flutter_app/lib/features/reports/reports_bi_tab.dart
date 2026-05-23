@@ -29,14 +29,14 @@ extension ReportsBiTabX on ReportsBiTab {
   String get shortLabel => switch (this) {
         ReportsBiTab.overview => 'Overview',
         ReportsBiTab.categories => 'Categories',
-        ReportsBiTab.subcategories => 'Subcategories',
+        ReportsBiTab.subcategories => 'Subcat',
         ReportsBiTab.items => 'Items',
         ReportsBiTab.suppliers => 'Suppliers',
         ReportsBiTab.brokers => 'Brokers',
         ReportsBiTab.slowMoving => 'Slow',
         ReportsBiTab.deadStock => 'Dead',
         ReportsBiTab.usage => 'Usage',
-        ReportsBiTab.stockMovement => 'Movement',
+        ReportsBiTab.stockMovement => 'Stock mvmt',
       };
 
   static ReportsBiTab? fromQuery(String? raw) {

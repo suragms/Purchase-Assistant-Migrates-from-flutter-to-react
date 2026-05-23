@@ -523,7 +523,7 @@ class _FabButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Quick add',
+      label: 'New purchase',
       button: true,
       enabled: true,
       excludeSemantics: true,
@@ -543,7 +543,7 @@ class _FabButton extends StatelessWidget {
             customBorder: const CircleBorder(),
             onTap: () {
               HapticFeedback.mediumImpact();
-              _openQuickActions(context);
+              context.push('/purchase/new');
             },
             child: const Icon(Icons.add_rounded, size: 24, color: Colors.white),
           ),

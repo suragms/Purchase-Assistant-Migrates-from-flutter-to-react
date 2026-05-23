@@ -37,14 +37,14 @@ String reportQtySummaryBoldLine(TradeReportItemRow r) {
 }
 
 String _fmtRate(num? n) {
-  if (n == null || n <= 0) return '—';
+  if (n == null) return '—';
   return NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0)
       .format(n);
 }
 
 /// Kg-weighted average (explicit basis — not a trade-line `rate_context`).
 String reportKgWeightedRateLabel(num? rate) {
-  if (rate == null || rate <= 0) return '—';
+  if (rate == null) return '—';
   return '${_fmtRate(rate)}/kg';
 }
 

@@ -23,7 +23,8 @@ String tradeIntelFormatInr(num? n, {int decimalDigits = 0}) {
 
 String tradeIntelFormatQty(num? n) {
   if (n == null) return '';
-  if (n == n.roundToDouble()) return n.round().toString();
+  final rounded = n.roundToDouble();
+  if ((n - rounded).abs() < 0.001) return rounded.round().toString();
   return n.toStringAsFixed(2);
 }
 
@@ -120,12 +121,22 @@ String tradeIntelRatePairLine(
   bool hideFinancials = false,
 }) {
   if (hideFinancials) return '';
-  final buy = tradeIntelToDouble(m['last_purchase_price']);
+  var buy = tradeIntelToDouble(m['last_purchase_price']);
+  if (buy == null || buy <= 0) {
+    final lineTotal = tradeIntelToDouble(m['last_line_total']);
+    final qty = tradeIntelToDouble(m['last_line_qty']);
+    if (lineTotal != null &&
+        lineTotal > 0 &&
+        qty != null &&
+        qty > 0) {
+      buy = lineTotal / qty;
+    }
+  }
   final sell = tradeIntelToDouble(m['last_selling_rate']);
   if ((buy == null || buy <= 0) && (sell == null || sell <= 0)) {
     return '';
   }
-  final b = buy != null && buy > 0 ? tradeIntelFormatInr(buy) : '—';
+  final b = buy != null && buy > 0 ? tradeIntelFormatInr(buy) : '₹0';
   final s = sell != null && sell > 0 ? tradeIntelFormatInr(sell) : '—';
   String suf(dynamic v) {
     final q = v?.toString().trim() ?? '';

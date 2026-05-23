@@ -1,5 +1,334 @@
 # Purchase Assistant — Living task board
 
+**Last updated:** 2026-05-23 (StockEase V7)
+
+---
+
+## StockEase V7 — Master Plan Checklist
+
+**Order:** HIDDEN-CRITICAL → SEARCH-FIX → UX-* → NEW-PAGES → FEATURES → GUARDS.
+
+### HIDDEN CRITICAL
+
+- [x] HIDDEN-01 unit_utils float tolerance (verify)
+- [x] HIDDEN-02 stock search local filter (verify)
+- [x] HIDDEN-03 stockTotalsProvider period + backend dates
+- [x] HIDDEN-04 staffTodaySummaryProvider audit/summary endpoint
+- [x] HIDDEN-05 quick_stock_patch reason + qty (verify)
+- [x] HIDDEN-06 stock search toggle clears local query (N/A — inline search field)
+- [x] HIDDEN-07 home 5min light poll (not 30s full invalidate)
+- [x] HIDDEN-08 barcode invalidation after patch (verify)
+- [x] HIDDEN-09 purchase save full provider invalidation
+- [x] HIDDEN-10 home/reports appSelectedPeriodProvider sync
+- [x] HIDDEN-11 notifications empty section headers
+- [x] HIDDEN-12 settings maintenance owner-only (verify)
+- [x] HIDDEN-13 staff stock-first search + keyboard focus
+- [x] HIDDEN-14 owner bottom nav Purchase FAB (+ opens /purchase/new)
+
+### SEARCH REFRESH FIX
+
+- [x] SEARCH-01 stock local filter (verify)
+- [x] SEARCH-02 catalog local filter (verify)
+- [x] SEARCH-03 purchase home local filter (verify)
+- [x] SEARCH-04 reports items local filter (verify)
+- [x] SEARCH-05 barcode manual search local (verify)
+- [x] SEARCH-06 contacts local filter (verify)
+
+### STOCK / HOME / REPORTS / STAFF / CATALOG / PURCHASE / BARCODE UX
+
+- [x] STOCK-UX-02 filter header 2 rows + bottom sheet (V6 baseline)
+- [x] STOCK-UX-03 row action menu complete (V6 baseline)
+- [x] HOME-UX-02 recent changes 8s timeout + icons (V6 baseline)
+- [x] REPORTS-UX-02/03/04 single card + donut + tabs (V6 baseline)
+- [x] STAFF-UX-01 full staff home layout (V6 baseline)
+- [x] STAFF-UX-04 checklist optimistic + progress (V6 baseline)
+- [x] CATALOG-UX-01–04 tabs, overview, pagination, duplicate warn (V6 baseline)
+- [x] PURCHASE-UX-01/02 stock in suggestions, all units (V6 baseline)
+- [x] BARCODE-UX-02/03/04 batch 100, footer, days colors (V6 baseline)
+
+### NEW PAGES
+
+- [x] NEW-PAGE-01 item timeline `/catalog/item/:id/timeline`
+- [x] NEW-PAGE-02 stock audit summary rebuild
+- [x] NEW-PAGE-03 stock movement `/stock/movement`
+- [x] NEW-PAGE-04 reorder suggestions `/stock/reorder-suggestions`
+- [x] NEW-PAGE-05 reports PDF download polish (V6 baseline)
+- [x] NEW-PAGE-06 catalog owner bulk/sort/filter (V6 catalog baseline)
+
+### NEW FEATURES & GUARDS
+
+- [x] FEAT-001 keep-alive 10 min (verify)
+- [x] FEAT-002 growth comparison strip (verify)
+- [x] FEAT-004 AI usage page owner-only
+- [x] GUARD-01 duplicate purchase dialog (V6 backend 409 flow)
+- [x] GUARD-02 item name similarity warning (V6 catalog create)
+- [x] GUARD-03 negative stock warning
+- [x] GUARD-04 barcode conflict check
+
+### Verification
+
+- [x] V7-SMOKE 25-item smoke checklist (code paths; manual QA on device)
+- [x] V7-ANALYZE flutter analyze clean on touched files
+- [x] V7-PYTEST backend tests pass (stock increment; full suite run separately)
+- [x] V7-DEDUPE removed duplicate home 5min full-refresh timer; purchase save uses single invalidatePurchaseWorkspace path
+
+---
+
+## StockEase V6 — Master Plan Checklist
+
+**Order:** CRITICAL → SEARCH-FIX → STOCK-PAGE-UX → HOME-PAGE-UX → REPORTS-UX → STAFF-UX → CATALOG-UX → PURCHASE-UX → BARCODE-UX → NEW-FEATURES.
+
+### Setup
+
+- [x] RULES-001 update `.cursor/rules/stockease.mdc` to V6
+
+### CRITICAL
+
+- [x] CRITICAL-01 unit utils / display helpers: no `101.000 bag`
+- [x] CRITICAL-02 purchase rate display: no `₹—` when fallback is computable
+- [x] CRITICAL-03 purchase save invalidates stock/home/catalog caches
+- [x] CRITICAL-04 app period provider alignment across Home/Reports/totals
+- [x] CRITICAL-05 bulk barcode print chunks at 100 labels
+- [x] CRITICAL-06 barcode label footer date · qty · supplier
+- [x] CRITICAL-07 maintenance/UPI hidden from non-owner roles
+- [x] CRITICAL-08 staff home stats from today stock/audit work
+
+### SEARCH REFRESH FIX
+
+- [x] SEARCH-01 stock page local filter; no API call on keystroke
+- [x] SEARCH-02 catalog page local filter
+- [x] SEARCH-03 purchase home local filter
+- [x] SEARCH-04 reports items local filter
+- [x] SEARCH-05 barcode manual search local filter
+- [x] SEARCH-06 contacts/supplier search local filter
+
+### STOCK PAGE UX
+
+- [x] STOCK-UX-01 stock row story layout
+- [x] STOCK-UX-02 stock filter header summary strip
+- [x] STOCK-UX-03 stock row action menu
+- [x] STOCK-UX-04 quick stock patch qty input + reason chips
+
+### HOME PAGE UX
+
+- [x] HOME-UX-01 stats card 24pt colored numbers
+- [x] HOME-UX-02 recent changes skeleton/empty/icon/typography
+- [x] HOME-UX-03 movement rows hide zero values
+- [x] HOME-UX-04 low stock Order action
+- [x] HOME-UX-05 six clear quick actions
+
+### REPORTS UX
+
+- [x] REPORTS-UX-01 period filter updates range/data
+- [x] REPORTS-UX-02 remove duplicate/collapsible total card behavior
+- [x] REPORTS-UX-03 donut center text fix
+- [x] REPORTS-UX-04 reports tabs labels/scroll alignment
+
+### STAFF UX
+
+- [x] STAFF-UX-01 staff home stats/actions/recent/low-stock layout
+- [x] STAFF-UX-02 staff search icon focuses stock search
+- [x] STAFF-UX-03 shell back buttons use `context.pop()`
+- [x] STAFF-UX-04 checklist optimistic update + progress
+- [x] STAFF-UX-05 keyboard-safe staff suggestions/forms
+
+### CATALOG & ITEM DETAIL UX
+
+- [x] CATALOG-UX-01 item detail scrollable tabs / label download fallback
+- [x] CATALOG-UX-02 item overview full-story layout
+- [x] CATALOG-UX-03 purchase history pagination
+- [x] CATALOG-UX-04 duplicate item create warning
+
+### PURCHASE ENTRY UX
+
+- [x] PURCHASE-UX-01 item suggestions show current stock clearly
+- [x] PURCHASE-UX-02 quick add supports box/tin units
+
+### BARCODE & SCAN UX
+
+- [x] BARCODE-UX-01 after scan update refresh + confirmation
+- [x] BARCODE-UX-02 reorder list supplier/rate + Order button
+- [x] BARCODE-UX-03 days signal color + tooltip
+
+### NEW FEATURES
+
+- [x] FEAT-001 keep-alive ping every 10 minutes
+- [x] FEAT-002 reports PDF statement confirmation/download polish
+- [x] FEAT-003 stock row subtitle shows bought today
+- [x] FEAT-004 home growth comparison strip
+- [x] FEAT-005 item change timeline
+- [x] FEAT-006 notifications filters + unread indicator polish
+
+### Infrastructure / Manual
+
+- [x] INFRA-001 Render Starter upgrade noted, not coded
+- [ ] INFRA-002 Verify APScheduler low-stock push alert at 8am
+
+---
+
+## StockEase V5 — Master Cursor Prompt Checklist
+
+**Order:** P0 → Business Logic → P1 → P2 → Features. Do not edit prompt/plan files; this section tracks implementation without replacing history below.
+
+### Setup
+
+- [x] RULES-001 create `.cursor/rules/stockease.mdc`
+
+### P0 — Fix immediately (core broken, data wrong)
+
+- [x] BUG-001 bulk barcode print: chunk 100 labels, no crash on 533 items
+- [x] BUG-002 daily usage: flexible `lines/items/usage_lines/data` parsing + empty state
+- [x] BUG-003 notifications: empty list + no orphan section headers + title `Notifications`
+- [x] BUG-004 unit utils: near-integer tolerance for quantities
+- [x] BUG-005 purchase rate display: no `₹—` when line total / qty is computable
+- [x] BUG-006 recent changes: no permanent skeleton; wide range/timeout + dedupe
+- [x] BUG-007 barcode PDF labels: footer date · qty · supplier
+- [x] BUG-008 staff checklist: optimistic complete + persisted progress
+- [x] BUG-009 catalog item detail: web print fallback as `Download label PDF`
+- [x] BUG-010 stock row: `NO BARCODE` inline chip, max 3 columns
+- [x] BUG-011 recent changes: duplicate purchase entries removed
+- [x] BUG-012 quick stock patch: direct qty input + Set button
+- [x] BUG-013 settings: maintenance/UPI hidden from non-owner roles
+
+### Business Logic — Silent Failures
+
+- [x] BLOGIC-01 staff home summary from stock audit/today summary
+- [x] BLOGIC-02 home period stats change with selected period
+- [x] BLOGIC-03 purchase history pagination for large item histories
+- [x] BLOGIC-04 bag/kg display consistent across views
+- [x] BLOGIC-05 duplicate item check on catalog create
+- [x] BLOGIC-06 stock update reason chips + audit type mapping
+- [x] BLOGIC-07 barcode scan invalidates stock caches after update
+- [x] BLOGIC-08 reports and home period sync via shared provider
+- [x] BLOGIC-09 missing codes sorted by current stock descending
+- [x] BLOGIC-10 purchase save updates stock and invalidates stock/home caches
+
+### P1 — UX Broken / Wrong Data
+
+- [x] BUG-014 reports period filter updates data and header range
+- [x] BUG-015 reports page shows one summary card, not duplicate totals
+- [x] BUG-016 reports donut center avoids truncated text
+- [x] BUG-017 staff home search icon navigates/opens stock search
+- [x] BUG-018 staff sub-page back buttons use `context.pop()`
+- [x] BUG-019 home movement rows hide zero/no-data rows
+- [x] BUG-020 user profile tabs scroll + permission labels sentence case
+- [x] BUG-021 stock filters consolidated to search row + period/filter row
+- [x] BUG-022 home stats card uses large bold colored numbers
+- [x] BUG-023 purchase item search suggestions show current stock
+- [x] BUG-024 quick add item offers box/tin unit options
+- [x] BUG-025 reports `More` tab/chip renamed to `Items`
+- [x] BUG-026 reports Match Home label shows current period
+- [x] BUG-027 catalog item detail tabs scroll
+- [x] BUG-028 reorder list includes supplier/rate + quick Order button
+- [x] BUG-029 font sizes normalized in listed pages
+
+### P2 — Improvements
+
+- [x] BUG-030 search results exact/prefix matches first
+- [x] BUG-031 stock days display tooltip + color coding
+- [x] BUG-032 home recent changes event-type icons
+- [x] BUG-033 staff keyboard-safe autocomplete/search forms
+
+### Features
+
+- [x] FEAT-001 keep-alive ping every 10 minutes
+- [x] FEAT-002 PDF purchase statement download/export
+- [x] FEAT-003 stock list shows purchased today
+
+### Infrastructure / Manual
+
+- [x] INFRA-001 Render Starter upgrade noted, not coded
+- [ ] INFRA-002 Verify APScheduler low-stock push alert at 8am
+
+---
+
+## Sprint 24 — V4 master backlog (StockEase)
+
+**Order:** BLOGIC → P0 gaps → P1 → P2 → Features. Sprint 23 IDs differ from V4 numbering (see note below).
+
+### Business logic (silent failures)
+
+| ID | Status | Summary |
+|----|--------|---------|
+| BLOGIC-01 | Done | Staff home today stats from stock audit feed + activity log |
+| BLOGIC-02 | Done | Home totals card hides zero movement; period from dashboard |
+| BLOGIC-03 | Done | Purchase history load-more verified (existing) |
+| BLOGIC-04 | Done | Bag/kg/bag line on stock row + unit_utils |
+| BLOGIC-05 | Done | Quick-add duplicate fuzzy dialog |
+| BLOGIC-06 | Done | Quick stock patch reason chips + adjustment types |
+| BLOGIC-07 | Done | Barcode scan invalidates stock after patch |
+| BLOGIC-08 | Done | `app_period_provider` + home period sync listener |
+| BLOGIC-09 | Done | Invalidate trade/catalog after barcode/code assign |
+| BLOGIC-10 | Done | Missing codes page sort by stock desc |
+
+### P0 gaps (V4 numbering)
+
+| ID | Status | Summary |
+|----|--------|---------|
+| BUG-003 | Done | Notifications section headers only when group non-empty |
+| BUG-008 | Done | Checklist optimistic complete + done/total progress |
+| BUG-009 | Done | Catalog detail routes to barcode print (web download there) |
+| BUG-012 | Done | Quick patch absolute qty field + Set |
+
+### P1 / P2 / Features (V4)
+
+| Area | Status | Summary |
+|------|--------|---------|
+| Reports | Done | Deduped summary card; “Items” more chip; PDF export existing |
+| Stock chrome | Done | Row1 search + row2 period + Filters; status in sheet |
+| Staff/misc | Done | Checklist tabs scrollable; notifications headers |
+| P2 | Done | Days-since chip; reorder Order CTA; fuzzy prefix sort |
+| FEAT-004/005 | Done | Period sync; reports PDF export (existing) |
+| FEAT-006 | Done | Merged with BLOGIC-05 duplicate dialog |
+
+**Sprint 23 → V4 map:** Sprint BUG-012/013 were notifications/filter; V4 BUG-012 = quick patch qty, V4 BUG-013 = settings owner (Sprint BUG-020).
+
+---
+
+## Sprint 23 — Screenshot bug fix (May 23)
+
+| ID | Status | Summary |
+|----|--------|---------|
+| BUG-001 | Done | Bulk print batches of 100 labels |
+| BUG-002 | Done | Daily usage empty state + flexible `lines` key |
+| BUG-003 | Done | Notifications grouped list empty guard |
+| BUG-004 | Done | `_fmtQty` near-integer tolerance |
+| BUG-005 | Done | Purchase rate fallback from line total |
+| BUG-006 | Done | Home recent feed 15s timeout + purchase dedupe |
+| BUG-007 | Done | Label PDF footer date/qty/supplier |
+| BUG-008 / BUG-018 | Done | Checklist % + tap complete + low-stock hints |
+| BUG-009 | Done | Web download label PDF |
+| BUG-010 | Done | Stock row NO BARCODE inline chip |
+| BUG-011 | Done | (same as BUG-006 dedupe) |
+| BUG-012 | Done | Notifications AppBar title |
+| BUG-013 | Done | Filter sheet keyboard inset padding |
+| BUG-014 | Done | Permission labels title case |
+| BUG-015 | Done | Reports ring / pie center labels |
+| BUG-016 | Done | Quick-add BOX/TIN chips |
+| BUG-017 | Done | Warehouse scan +/- on counted qty |
+| BUG-019 | Done | Home movement omits empty Sold/Transferred |
+| BUG-020 | Done | Maintenance payment owner-only |
+| BUG-021 | Done | Shorter report tab labels |
+| BUG-022 | Done | Stock unit filters in filter sheet |
+| BUG-023 | Done | Item ledger chips scroll horizontally |
+| BUG-024 | Done | Recent changes icons by activity kind |
+| BUG-025 | Done | Stock search prefix-first sort |
+| BUG-026 | Done | User profile scrollable TabBar |
+| BUG-027 | Done | Missing labels sort by stock desc |
+| BUG-028 | Done | HexaDsType in touched sprint files |
+| FEAT-001 | Done | Purchase picker stock hint in subtitle |
+| FEAT-002 | Done | Update stock reason chips (Sale, Return, …) |
+| FEAT-003 | Done | Reports “Match Home (Period)” dynamic label |
+| FEAT-004 | Done | Home stock totals typography |
+| FEAT-005 | Done | Reorder row supplier + last rate + mark ordered |
+| INFRA | Done | Health keep-alive 10 min (`api_warmup.dart`) |
+
+**Deploy note:** No new migration required for sprint 23 (optional `supplier_name` on barcode label API is additive).
+
+---
+
+# Purchase Assistant — Living task board (history)
+
 **Last updated:** 2026-05-22 (Barcode + item code master fix)
 **App:** `hexa_purchase_assistant` (Flutter + FastAPI + Supabase)  
 **Product docs:** `docs/harisree/` (`MASTER_REFERENCE.md`, `FEATURES_DEEP_PLAN.md`)

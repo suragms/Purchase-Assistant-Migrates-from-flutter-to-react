@@ -86,6 +86,7 @@ class _OperationalFilterBodyState extends ConsumerState<_OperationalFilterBody> 
   late bool _missingBarcode;
   late bool _missingItemCode;
   late bool _reorderOnly;
+  late String _unit;
   late final TextEditingController _subcatField;
 
   @override
@@ -99,6 +100,7 @@ class _OperationalFilterBodyState extends ConsumerState<_OperationalFilterBody> 
     _missingBarcode = op.missingBarcodeOnly;
     _missingItemCode = op.missingItemCodeOnly;
     _reorderOnly = op.reorderOnly;
+    _unit = op.unit;
     _subcatField = TextEditingController(
       text: widget.subcategoryCtrl?.text ?? q.subcategory,
     );
@@ -124,7 +126,7 @@ class _OperationalFilterBodyState extends ConsumerState<_OperationalFilterBody> 
           missingBarcodeOnly: _missingBarcode,
           missingItemCodeOnly: _missingItemCode,
           reorderOnly: _reorderOnly,
-          unit: ref.read(stockOperationalFiltersProvider).unit,
+          unit: _unit,
         );
     ref.read(stockSelectedItemIdProvider.notifier).state = null;
     widget.subcategoryCtrl?.text = _subcatField.text.trim();
@@ -159,14 +161,16 @@ class _OperationalFilterBodyState extends ConsumerState<_OperationalFilterBody> 
     final catsAsync = ref.watch(itemCategoriesListProvider);
     final suppliersAsync = ref.watch(suppliersListProvider);
 
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
     return ListView(
       controller: widget.scrollController,
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         HexaOp.pageGutter,
         12,
         HexaOp.pageGutter,
-        24,
+        24 + bottomInset,
       ),
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
       children: [
         Text(
           'Filters',
@@ -176,6 +180,38 @@ class _OperationalFilterBodyState extends ConsumerState<_OperationalFilterBody> 
               ),
         ),
         const SizedBox(height: 12),
+        const Text('Stock status', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: [
+            for (final e in [
+              ('Low', 'low'),
+              ('Critical', 'critical'),
+              ('Out', 'out'),
+            ])
+              FilterChip(
+                label: Text(e.$1, style: const TextStyle(fontSize: 12)),
+                selected: ref.read(stockListQueryProvider).status == e.$2,
+                onSelected: (_) {
+                  final q = ref.read(stockListQueryProvider);
+                  final on = q.status == e.$2;
+                  ref.read(stockListQueryProvider.notifier).state = q.copyWith(
+                    status: on ? 'all' : e.$2,
+                    page: 1,
+                  );
+                  ref.read(stockOperationalFiltersProvider.notifier).state =
+                      ref.read(stockOperationalFiltersProvider).copyWith(
+                            reorderOnly: false,
+                            clearMissingItemCode: true,
+                          );
+                  setState(() {});
+                },
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Reorder only', style: TextStyle(fontSize: 14)),
@@ -265,6 +301,24 @@ class _OperationalFilterBodyState extends ConsumerState<_OperationalFilterBody> 
             },
           ),
         ],
+        const SizedBox(height: 12),
+        Text('Unit', style: Theme.of(context).textTheme.labelLarge),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final label in ['BAG', 'KG', 'BOX', 'TIN', 'PIECE'])
+              FilterChip(
+                label: Text(label, style: const TextStyle(fontSize: 11)),
+                selected: _unit == label.toLowerCase(),
+                onSelected: (on) => setState(() {
+                  _unit = on ? label.toLowerCase() : '';
+                }),
+                visualDensity: VisualDensity.compact,
+              ),
+          ],
+        ),
         const SizedBox(height: 12),
         Text('Sort', style: Theme.of(context).textTheme.labelLarge),
         const SizedBox(height: 8),

@@ -15,6 +15,7 @@ import '../../features/catalog/presentation/catalog_add_item_page.dart';
 import '../../features/catalog/presentation/catalog_add_subcategory_page.dart';
 import '../../features/catalog/presentation/catalog_category_detail_page.dart';
 import '../../features/catalog/presentation/catalog_item_detail_page.dart';
+import '../../features/catalog/presentation/catalog_item_timeline_page.dart';
 import '../../features/catalog/presentation/catalog_page.dart';
 import '../../features/catalog/presentation/catalog_type_items_page.dart';
 import '../../features/catalog/presentation/quick_add_catalog_item_page.dart';
@@ -68,6 +69,9 @@ import '../../features/stock/presentation/reorder_list_page.dart';
 import '../../features/stock/presentation/stock_history_page.dart';
 import '../../features/stock/presentation/stock_item_intelligence_page.dart';
 import '../../features/stock/presentation/stock_today_feed_page.dart';
+import '../../features/stock/presentation/stock_movement_page.dart';
+import '../../features/stock/presentation/reorder_suggestions_page.dart';
+import '../../features/settings/presentation/ai_usage_page.dart';
 import '../../features/staff/presentation/staff_shell_screen.dart';
 import '../../features/staff/presentation/staff_activity_page.dart';
 import '../../features/staff/presentation/staff_purchase_history_page.dart';
@@ -413,6 +417,37 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             child: CatalogItemDetailPage(itemId: id),
           );
         },
+      ),
+      GoRoute(
+        path: '/catalog/item/:itemId/timeline',
+        pageBuilder: (context, state) {
+          final id = state.pathParameters['itemId']!;
+          return iosPushPage(
+            key: state.pageKey,
+            child: CatalogItemTimelinePage(itemId: id),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/stock/movement',
+        pageBuilder: (context, state) => iosPushPage(
+          key: state.pageKey,
+          child: const StockMovementPage(),
+        ),
+      ),
+      GoRoute(
+        path: '/stock/reorder-suggestions',
+        pageBuilder: (context, state) => iosPushPage(
+          key: state.pageKey,
+          child: const ReorderSuggestionsPage(),
+        ),
+      ),
+      GoRoute(
+        path: '/settings/ai-usage',
+        pageBuilder: (context, state) => iosPushPage(
+          key: state.pageKey,
+          child: const AiUsagePage(),
+        ),
       ),
       GoRoute(
         path: '/stock/reorder',

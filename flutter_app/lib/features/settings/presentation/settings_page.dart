@@ -564,7 +564,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         });
       }
     });
-    final isOwner = session?.primaryBusiness.role == 'owner';
+    final role = session?.primaryBusiness.role.toLowerCase();
+    final isOwner = role == 'owner' || session?.isSuperAdmin == true;
     final canManageUsers =
         session != null && sessionCanManageUsers(session);
     final showBillingSection =
@@ -1019,12 +1020,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 8),
           if (session != null) _CloudSettingsCard(businessId: session.primaryBusiness.id),
           const SizedBox(height: 20),
-          Text('Maintenance payment',
-              style: tt.titleSmall?.copyWith(
-                  color: cs.onSurfaceVariant, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          const _MaintenanceSettingsCard(),
-          const SizedBox(height: 20),
+          if (isOwner) ...[
+            ListTile(
+              leading: const Icon(Icons.auto_awesome_outlined),
+              title: const Text('AI Usage'),
+              subtitle: const Text(
+                'Track assistant API usage and costs',
+              ),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => context.push('/settings/ai-usage'),
+            ),
+            const SizedBox(height: 8),
+            Text('Maintenance payment',
+                style: tt.titleSmall?.copyWith(
+                    color: cs.onSurfaceVariant, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 8),
+            const _MaintenanceSettingsCard(),
+            const SizedBox(height: 20),
+          ],
           Text('Troubleshooting',
               style: tt.titleSmall?.copyWith(
                   color: cs.onSurfaceVariant,

@@ -23,7 +23,9 @@ import '../../../core/utils/snack.dart';
 import '../../../core/providers/business_aggregates_invalidation.dart'
     show invalidatePurchaseWorkspace, invalidateWorkspaceSeedData;
 import '../../../core/providers/catalog_providers.dart';
+import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/providers/prefs_provider.dart';
+import '../../../core/providers/stock_providers.dart';
 import '../../../core/providers/suppliers_list_provider.dart';
 import '../../../core/services/offline_store.dart';
 import '../../../core/services/offline_sync_service.dart';
@@ -1741,6 +1743,14 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
       }
       final draftSnap = ref.read(purchaseDraftProvider);
       invalidatePurchaseWorkspace(ref);
+      ref.invalidate(stockListProvider);
+      ref.invalidate(stockAuditPeriodProvider);
+      for (final line in draftSnap.lines) {
+        final itemId = line.catalogItemId?.trim();
+        if (itemId == null || itemId.isEmpty) continue;
+        ref.invalidate(catalogItemDetailProvider(itemId));
+        ref.invalidate(stockItemIntelligenceProvider(itemId));
+      }
       ref.read(purchaseDraftProvider.notifier).reset();
       await _clearDraftInPrefs();
       if (mounted) {

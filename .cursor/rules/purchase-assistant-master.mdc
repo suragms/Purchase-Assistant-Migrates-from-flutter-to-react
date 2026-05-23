@@ -48,3 +48,28 @@ Read and follow (in order when trade-offs arise):
 ## Verification
 
 After touching code: `pytest` (backend), `flutter analyze` / targeted `flutter test`, and `admin_web` checks when relevant.
+
+## Bug sprint (May 23)
+
+- Bulk barcode PDF: confirm and cap at **100 labels** per batch; snackbar for remaining selection.
+- `_fmtQty` / stock display: treat near-integers with **0.001 tolerance** (no `101.000 bag`).
+- Purchase rate display: fallback from **line total ÷ qty** when landing cost is zero; avoid `₹—` when computable.
+- Home recent feed: **15s timeout** + dedupe purchases by id; empty states for daily usage and notifications.
+- Label PDF footer: last purchase date, qty, supplier (truncate); web uses **Download label PDF** not “Print unavailable”.
+- Owner-only **Maintenance payment** block on Settings; stock unit filters live in filter sheet (not duplicate pill row).
+- Reports ring center: amount + short subtitle (`N categories`); prefer `HexaDsType` in touched UI files.
+- TabBars that overflow: `isScrollable: true` (user profile, item ledger chips).
+- API keep-alive: `ApiWarmupService.startPeriodicHealth` every **10 minutes** after session bootstrap.
+
+## Bug sprint V4 (May 23)
+
+- Staff home counts: stock work from **today audit feed**, not activity-log-only zeros.
+- `quick_stock_patch_sheet`: reason chips + absolute qty Set; map to `adjustment_type`.
+- After stock patch from scan: `invalidate(stockListProvider)` + item intelligence.
+- Notifications: no section header (Today/Earlier) without items beneath.
+- Home movement/totals: period from `homePeriodProvider`; omit zero / “No data yet” rows.
+- Stock list: max **2 filter rows** (period + Filters sheet); no fourth column for badges.
+- Shared period: `homePeriodProvider` + reports `analyticsDateRangeProvider` stay aligned.
+- Catalog create: warn on duplicate name in same category.
+- Missing codes / labels: sort by `current_stock` DESC.
+- Never show `₹—` when `line_total ÷ qty` is computable.

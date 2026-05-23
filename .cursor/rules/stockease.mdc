@@ -1,0 +1,61 @@
+# StockEase Cursor Rules — V7 · May 2026
+
+## NEVER break these rules
+
+### Error & Empty States
+- NEVER show raw DioException, stack traces, or HTTP codes to users
+- ALWAYS use FriendlyLoadError / HexaErrorCard for error states
+- Empty page = icon + message + action button. NEVER a blank white page.
+- Section header (TODAY / EARLIER) with nothing below it = REMOVE the header entirely.
+
+### Search — CRITICAL RULE
+- NEVER call ref.read(stockListQueryProvider.notifier).state = ... on search text change
+- ALWAYS filter locally using a computed getter on the already-loaded list.
+- Search TextField onChanged: setState(() => _searchQuery = v.toLowerCase().trim()) — ONLY THIS. No provider writes.
+- Only call API on: pull-to-refresh, first load, period change, explicit retry.
+
+### Float Precision — CRITICAL
+- Integer check: ALWAYS `(n - n.roundToDouble()).abs() < 0.001`. NEVER `n == n.roundToDouble()`.
+- Prefer `n.round().toString()` over `n.toStringAsFixed(0)` for integer display.
+
+### State Management
+- NEVER call setState() inside ref.listen() directly.
+- ALWAYS use WidgetsBinding.instance.addPostFrameCallback(() => setState((){})) inside ref.listen.
+- After stock patch/update: ALWAYS invalidate stockListProvider AND stockAuditPeriodProvider.
+- ALWAYS guard providers: if (session == null) return AsyncValue.data(const []);
+- Period state is GLOBAL: appSelectedPeriodProvider — home + reports read same.
+
+### Layout — Mobile First (360px min width)
+- Max 3 columns in any list row. NEVER 4 columns.
+- TabBar with ≥ 3 tabs: ALWAYS isScrollable: true, tabAlignment: TabAlignment.start
+- Filter chips for 5+ options: ALWAYS use bottom sheet, never inline rows.
+- NEVER horizontal SingleChildScrollView for filter chips — use Wrap + bottom sheet.
+- NEVER overflow on 360px. Use Expanded/Flexible inside Row.
+
+### Navigation
+- ALL sub-page AppBar back buttons MUST use context.pop() not Navigator.pop()
+- NEVER Navigator.of(context).pop() in shell routes
+
+### Typography (enforce everywhere)
+- AppBar title: fontSize 18, w600
+- Section/card title: fontSize 16, w600
+- Item name (list row): fontSize 14, w700
+- Subtitle (code, category, qty): fontSize 11, normal, grey.shade600
+- Stats number (home dashboard): fontSize 24, w900, colored
+- Stats label: fontSize 10, w500, grey.shade600
+- Badge/chip text: fontSize 10, w500
+
+### Role-Based Display
+- OWNER only: ₹ prices, rates, profit, UPI/payment, all financial totals
+- OWNER + MANAGER: purchase history, reports, contacts, supplier rates
+- ALL roles: stock quantities (no prices), item names, categories
+- NEVER compute financial totals in Flutter — backend only.
+- Settings: entire maintenance payment section hidden from non-owner
+
+### Performance
+- Keep-alive ping /health every 10 min after session bootstrap
+- Tab switch: only invalidate providers if last fetch > 5 min ago
+
+## Fix Order (strict)
+HIDDEN-CRITICAL → SEARCH-FIX → UX-STOCK → UX-HOME → UX-REPORTS →
+UX-STAFF → UX-CATALOG → UX-PURCHASE → UX-BARCODE → NEW-PAGES → FEATURES

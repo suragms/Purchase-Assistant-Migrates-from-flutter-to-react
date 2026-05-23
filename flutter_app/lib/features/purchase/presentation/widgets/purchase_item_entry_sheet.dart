@@ -22,6 +22,7 @@ import '../../../../core/units/dynamic_unit_label_engine.dart' as unit_lbl;
 import '../../../../core/units/resolved_item_unit_context.dart';
 import '../../../../core/utils/line_display.dart';
 import '../../../../core/utils/unit_classifier.dart';
+import '../../../../core/utils/unit_utils.dart';
 import '../../../../shared/widgets/inline_search_field.dart';
 import '../../../../shared/widgets/keyboard_safe_form_viewport.dart';
 import 'item_entry/item_entry_minimal_form.dart';
@@ -37,12 +38,6 @@ String _stripKgSuffixForCatalogDisplay(String name) => name
     .trim();
 
 mixin PurchaseItemEntrySheetStateMixin {
-  double? _parseD(String s) {
-    if (s.trim().isEmpty) return null;
-    final clean = s.replaceAll(',', '').trim();
-    return double.tryParse(clean);
-  }
-
   String _fmtQty(double d) {
     if ((d - d.roundToDouble()).abs() < 1e-9) return d.round().toString();
     return d.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
@@ -53,21 +48,6 @@ mixin PurchaseItemEntrySheetStateMixin {
     return d.toStringAsFixed(2);
   }
 
-  double? _numD(dynamic v) {
-    if (v == null) return null;
-    if (v is num) return v.toDouble();
-    if (v is String) return _parseD(v);
-    return null;
-  }
-
-  TextInputFormatter _decimalFormatter(int decimalRange) {
-    return FilteringTextInputFormatter.allow(
-        RegExp(r'^\d*\.?\d{0,' + decimalRange.toString() + r'}'));
-  }
-
-  bool _bagQtyIsWhole(double bags) {
-    return (bags - bags.roundToDouble()).abs() < 1e-6;
-  }
 }
 
 /// Persist [default_kg_per_bag] (+ optional rename) for catalog items used as bags.
@@ -461,8 +441,9 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
   }
 
   void _syncKgStateFromCatalogRow() {
-    if (_selectedCatalogItemId == null || _selectedCatalogItemId!.isEmpty)
+    if (_selectedCatalogItemId == null || _selectedCatalogItemId!.isEmpty) {
       return;
+    }
     if (_kgPerUnit != null && _kgPerUnit! > 0) return;
     final u = _unitCtrl.text.trim().toLowerCase();
     if (u != 'bag' && u != 'sack') return;
@@ -2064,6 +2045,13 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
 
     final headParts = <String>[];
     if (unit != null && unit.isNotEmpty) headParts.add(unit);
+    final stockRaw = row['current_stock'];
+    final stockQty = stockRaw is num
+        ? stockRaw.toDouble()
+        : double.tryParse(stockRaw?.toString() ?? '');
+    if (stockQty != null) {
+      headParts.add('Stock ${stockDisplayPrimary(stockQty, unit ?? '')}');
+    }
     if (price != null && price > 0) {
       headParts.add('Last buy ₹${_fmtMoney(price)}');
     }
@@ -2278,8 +2266,9 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
   }
 
   void _recomputeModeFromUnitAndCatalog() {
-    if (_selectedCatalogItemId == null || _selectedCatalogItemId!.isEmpty)
+    if (_selectedCatalogItemId == null || _selectedCatalogItemId!.isEmpty) {
       return;
+    }
     final u0 = _unitCtrl.text.trim().toLowerCase();
     if (u0 != 'bag' && u0 != 'sack') return;
     final row = _catalogRowById(_selectedCatalogItemId!);
@@ -2307,8 +2296,9 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
 
   Future<void> _offerCatalogKgPerBagSheetIfNeeded(
       Map<String, dynamic>? row) async {
-    if (!mounted || row == null || widget.persistCatalogBagWeight == null)
+    if (!mounted || row == null || widget.persistCatalogBagWeight == null) {
       return;
+    }
     final cid = _selectedCatalogItemId?.trim();
     if (cid == null || cid.isEmpty) return;
     final u = _unitCtrl.text.trim().toLowerCase();
@@ -2737,19 +2727,25 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
       }
       final ft = d['freight_type']?.toString();
       if (ft == 'included' || ft == 'separate') _freightType = ft!;
-      if (freight != null && freight >= 0)
+      if (freight != null && freight >= 0) {
         _freightCtrl.text = _fmtMoney(freight);
-      if (delivered != null && delivered >= 0)
+      }
+      if (delivered != null && delivered >= 0) {
         _deliveredCtrl.text = _fmtMoney(delivered);
+      }
       if (billty != null && billty >= 0) _billtyCtrl.text = _fmtMoney(billty);
-      if (itemsPerBox != null && itemsPerBox > 0)
+      if (itemsPerBox != null && itemsPerBox > 0) {
         _itemsPerBoxCtrl.text = _fmtQty(itemsPerBox);
-      if (weightPerItem != null && weightPerItem > 0)
+      }
+      if (weightPerItem != null && weightPerItem > 0) {
         _weightPerItemCtrl.text = _fmtQty(weightPerItem);
-      if (kgPerBox != null && kgPerBox > 0)
+      }
+      if (kgPerBox != null && kgPerBox > 0) {
         _kgPerBoxCtrl.text = _fmtQty(kgPerBox);
-      if (weightPerTin != null && weightPerTin > 0)
+      }
+      if (weightPerTin != null && weightPerTin > 0) {
         _weightPerTinCtrl.text = _fmtQty(weightPerTin);
+      }
       final bm = d['box_mode']?.toString();
       if (bm == 'items_per_box') {
         _boxFixedWeight = false;

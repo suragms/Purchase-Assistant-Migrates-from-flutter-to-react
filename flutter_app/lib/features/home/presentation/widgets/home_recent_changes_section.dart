@@ -93,11 +93,26 @@ class _RecentChangeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isPurchase = item.kind == 'purchase';
-    final icon =
-        isPurchase ? Icons.add_shopping_cart_outlined : Icons.swap_vert_rounded;
-    final color =
-        isPurchase ? HexaColors.brandPrimary : const Color(0xFF0D9488);
+    final icon = switch (item.kind) {
+      'purchase' || 'purchase_added' || 'trade_purchase' =>
+        Icons.shopping_cart_rounded,
+      'stock' || 'stock_updated' || 'stock_change' || 'stock_adjustment' =>
+        Icons.inventory_2_rounded,
+      'usage' => Icons.trending_down_rounded,
+      'transfer' => Icons.swap_horiz_rounded,
+      'low_stock' || 'alert' || 'reorder' => Icons.warning_amber_rounded,
+      'staff_login' || 'login' || 'user_active' => Icons.person_rounded,
+      'barcode_scan' || 'scan' => Icons.qr_code_scanner_rounded,
+      'item_created' || 'catalog' => Icons.add_box_rounded,
+      _ => Icons.circle_outlined,
+    };
+    final color = switch (item.kind) {
+      'purchase' => HexaColors.brandPrimary,
+      'stock' => const Color(0xFF0D9488),
+      'usage' => const Color(0xFFE65100),
+      'transfer' => const Color(0xFF1565C0),
+      _ => const Color(0xFF64748B),
+    };
     final timeLabel = homeTimeAgo(item.at);
     final actor = item.actor?.trim();
 
@@ -148,7 +163,7 @@ class _RecentChangeRow extends StatelessWidget {
       onTap: () {
         final id = item.routeId;
         if (id == null || id.isEmpty) return;
-        if (isPurchase) {
+        if (item.kind == 'purchase') {
           context.push('/purchase/detail/$id');
         } else {
           context.push('/catalog/item/$id');

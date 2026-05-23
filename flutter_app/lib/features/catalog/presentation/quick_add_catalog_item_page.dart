@@ -199,6 +199,51 @@ class _QuickAddCatalogItemPageState
         ? <String>[_brokerId!]
         : const <String>[];
     try {
+      final hits = await ref.read(hexaApiProvider).catalogFuzzyCheck(
+            businessId: session.primaryBusiness.id,
+            name: name,
+            supplierId: supplierId,
+            categoryId: categoryFromType,
+            typeId: typeRow['id']?.toString(),
+          );
+      if (hits.isNotEmpty && mounted) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Possible duplicate'),
+            content: Text(
+              '“${hits.first['name']?.toString() ?? name}” may already exist. '
+              'Create anyway?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  final id = hits.first['id']?.toString();
+                  if (id != null && id.isNotEmpty) {
+                    Navigator.pop(ctx, false);
+                    context.push('/catalog/item/$id');
+                  } else {
+                    Navigator.pop(ctx, false);
+                  }
+                },
+                child: const Text('View existing'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Create anyway'),
+              ),
+            ],
+          ),
+        );
+        if (proceed != true) {
+          setState(() => _saving = false);
+          return;
+        }
+      }
       await ref.read(hexaApiProvider).createCatalogItem(
             businessId: session.primaryBusiness.id,
             categoryId: categoryFromType,
@@ -447,11 +492,11 @@ class _QuickAddCatalogItemPageState
               children: [
                 const Text('Unit: '),
                 const SizedBox(width: 8),
-                for (final u in ['kg', 'bag', 'piece'])
+                for (final u in ['kg', 'bag', 'piece', 'box', 'tin'])
                   Padding(
                     padding: const EdgeInsets.only(right: 6),
                     child: ChoiceChip(
-                      label: Text(u),
+                      label: Text(u.toUpperCase()),
                       selected: _unit == u,
                       onSelected: (_) => setState(() {
                         _unit = u;
@@ -460,15 +505,6 @@ class _QuickAddCatalogItemPageState
                     ),
                   ),
               ],
-            ),
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Box or tin units: use Catalog → Add item.',
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
             ),
             if (_unit == 'bag') ...[
               const SizedBox(height: 8),

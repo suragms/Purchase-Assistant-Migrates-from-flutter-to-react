@@ -7,6 +7,8 @@ import 'package:intl/intl.dart';
 
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/providers/recent_unified_search_provider.dart';
+import '../../../core/providers/search_focus_provider.dart';
+import '../../stock/presentation/quick_stock_patch_sheet.dart';
 import '../../../core/router/navigation_ext.dart';
 import '../../../core/router/post_auth_route.dart';
 import '../../../core/widgets/friendly_load_error.dart';
@@ -93,6 +95,28 @@ int _searchYmdKey(Object? dtRaw) {
     return int.tryParse(s) ?? 0;
   }
   return 0;
+}
+
+int _catalogSearchPrefixRank(Map<String, dynamic> item, String query) {
+  if (query.isEmpty) return 0;
+  final name = (item['name']?.toString() ?? '').toLowerCase();
+  final code = (item['item_code']?.toString() ?? '').toLowerCase();
+  if (name.startsWith(query) || code.startsWith(query)) return 0;
+  if (name.contains(query) || code.contains(query)) return 1;
+  return 2;
+}
+
+void _sortCatalogItemsByPrefix(List<Map<String, dynamic>> items, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return;
+  items.sort((a, b) {
+    final pr = _catalogSearchPrefixRank(a, q)
+        .compareTo(_catalogSearchPrefixRank(b, q));
+    if (pr != 0) return pr;
+    return (a['name']?.toString() ?? '')
+        .toLowerCase()
+        .compareTo((b['name']?.toString() ?? '').toLowerCase());
+  });
 }
 
 List<Map<String, dynamic>> _asMapListSkipBad(String key, Map<String, dynamic> data) {
@@ -211,11 +235,22 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      if (widget.staffShellEmbedded) {
+        setState(() => _section = 'items');
+      }
       final sec = GoRouterState.of(context).uri.queryParameters['section'];
       if (sec != null && _sections.contains(sec)) {
         setState(() => _section = sec);
       }
-      _focus.requestFocus();
+      if (widget.staffShellEmbedded &&
+          ref.read(searchFocusRequestedProvider)) {
+        ref.read(searchFocusRequestedProvider.notifier).state = false;
+        _focus.requestFocus();
+      } else if (!widget.staffShellEmbedded) {
+        _focus.requestFocus();
+      } else {
+        _focus.requestFocus();
+      }
     });
   }
 
@@ -622,6 +657,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
                   return next;
                 }).toList();
+                _sortCatalogItemsByPrefix(items, keyNorm);
                 final contactHits = suppliers.length + brokers.length;
                 final sectionCounts = <String, int>{
                   'types': types.length,
@@ -775,7 +811,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                           ),
                         ),
                       ),
-                    if (_section == 'all' || _section == 'types') ...[
+                    if (!widget.staffShellEmbedded &&
+                        (_section == 'all' || _section == 'types')) ...[
                       Text(
                         'Catalog types',
                         style: tt.titleSmall?.copyWith(
@@ -884,12 +921,23 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                             hideFinancials: hideFinancials,
                             onTap: id.isEmpty
                                 ? null
-                                : () => context.push('/catalog/item/$id'),
+                                : () {
+                                    if (widget.staffShellEmbedded) {
+                                      showQuickStockPatchSheet(
+                                        context: context,
+                                        ref: ref,
+                                        item: Map<String, dynamic>.from(m),
+                                      );
+                                      return;
+                                    }
+                                    context.push('/catalog/item/$id');
+                                  },
                           );
                         }),
                       const SizedBox(height: 20),
                     ],
-                    if (_section == 'all' || _section == 'bills') ...[
+                    if (!widget.staffShellEmbedded &&
+                        (_section == 'all' || _section == 'bills')) ...[
                       Text(
                         'Recent purchase bills',
                         style: tt.titleSmall?.copyWith(
@@ -989,7 +1037,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                         }),
                       const SizedBox(height: 20),
                     ],
-                    if (_section == 'all' || _section == 'suppliers') ...[
+                    if (!widget.staffShellEmbedded &&
+                        (_section == 'all' || _section == 'suppliers')) ...[
                       Text(
                         'Suppliers',
                         style: tt.titleSmall?.copyWith(

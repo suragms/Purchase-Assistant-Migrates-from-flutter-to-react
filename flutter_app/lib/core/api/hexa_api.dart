@@ -2096,11 +2096,27 @@ class HexaApi {
     return res.data ?? {};
   }
 
-  Future<Map<String, dynamic>> getStockTotals({
+  Future<Map<String, dynamic>> getAiUsage({
     required String businessId,
   }) async {
     final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/ai/usage',
+    );
+    return res.data ?? {};
+  }
+
+  Future<Map<String, dynamic>> getStockTotals({
+    required String businessId,
+    String? periodStart,
+    String? periodEnd,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
       '/v1/businesses/$businessId/stock/totals',
+      queryParameters: {
+        if (periodStart != null && periodStart.isNotEmpty)
+          'period_start': periodStart,
+        if (periodEnd != null && periodEnd.isNotEmpty) 'period_end': periodEnd,
+      },
     );
     return res.data ?? {};
   }

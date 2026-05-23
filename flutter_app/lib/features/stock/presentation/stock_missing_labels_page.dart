@@ -59,12 +59,17 @@ class _StockMissingLabelsPageState extends ConsumerState<StockMissingLabelsPage>
             for (final row in (blob['items'] as List? ?? []))
               if (row is Map) Map<String, dynamic>.from(row),
           ];
+          int byStockDesc(Map<String, dynamic> a, Map<String, dynamic> b) =>
+              coerceToDouble(b['current_stock'])
+                  .compareTo(coerceToDouble(a['current_stock']));
           final missingBarcode = items
               .where((it) => it['missing_barcode'] == true)
-              .toList();
+              .toList()
+            ..sort(byStockDesc);
           final missingCode = items
               .where((it) => it['missing_item_code'] == true)
-              .toList();
+              .toList()
+            ..sort(byStockDesc);
           return TabBarView(
             controller: _tabs,
             children: [

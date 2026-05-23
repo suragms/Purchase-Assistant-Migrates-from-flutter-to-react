@@ -65,8 +65,25 @@ int stockRowSortKey(Map<String, dynamic> item) {
   return 5;
 }
 
-void sortStockListOperational(List<Map<String, dynamic>> items) {
+int _stockNamePrefixRank(Map<String, dynamic> item, String query) {
+  if (query.isEmpty) return 0;
+  final name = (item['name']?.toString() ?? '').toLowerCase();
+  final code = (item['item_code']?.toString() ?? '').toLowerCase();
+  if (name.startsWith(query) || code.startsWith(query)) return 0;
+  if (name.contains(query) || code.contains(query)) return 1;
+  return 2;
+}
+
+void sortStockListOperational(
+  List<Map<String, dynamic>> items, {
+  String? searchQuery,
+}) {
+  final q = searchQuery?.trim().toLowerCase() ?? '';
   items.sort((a, b) {
+    if (q.isNotEmpty) {
+      final pr = _stockNamePrefixRank(a, q).compareTo(_stockNamePrefixRank(b, q));
+      if (pr != 0) return pr;
+    }
     final ka = stockRowSortKey(a);
     final kb = stockRowSortKey(b);
     if (ka != kb) return ka.compareTo(kb);

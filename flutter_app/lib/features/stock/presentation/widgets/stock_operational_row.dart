@@ -14,12 +14,14 @@ class StockOperationalRow extends ConsumerWidget {
     required this.item,
     required this.includePeriod,
     required this.onTap,
+    this.onAction,
     this.canEdit = true,
   });
 
   final Map<String, dynamic> item;
   final bool includePeriod;
   final VoidCallback onTap;
+  final VoidCallback? onAction;
   final bool canEdit;
 
   @override
@@ -28,6 +30,8 @@ class StockOperationalRow extends ConsumerWidget {
     final codeRaw = item['item_code']?.toString().trim() ?? '';
     final missingCode = item['missing_item_code'] == true || codeRaw.isEmpty;
     final unit = item['unit']?.toString() ?? '';
+    final packType = item['pack_type']?.toString() ??
+        item['default_pack_type']?.toString();
     final cat = item['category_name']?.toString() ?? '';
     final sub = item['subcategory_name']?.toString() ?? '';
     final supplier = item['supplier_name']?.toString() ?? '';
@@ -39,19 +43,24 @@ class StockOperationalRow extends ConsumerWidget {
         ? coerceToDouble(item['period_purchased_qty'])
         : coerceToDouble(item['purchased_today_qty']);
 
-    final stockPrimary = stockDisplayPrimary(cur, unit);
+    final stockPrimary = stockDisplayPrimary(cur, unit, packType);
     final stockSecondary = stockDisplaySecondary(cur, unit, kgPerBag, null);
     final purchasedLabel = purchased > 0
-        ? '+${stockDisplayPrimary(purchased, unit)}'
+        ? '↑ bought today: ${stockDisplayPrimary(purchased, unit, packType)}'
         : '';
-    final movement = purchased > 0 ? cur - purchased : -coerceToDouble(item['usage_today_qty']);
-    final movementLabel = movement == 0
-        ? '—'
-        : '${movement > 0 ? '+' : ''}${movement == movement.roundToDouble() ? movement.round() : movement.toStringAsFixed(1)}';
+    final daysSinceRaw = item['days_since_last_purchase'];
+    final daysSince = daysSinceRaw is num ? daysSinceRaw.toInt() : null;
+    final purchaseAgingColor = daysSince == null
+        ? null
+        : daysSince <= 7
+            ? const Color(0xFF3B6D11)
+            : daysSince <= 30
+                ? const Color(0xFFE65100)
+                : const Color(0xFFA32D2D);
 
     final status = (item['stock_status']?.toString() ?? 'healthy').toLowerCase();
     final missingBarcode = item['missing_barcode'] == true;
-    final badge = _statusBadge(status, missingBarcode: missingBarcode);
+    final badge = _statusBadge(status);
     final updateLine = formatStockRowUpdateLine(
       updatedBy: item['last_stock_updated_by']?.toString(),
       updatedAtIso: item['last_stock_updated_at']?.toString(),
@@ -68,7 +77,7 @@ class StockOperationalRow extends ConsumerWidget {
       child: InkWell(
         onTap: onTap,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 78),
+          constraints: const BoxConstraints(maxHeight: 84),
           child: Padding(
             padding: const EdgeInsets.symmetric(
               horizontal: HexaOp.pageGutter,
@@ -91,7 +100,7 @@ class StockOperationalRow extends ConsumerWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.w700,
                               fontSize: 14,
                             ),
                           ),
@@ -120,6 +129,30 @@ class StockOperationalRow extends ConsumerWidget {
                               ),
                             ),
                           ),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 2,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              if (missingBarcode)
+                                _badge(
+                                  'NO BARCODE',
+                                  const Color(0xFFF3E8FF),
+                                  const Color(0xFF7E22CE),
+                                )
+                              else
+                                badge,
+                              if (purchasedLabel.isNotEmpty)
+                                Text(
+                                  purchasedLabel,
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    color: Color(0xFF3B6D11),
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                            ],
+                          ),
                           if (catLine.isNotEmpty)
                             Text(
                               catLine,
@@ -134,7 +167,7 @@ class StockOperationalRow extends ConsumerWidget {
                               kgPerBag != null &&
                               kgPerBag > 0)
                             Text(
-                              '${kgPerBag == kgPerBag.roundToDouble() ? kgPerBag.round() : kgPerBag}kg/bag',
+                              '${(kgPerBag - kgPerBag.roundToDouble()).abs() < 0.001 ? kgPerBag.round() : kgPerBag}kg/bag',
                               style: const TextStyle(
                                 fontSize: 10,
                                 color: Colors.black38,
@@ -144,48 +177,59 @@ class StockOperationalRow extends ConsumerWidget {
                       ),
                     ),
                     Expanded(
-                      flex: 5,
+                      flex: 3,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          const Text(
-                            'Purchased',
-                            style: TextStyle(fontSize: 9, color: Colors.black38),
-                          ),
-                          if (purchasedLabel.isNotEmpty)
-                            Text(
-                              purchasedLabel,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF3B6D11),
-                              ),
-                              textAlign: TextAlign.center,
+                          Text(
+                            stockPrimary,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
                             ),
-                          _tinyValue('Current', stockPrimary),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                           if (stockSecondary != null)
                             Text(
-                              stockSecondary
-                                  .replaceAll('(', '')
-                                  .replaceAll(')', ''),
+                              stockSecondary,
                               style: const TextStyle(
                                 fontSize: 10,
                                 color: Colors.black45,
                               ),
                               textAlign: TextAlign.center,
                             ),
+                          const SizedBox(height: 2),
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 4,
+                            runSpacing: 2,
+                            children: [
+                              if (daysSince != null)
+                                Tooltip(
+                                  message:
+                                      'Days since last purchase: $daysSince',
+                                  child: _badge(
+                                    '${daysSince}d',
+                                    purchaseAgingColor!.withValues(alpha: 0.12),
+                                    purchaseAgingColor,
+                                  ),
+                                ),
+                              if (missingBarcode) badge,
+                            ],
+                          ),
                         ],
                       ),
                     ),
-                    Expanded(
-                      flex: 2,
-                      child: _tinyValue('Moved', movementLabel),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        badge,
-                      ],
+                    SizedBox(
+                      width: 48,
+                      child: IconButton(
+                        tooltip: 'Actions',
+                        onPressed: onAction ?? onTap,
+                        icon: const Icon(Icons.more_vert_rounded, size: 20),
+                        visualDensity: VisualDensity.compact,
+                      ),
                     ),
                   ],
                 ),
@@ -204,32 +248,10 @@ class StockOperationalRow extends ConsumerWidget {
     );
   }
 
-  Widget _tinyValue(String label, String value) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontSize: 9, color: Colors.black38),
-          textAlign: TextAlign.center,
-        ),
-        Text(
-          value,
-          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    );
-  }
-
-  Widget _statusBadge(String status, {required bool missingBarcode}) {
+  Widget _statusBadge(String status) {
     String label;
     Color bg;
     Color fg;
-    if (missingBarcode) {
-      return _badge('NO BARCODE', const Color(0xFFF3E8FF), const Color(0xFF7E22CE));
-    }
     switch (status) {
       case 'low':
         label = 'LOW';

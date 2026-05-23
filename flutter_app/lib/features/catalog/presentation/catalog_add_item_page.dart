@@ -371,6 +371,47 @@ class _CatalogAddItemPageState extends ConsumerState<CatalogAddItemPage> {
     final ic = _itemCode.text.trim();
     final session = ref.read(sessionProvider);
     if (session == null) return;
+    final name = _name.text.trim();
+    final hits = await ref.read(hexaApiProvider).catalogFuzzyCheck(
+          businessId: session.primaryBusiness.id,
+          name: name,
+          categoryId: _categoryId,
+          typeId: _typeId,
+        );
+    final exact = hits.where((h) {
+      return h['name']?.toString().trim().toLowerCase() ==
+          name.toLowerCase();
+    }).toList();
+    if (exact.isNotEmpty && mounted) {
+      final first = exact.first;
+      final proceed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Similar item already exists'),
+          content: Text(
+            'Found: "${first['name']?.toString() ?? name}" in this category.\n'
+            'Create a separate item anyway?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Use existing'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Create new anyway'),
+            ),
+          ],
+        ),
+      );
+      if (proceed != true) {
+        final id = first['id']?.toString();
+        if (id != null && id.isNotEmpty && mounted) {
+          context.push('/catalog/item/$id');
+        }
+        return;
+      }
+    }
     setState(() => _saving = true);
     final tinW = _unit == 'tin' && _perTin.text.trim().isNotEmpty
         ? double.tryParse(_perTin.text.trim())
@@ -380,7 +421,7 @@ class _CatalogAddItemPageState extends ConsumerState<CatalogAddItemPage> {
             businessId: session.primaryBusiness.id,
             categoryId: _categoryId!,
             typeId: _typeId,
-            name: _name.text.trim(),
+            name: name,
             defaultUnit: _unit!,
             defaultSupplierIds: List<String>.from(_supplierIds),
             defaultBrokerIds: const [],

@@ -230,15 +230,47 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
                 ),
           ),
           const SizedBox(height: 6),
-          TextField(
-            controller: _countedCtl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              suffixText: unitLabel,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-              isDense: true,
-            ),
-            onChanged: (_) => setState(() {}),
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'Decrease count',
+                onPressed: () {
+                  final c = _countedQty ?? _systemQty;
+                  final next = (c - 1).clamp(0, double.infinity);
+                  _countedCtl.text = next == next.roundToDouble()
+                      ? '${next.round()}'
+                      : next.toStringAsFixed(1);
+                  setState(() {});
+                },
+                icon: const Icon(Icons.remove_circle_outline),
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _countedCtl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    suffixText: unitLabel,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                    isDense: true,
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Increase count',
+                onPressed: () {
+                  final c = _countedQty ?? _systemQty;
+                  final next = c + 1;
+                  _countedCtl.text = next == next.roundToDouble()
+                      ? '${next.round()}'
+                      : next.toStringAsFixed(1);
+                  setState(() {});
+                },
+                icon: const Icon(Icons.add_circle_outline),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           _reconciliationBlock(unitLabel),

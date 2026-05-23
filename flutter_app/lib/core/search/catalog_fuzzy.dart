@@ -73,7 +73,19 @@ List<T> catalogFuzzyRank<T>(
     final s = catalogFuzzyScore(q, labelOf(it));
     if (s >= minScore) scored.add((item: it, score: s));
   }
-  scored.sort((a, b) => b.score.compareTo(a.score));
+  scored.sort((a, b) {
+    final byScore = b.score.compareTo(a.score);
+    if (byScore != 0) return byScore;
+    final aLabel = normalizeCatalogSearch(labelOf(a.item));
+    final bLabel = normalizeCatalogSearch(labelOf(b.item));
+    final aExact = aLabel == q;
+    final bExact = bLabel == q;
+    if (aExact != bExact) return aExact ? -1 : 1;
+    final aPrefix = aLabel.startsWith(q);
+    final bPrefix = bLabel.startsWith(q);
+    if (aPrefix != bPrefix) return aPrefix ? -1 : 1;
+    return aLabel.compareTo(bLabel);
+  });
   return scored.take(limit).map((e) => e.item).toList();
 }
 

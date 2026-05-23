@@ -100,11 +100,7 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
         );
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Print unavailable in browser — use downloaded PDF.',
-            ),
-          ),
+          const SnackBar(content: Text('Label PDF ready to download')),
         );
         return;
       }
@@ -355,7 +351,7 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
           ),
         const SizedBox(height: 16),
         FilledButton.icon(
-          onPressed: _busy ? null : _print,
+          onPressed: _busy ? null : (kIsWeb ? _download : _print),
           icon: _busy
               ? const SizedBox(
                   width: 18,
@@ -363,8 +359,12 @@ class _BarcodePrintPageState extends ConsumerState<BarcodePrintPage> {
                   child: CircularProgressIndicator(
                       strokeWidth: 2, color: Colors.white),
                 )
-              : const Icon(Icons.print_rounded),
-          label: Text(_busy ? 'Preparing…' : 'Print label'),
+              : Icon(kIsWeb ? Icons.download_rounded : Icons.print_rounded),
+          label: Text(
+            _busy
+                ? 'Preparing…'
+                : (kIsWeb ? 'Download label PDF' : 'Print label'),
+          ),
           style: FilledButton.styleFrom(
             backgroundColor: HexaColors.brandPrimary,
             minimumSize: const Size.fromHeight(52),

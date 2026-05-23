@@ -106,16 +106,14 @@ class _MovementSummary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cells = <Widget>[
+      if (purchased > 0) _cell('Purchased', '${homeFmtQty(purchased)} bags'),
+      if (adjusted > 0) _cell('Adjusted', '$adjusted logs'),
+    ];
+    if (cells.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
-      child: Row(
-        children: [
-          _cell('Purchased', '${homeFmtQty(purchased)} bags'),
-          _cell('Adjusted', '$adjusted logs'),
-          _cell('Sold', 'No data yet'),
-          _cell('Transferred', 'No data yet'),
-        ],
-      ),
+      child: Row(children: cells),
     );
   }
 

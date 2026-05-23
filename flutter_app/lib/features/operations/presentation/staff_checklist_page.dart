@@ -1,10 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/providers/operations_providers.dart';
+import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/providers/warehouse_alerts_provider.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 
@@ -19,6 +21,7 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   final Set<String> _busy = {};
+  final Set<String> _optimisticDone = {};
 
   @override
   void initState() {
@@ -41,7 +44,10 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
     if (key.isEmpty) return;
     final busyId = '$slot:$key';
     if (_busy.contains(busyId)) return;
-    setState(() => _busy.add(busyId));
+    setState(() {
+      _busy.add(busyId);
+      _optimisticDone.add(busyId);
+    });
     try {
       final session = ref.read(sessionProvider);
       if (session == null) return;
@@ -52,12 +58,15 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
           );
       ref.invalidate(checklistTodayProvider);
       ref.invalidate(warehouseAlertsProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      if (mounted) setState(() {});
     } on DioException catch (e) {
       if (e.response?.statusCode == 409) {
         ref.invalidate(checklistTodayProvider);
         return;
       }
       if (mounted) {
+        setState(() => _optimisticDone.remove(busyId));
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(friendlyApiError(e))),
         );
@@ -72,9 +81,11 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
     final data = ref.watch(checklistTodayProvider);
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(onPressed: () => context.pop()),
         title: const Text('Daily checklist'),
         bottom: TabBar(
           controller: _tabs,
+          isScrollable: true,
           tabs: const [
             Tab(text: 'Morning'),
             Tab(text: 'Midday'),
@@ -92,7 +103,14 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
             for (final t in (m['tasks'] as List? ?? []))
               if (t is Map) Map<String, dynamic>.from(t),
           ];
-          final pct = (m['completion_pct'] as num?)?.toDouble() ?? 0;
+          final total = tasks.length;
+          final doneCount = tasks.where((t) {
+            final key = t['task_key']?.toString() ?? '';
+            final slot = t['slot']?.toString() ?? '';
+            final busyId = '$slot:$key';
+            return t['completed'] == true || _optimisticDone.contains(busyId);
+          }).length;
+          final pct = total > 0 ? doneCount / total * 100 : 0.0;
           return Column(
             children: [
               LinearProgressIndicator(
@@ -101,7 +119,11 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
               ),
               Padding(
                 padding: const EdgeInsets.all(12),
-                child: Text('${pct.toStringAsFixed(0)}% complete today'),
+                child: Text(
+                  total > 0
+                      ? '$doneCount/$total complete · ${pct.toStringAsFixed(0)}%'
+                      : '${pct.toStringAsFixed(0)}% complete today',
+                ),
               ),
               Expanded(
                 child: TabBarView(
@@ -127,6 +149,28 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
   ) {
     final slotTasks = tasks.where((t) => t['slot'] == slot).toList();
     if (slotTasks.isEmpty) {
+      final low = ref.watch(stockLowTopHomeProvider).valueOrNull ?? [];
+      if (low.isNotEmpty) {
+        return ListView(
+          padding: const EdgeInsets.all(12),
+          children: [
+            const Text(
+              'Suggested checks (low stock)',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 8),
+            for (final row in low.take(3))
+                ListTile(
+                  dense: true,
+                  leading: const Icon(Icons.inventory_2_outlined),
+                  title: Text(row['name']?.toString() ?? 'Item'),
+                  subtitle: Text(
+                    'Stock ${row['current_stock'] ?? '—'}',
+                  ),
+                ),
+          ],
+        );
+      }
       return const Center(child: Text('No tasks for this shift'));
     }
     return ListView.builder(
@@ -136,7 +180,8 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
         final t = slotTasks[i];
         final key = t['task_key']?.toString() ?? '';
         final busyId = '$slot:$key';
-        final done = t['completed'] == true;
+        final done =
+            t['completed'] == true || _optimisticDone.contains(busyId);
         final busy = _busy.contains(busyId);
         return CheckboxListTile(
           value: done,

@@ -15,6 +15,7 @@ import '../../../core/router/post_auth_route.dart';
 import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/models/trade_purchase_models.dart';
 import '../../../core/providers/analytics_kpi_provider.dart';
+import '../../../core/providers/app_period_provider.dart';
 import '../../../core/providers/business_profile_provider.dart';
 import '../../../core/providers/home_dashboard_provider.dart';
 import '../../../core/providers/reports_provider.dart'
@@ -41,6 +42,17 @@ import '../widgets/bi/reports_summary_card.dart';
 String _inr0(num n) =>
     NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0)
         .format(n);
+
+String _matchHomePeriodButtonLabel(AppPeriod period) =>
+    'Match Home · ${period.label}';
+
+AppPeriod _appPeriodFromPreset(_DatePreset preset) => switch (preset) {
+      _DatePreset.today => AppPeriod.today,
+      _DatePreset.week => AppPeriod.week,
+      _DatePreset.month => AppPeriod.month,
+      _DatePreset.year => AppPeriod.year,
+      _DatePreset.custom => AppPeriod.custom,
+    };
 
 String _qtyReadable(double q) =>
     q == q.roundToDouble() ? '${q.round()}' : q.toStringAsFixed(1);
@@ -71,48 +83,6 @@ ReportPackKind? _packKind(ReportsPackFilter f) => switch (f) {
       ReportsPackFilter.box => ReportPackKind.box,
       ReportsPackFilter.tin => ReportPackKind.tin,
     };
-
-class _MetricTile extends StatelessWidget {
-  const _MetricTile({required this.label, required this.value});
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final tt = Theme.of(context).textTheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.3,
-              color: HexaColors.textBody,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: tt.titleSmall?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: HexaColors.brandPrimary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 typedef FullReportsPage = ReportsPage;
 
@@ -156,6 +126,17 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       );
       if (tab != null) {
         setState(() => _biTab = tab);
+      }
+      final appPeriod = ref.read(appSelectedPeriodProvider);
+      _DatePreset synced = switch (appPeriod) {
+        AppPeriod.today => _DatePreset.today,
+        AppPeriod.week => _DatePreset.week,
+        AppPeriod.month => _DatePreset.month,
+        AppPeriod.year => _DatePreset.year,
+        AppPeriod.custom => _DatePreset.custom,
+      };
+      if (_preset != synced) {
+        setState(() => _preset = synced);
       }
     });
   }
@@ -252,6 +233,8 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       _DatePreset.year => (from: DateTime(n.year, 1, 1), to: today),
       _DatePreset.custom => ref.read(analyticsDateRangeProvider),
     };
+    ref.read(appSelectedPeriodProvider.notifier).state =
+        _appPeriodFromPreset(p);
     setState(() {
       _preset = p;
       _visibleCap = 40;
@@ -265,6 +248,8 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
   void _syncRangeWithHome() {
     final hp = ref.read(homePeriodProvider);
+    ref.read(appSelectedPeriodProvider.notifier).state =
+        appPeriodFromHomePeriod(hp);
     final custom = ref.read(homeCustomDateRangeProvider);
     final r = homePeriodRange(
       hp,
@@ -484,51 +469,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               ),
             ],
           ),
-          if (!_reportsSummaryCollapsed) ...[
-            const SizedBox(height: 6),
-            Card(
-              margin: EdgeInsets.zero,
-              color: Colors.white,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'TOTAL AMOUNT',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                        color: HexaColors.textBody,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    SelectableText(
-                      _inr0(t.inr.round()),
-                      style: tt.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                        color: HexaColors.brandPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _MetricTile(label: 'Total kg', value: _kgReadable(t.kg)),
-                        _MetricTile(label: 'Total bags', value: _qtyReadable(t.bags)),
-                        _MetricTile(label: 'Total boxes', value: _qtyReadable(t.boxes)),
-                        _MetricTile(label: 'Total tins', value: _qtyReadable(t.tins)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ] else ...[
-            const SizedBox(height: 4),
-          ],
+          if (!_reportsSummaryCollapsed) const SizedBox(height: 4),
           const SizedBox(height: 2),
           TextButton(
             onPressed: _syncRangeWithHome,
@@ -537,7 +478,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               minimumSize: Size.zero,
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text('Match Home period'),
+            child: Text(_matchHomePeriodButtonLabel(ref.watch(appSelectedPeriodProvider))),
           ),
         ],
       ),
@@ -673,7 +614,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           ),
         ),
         ActionChip(
-          label: Text('More', style: tt.labelSmall?.copyWith(fontWeight: FontWeight.w800)),
+          label: Text('Items', style: tt.labelSmall?.copyWith(fontWeight: FontWeight.w800)),
           onPressed: _openMoreTabsSheet,
           visualDensity: VisualDensity.compact,
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1012,6 +953,21 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       }
       return;
     }
+    final df = DateFormat('dd MMM yyyy');
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Download report PDF?'),
+        content: Text(
+          'This will generate a purchase statement for ${df.format(range.from)} to ${df.format(range.to)}.',
+        ),
+        actions: [
+          TextButton(onPressed: () => ctx.pop(false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => ctx.pop(true), child: const Text('Download')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
     setState(() => _exportingPdf = true);
     try {
       await layoutTradeStatementSsotPdf(
@@ -1247,7 +1203,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               const SizedBox(height: 8),
               OutlinedButton(
                 onPressed: _syncRangeWithHome,
-                child: const Text('Match Home period'),
+                child: Text(_matchHomePeriodButtonLabel(ref.watch(appSelectedPeriodProvider))),
               ),
               const SizedBox(height: 8),
               OutlinedButton(

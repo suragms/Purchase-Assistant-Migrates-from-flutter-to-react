@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -91,13 +92,54 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
     return batch;
   }
 
+  static const int _kMaxLabelsPerPdf = 100;
+
   Future<void> _runPdfFlow({
     required Future<void> Function(Uint8List pdf) action,
   }) async {
     if (_selected.isEmpty || _busy) return;
     setState(() => _busy = true);
     try {
-      var batch = await _loadLabels();
+      var targetIds = ref.read(bulkBarcodeSelectionProvider).toList();
+      if (targetIds.length > _kMaxLabelsPerPdf) {
+        final batches = (targetIds.length / _kMaxLabelsPerPdf).ceil();
+        final confirm = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Large selection'),
+            content: Text(
+              '${targetIds.length} labels selected. Print in batches of '
+              '$_kMaxLabelsPerPdf for reliability ($batches batches needed).',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: Text('Print batch 1 of $batches'),
+              ),
+            ],
+          ),
+        );
+        if (confirm != true) return;
+        targetIds = targetIds.sublist(
+          0,
+          math.min(_kMaxLabelsPerPdf, targetIds.length),
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Printing labels 1–${targetIds.length}. '
+                'Select again for the next batch.',
+              ),
+            ),
+          );
+        }
+      }
+      var batch = await _loadLabels(ids: targetIds);
       if (batch.isTotalFailure) {
         if (!mounted) return;
         _showError(
@@ -514,8 +556,14 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                         if (!desktop) {
                           showModalBottomSheet<void>(
                             context: context,
+                            isScrollControlled: true,
                             showDragHandle: true,
-                            builder: (_) => SizedBox(
+                            builder: (sheetCtx) => Padding(
+                              padding: EdgeInsets.only(
+                                bottom: MediaQuery.viewInsetsOf(sheetCtx).bottom,
+                              ),
+                              child: SingleChildScrollView(
+                                child: SizedBox(
                               height: 280,
                               child: BulkBarcodePrintPreviewPanel(
                                 denseA4: _denseA4,
@@ -526,6 +574,8 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                                   Navigator.pop(context);
                                   unawaited(_preview());
                                 },
+                              ),
+                            ),
                               ),
                             ),
                           );

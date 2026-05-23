@@ -21,8 +21,11 @@ const _kAdjustmentTypes = <String, String>{
 };
 
 const _kReasonChips = <String>[
-  'Physical stock count',
-  'Damaged in store',
+  'Sale',
+  'Return',
+  'Damaged',
+  'Physical count',
+  'Transfer',
   'Expired batch',
   'Invoice / data correction',
   'Other',

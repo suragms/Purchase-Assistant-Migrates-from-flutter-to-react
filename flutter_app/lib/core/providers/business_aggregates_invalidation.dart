@@ -132,6 +132,7 @@ void invalidateWarehouseSurfaces(dynamic ref) {
   invalidateBusinessAggregates(ref);
   ref.invalidate(stockListProvider);
   ref.invalidate(bulkStockListProvider);
+  // Family provider: invalidating the family root busts all period keys.
   ref.invalidate(stockTotalsProvider);
   ref.invalidate(stockItemIntelligenceProvider);
   ref.invalidate(warehouseAlertsProvider);

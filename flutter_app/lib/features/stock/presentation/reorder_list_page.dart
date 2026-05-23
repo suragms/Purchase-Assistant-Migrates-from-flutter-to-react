@@ -168,6 +168,15 @@ class _ReorderTab extends ConsumerWidget {
               final cur = r['current_stock']?.toString() ?? '—';
               final ro = r['reorder_level']?.toString() ?? '—';
               final unit = r['unit']?.toString() ?? '';
+              final supplier = r['supplier_name']?.toString().trim() ?? '';
+              final lastRate = r['last_purchase_rate'];
+              final rateStr = lastRate is num && lastRate > 0
+                  ? NumberFormat.currency(
+                      locale: 'en_IN',
+                      symbol: '₹',
+                      decimalDigits: 0,
+                    ).format(lastRate)
+                  : '';
               final by = r['added_by_name']?.toString() ?? '—';
               final created = r['created_at']?.toString();
               DateTime? dt;
@@ -251,7 +260,13 @@ class _ReorderTab extends ConsumerWidget {
                                 ),
                               ),
                               Text(
-                                'Stock $cur / reorder $ro${unit.isNotEmpty ? ' $unit' : ''}',
+                                [
+                                  'Stock $cur / reorder $ro${unit.isNotEmpty ? ' $unit' : ''}',
+                                  if (supplier.isNotEmpty) supplier,
+                                  if (rateStr.isNotEmpty) 'Last $rateStr',
+                                ].join(' · '),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
                                   fontSize: 12,
                                   color: Colors.grey.shade600,
@@ -267,11 +282,24 @@ class _ReorderTab extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        if (status == 'pending')
+                        if (status == 'pending') ...[
+                          TextButton(
+                            onPressed: () {
+                              final itemId = r['item_id']?.toString() ??
+                                  r['catalog_item_id']?.toString() ??
+                                  '';
+                              if (itemId.isEmpty) return;
+                              context.push(
+                                '/purchase/new?catalogItemId=${Uri.encodeComponent(itemId)}',
+                              );
+                            },
+                            child: const Text('Order'),
+                          ),
                           TextButton(
                             onPressed: () => onSetStatus(r, 'ordered'),
                             child: const Text('Ordered'),
                           ),
+                        ],
                         if (status == 'ordered')
                           TextButton(
                             onPressed: () => onSetStatus(r, 'done'),

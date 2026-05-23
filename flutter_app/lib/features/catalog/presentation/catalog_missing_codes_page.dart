@@ -3,11 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/json_coerce.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/errors/user_facing_errors.dart';
-import '../../../core/providers/catalog_providers.dart';
-import '../../../core/providers/staff_home_providers.dart';
+import '../../../core/providers/catalog_providers.dart'
+    show catalogItemDetailProvider, catalogItemsListProvider;
+import '../../../core/providers/staff_home_providers.dart'
+    show missingCodeItemsProvider;
 import '../../../core/providers/stock_providers.dart';
+import '../../../core/providers/trade_purchases_provider.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/list_skeleton.dart';
@@ -36,6 +40,8 @@ class _CatalogMissingCodesPageState extends ConsumerState<CatalogMissingCodesPag
       ref.invalidate(missingCodeItemsProvider);
       ref.invalidate(catalogItemsListProvider);
       ref.invalidate(bulkStockListProvider);
+      invalidateTradePurchaseCaches(ref);
+      ref.invalidate(catalogItemDetailProvider(itemId));
       if (!mounted) return;
       final code = out['item_code']?.toString() ?? '';
       ScaffoldMessenger.of(context).showSnackBar(
@@ -76,7 +82,12 @@ class _CatalogMissingCodesPageState extends ConsumerState<CatalogMissingCodesPag
           message: 'Could not load items',
           onRetry: () => ref.invalidate(missingCodeItemsProvider),
         ),
-        data: (rows) {
+        data: (rawRows) {
+          final rows = List<Map<String, dynamic>>.from(rawRows)
+            ..sort(
+              (a, b) => coerceToDouble(b['current_stock'])
+                  .compareTo(coerceToDouble(a['current_stock'])),
+            );
           if (rows.isEmpty) {
             return Center(
               child: Padding(

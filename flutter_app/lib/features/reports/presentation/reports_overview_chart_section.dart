@@ -301,13 +301,43 @@ class _CategoryPieCard extends StatelessWidget {
           children: [
             Expanded(
               flex: 3,
-              child: PieChart(
-                PieChartData(
-                  sectionsSpace: 1.5,
-                  centerSpaceRadius: size * 0.14,
-                  sections: sections,
-                  pieTouchData: PieTouchData(enabled: false),
-                ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  PieChart(
+                    PieChartData(
+                      sectionsSpace: 1.5,
+                      centerSpaceRadius: size * 0.18,
+                      sections: sections,
+                      pieTouchData: PieTouchData(enabled: false),
+                    ),
+                  ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _inr0(total),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      Text(
+                        '${usable.length} categories',
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
             Expanded(
@@ -374,11 +404,23 @@ class _SupplierDonutCard extends StatelessWidget {
           centerChild: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Top suppliers', style: HexaDsType.labelCaps(context)),
-              const SizedBox(height: 4),
               Text(
                 _inr0(total > 0 ? total : fallbackTotal),
-                style: HexaDsType.h3(context).copyWith(fontWeight: FontWeight.w900),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${usable.length} suppliers',
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
               ),
             ],
           ),

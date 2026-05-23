@@ -111,16 +111,19 @@ class _HomeLowStockSectionState extends ConsumerState<HomeLowStockSection> {
                         ),
                       ),
                       const SizedBox(width: 4),
-                      IconButton(
-                        tooltip: 'Reorder',
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 40,
-                          minHeight: 40,
+                      Tooltip(
+                        message: 'Reorder',
+                        child: TextButton.icon(
+                          style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          icon: const Icon(Icons.add_circle_outline, size: 16),
+                          label: const Text(
+                            'Order',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+                          ),
+                          onPressed: () => context.push('/stock/reorder'),
                         ),
-                        icon: const Icon(Icons.add_circle_outline, size: 20),
-                        onPressed: () => context.push('/stock/reorder'),
                       ),
                     ],
                   ),

@@ -372,28 +372,12 @@ class _ContactsPageState extends ConsumerState<ContactsPage>
   late final TabController _tabController;
   final _searchCtrl = TextEditingController();
   final _searchFocus = FocusNode();
-  Timer? _debounce;
   String _searchQuery = '';
-  Map<String, dynamic>? _searchSnapshot;
-  bool _searchLoading = false;
-  /// Bumped when a new search is scheduled or cleared; stale HTTP responses are ignored.
-  int _contactsSearchSeq = 0;
   static const _searchMinLen = 1;
-
-  static String _scopeForTab(int tabIndex) {
-    const scopes = ['suppliers', 'brokers', 'categories', 'catalog_types', 'items'];
-    if (tabIndex < 0 || tabIndex >= scopes.length) return 'all';
-    return scopes[tabIndex];
-  }
 
   void _onTabChanged() {
     if (_tabController.indexIsChanging || !mounted) return;
     setState(() {});
-    final q = _searchCtrl.text.trim();
-    if (q.length >= _searchMinLen) {
-      _debounce?.cancel();
-      _scheduleSearch(q);
-    }
   }
 
   @override
@@ -406,9 +390,7 @@ class _ContactsPageState extends ConsumerState<ContactsPage>
 
   @override
   void dispose() {
-    _contactsSearchSeq++;
     _tabController.removeListener(_onTabChanged);
-    _debounce?.cancel();
     _searchCtrl.dispose();
     _searchFocus.dispose();
     _tabController.dispose();
@@ -416,54 +398,9 @@ class _ContactsPageState extends ConsumerState<ContactsPage>
   }
 
   void _scheduleSearch(String raw) {
-    _debounce?.cancel();
     final t = raw.trim();
-    if (t.length < _searchMinLen) {
-      _contactsSearchSeq++;
-      setState(() {
-        _searchQuery = '';
-        _searchSnapshot = null;
-        _searchLoading = false;
-      });
-      return;
-    }
-    _debounce = Timer(const Duration(milliseconds: 180), () async {
-      if (!mounted) return;
-      final session = ref.read(sessionProvider);
-      if (session == null) {
-        if (mounted) {
-          setState(() => _searchLoading = false);
-        }
-        return;
-      }
-      // Read tab when the request runs — not when the timer was scheduled — so scope
-      // matches the visible tab if the user switched tabs during debounce.
-      final scopeTab = _tabController.index;
-      final seq = ++_contactsSearchSeq;
-      setState(() {
-        _searchQuery = t;
-        _searchLoading = true;
-      });
-      try {
-        final data = await ref.read(hexaApiProvider).contactsSearch(
-              businessId: session.primaryBusiness.id,
-              query: t,
-              scope: _scopeForTab(scopeTab),
-            );
-        if (!mounted || seq != _contactsSearchSeq) return;
-        setState(() {
-          _searchSnapshot = data;
-          _searchLoading = false;
-        });
-      } catch (e) {
-        if (!mounted || seq != _contactsSearchSeq) return;
-        setState(() => _searchLoading = false);
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text(friendlyApiError(e))));
-        }
-      }
-    });
+    if (t == _searchQuery) return;
+    setState(() => _searchQuery = t);
   }
 
   bool get _isSearching => _searchQuery.length >= _searchMinLen;
@@ -489,9 +426,67 @@ class _ContactsPageState extends ConsumerState<ContactsPage>
     ];
   }
 
-  int _searchCountForTab(int i) {
-    final d = _searchSnapshot;
-    if (d == null) return 0;
+  bool _matchesQuery(Map<String, dynamic> row, Iterable<String> keys) {
+    final q = _searchQuery.toLowerCase();
+    return keys.any((key) => (row[key]?.toString().toLowerCase() ?? '').contains(q));
+  }
+
+  Map<String, dynamic> _localSearchSnapshot() {
+    if (!_isSearching) return {};
+    final suppliers = ref.watch(contactsSuppliersEnrichedProvider).valueOrNull ??
+        const <Map<String, dynamic>>[];
+    final brokers = ref.watch(contactsBrokersEnrichedProvider).valueOrNull ??
+        const <Map<String, dynamic>>[];
+    final cats = ref.watch(itemCategoriesListProvider).valueOrNull ?? const [];
+    final items = ref.watch(catalogItemsListProvider).valueOrNull ??
+        const <Map<String, dynamic>>[];
+    final q = _searchQuery.toLowerCase();
+    final categoryNames = [
+      for (final c in cats)
+        if (c['name']?.toString().toLowerCase().contains(q) == true)
+          c['name'].toString(),
+    ];
+    final typeById = <String, Map<String, dynamic>>{};
+    for (final item in items) {
+      final typeName =
+          item['type_name']?.toString() ?? item['subcategory_name']?.toString() ?? '';
+      if (typeName.isEmpty || !typeName.toLowerCase().contains(q)) continue;
+      final id = item['type_id']?.toString() ?? typeName;
+      typeById[id] = {
+        'id': id,
+        'category_id': item['category_id']?.toString() ?? '',
+        'name': typeName,
+        'category_name': item['category_name']?.toString() ?? '',
+      };
+    }
+    return {
+      'suppliers': suppliers
+          .where((s) => _matchesQuery(s, const ['name', 'phone', 'whatsapp_number', 'location']))
+          .toList(),
+      'brokers': brokers
+          .where((b) => _matchesQuery(b, const ['name', 'phone', 'whatsapp_number', 'location']))
+          .toList(),
+      'categories': categoryNames,
+      'catalog_subcategories': typeById.values.toList(),
+      'item_hits': [
+        for (final item in items)
+          if (_matchesQuery(item, const [
+            'name',
+            'item_code',
+            'barcode',
+            'category_name',
+            'type_name',
+            'subcategory_name',
+          ]))
+            {
+              'name': item['name']?.toString() ?? '',
+              'catalog_item_id': item['id']?.toString(),
+            },
+      ],
+    };
+  }
+
+  int _searchCountForTab(Map<String, dynamic> d, int i) {
     switch (i) {
       case 0:
         return ((d['suppliers'] as List?) ?? []).length;
@@ -790,8 +785,7 @@ class _ContactsPageState extends ConsumerState<ContactsPage>
     );
   }
 
-  Widget _searchResultsForTab(int tabIndex) {
-    final d = _searchSnapshot ?? {};
+  Widget _searchResultsForTab(Map<String, dynamic> d, int tabIndex) {
     final tt = Theme.of(context).textTheme;
     switch (tabIndex) {
       case 0:
@@ -1111,6 +1105,7 @@ class _ContactsPageState extends ConsumerState<ContactsPage>
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final tt = Theme.of(context).textTheme;
+    final searchSnapshot = _localSearchSnapshot();
     final searchBusy = _searchFocus.hasFocus ||
         _searchCtrl.text.trim().isNotEmpty ||
         _isSearching;
@@ -1200,18 +1195,14 @@ class _ContactsPageState extends ConsumerState<ContactsPage>
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
                 onTap: (_) {
-                  final q = _searchCtrl.text.trim();
-                  if (q.length >= _searchMinLen) {
-                    _debounce?.cancel();
-                    _scheduleSearch(q);
-                  }
+                  setState(() {});
                 },
                 tabs: [
-                  _tabWithBadge('Suppliers', _searchCountForTab(0)),
-                  _tabWithBadge('Brokers', _searchCountForTab(1)),
-                  _tabWithBadge('Categories', _searchCountForTab(2)),
-                  _tabWithBadge('Types', _searchCountForTab(3)),
-                  _tabWithBadge('Items', _searchCountForTab(4)),
+                  _tabWithBadge('Suppliers', _searchCountForTab(searchSnapshot, 0)),
+                  _tabWithBadge('Brokers', _searchCountForTab(searchSnapshot, 1)),
+                  _tabWithBadge('Categories', _searchCountForTab(searchSnapshot, 2)),
+                  _tabWithBadge('Types', _searchCountForTab(searchSnapshot, 3)),
+                  _tabWithBadge('Items', _searchCountForTab(searchSnapshot, 4)),
                 ],
               ),
             ),
@@ -1222,18 +1213,16 @@ class _ContactsPageState extends ConsumerState<ContactsPage>
           ),
           Expanded(
             child: _isSearching
-                ? (_searchLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : TabBarView(
-                        controller: _tabController,
-                        children: [
-                          _searchResultsForTab(0),
-                          _searchResultsForTab(1),
-                          _searchResultsForTab(2),
-                          _searchResultsForTab(3),
-                          _searchResultsForTab(4),
-                        ],
-                      ))
+                ? TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _searchResultsForTab(searchSnapshot, 0),
+                      _searchResultsForTab(searchSnapshot, 1),
+                      _searchResultsForTab(searchSnapshot, 2),
+                      _searchResultsForTab(searchSnapshot, 3),
+                      _searchResultsForTab(searchSnapshot, 4),
+                    ],
+                  )
                 : TabBarView(
                     controller: _tabController,
                     children: [

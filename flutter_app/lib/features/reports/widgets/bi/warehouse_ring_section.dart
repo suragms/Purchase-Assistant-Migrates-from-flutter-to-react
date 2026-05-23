@@ -55,8 +55,34 @@ class _WarehouseRingSectionState extends State<WarehouseRingSection> {
           strokeWidth: 14,
           values: values.isEmpty ? const [1] : values,
           colors: values.isEmpty ? const [Color(0xFFE2E8F0)] : colors,
-          centerLine1: widget.centerLabel,
-          centerLine2: _inr0(total),
+          centerChild: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _inr0(total),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: Color(0xFF3B6D11),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${slices.where((s) => s.amount > 0).length} ${widget.centerLabel}',
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
           onSectionTap: values.isEmpty
               ? null
               : (i) {

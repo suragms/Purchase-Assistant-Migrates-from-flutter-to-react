@@ -167,6 +167,7 @@ class BarcodeLabelOut(BaseModel):
     last_purchase_qty: Decimal | None = None
     last_purchase_unit: str | None = None
     last_purchase_rate: Decimal | None = None
+    supplier_name: str | None = None
 
 
 class BarcodeBatchIn(BaseModel):
@@ -187,6 +188,8 @@ class ReorderListEntryOut(BaseModel):
     unit: str | None
     status: str
     added_by_name: str | None
+    supplier_name: str | None = None
+    last_purchase_rate: Decimal | None = None
     created_at: datetime
     updated_at: datetime
 

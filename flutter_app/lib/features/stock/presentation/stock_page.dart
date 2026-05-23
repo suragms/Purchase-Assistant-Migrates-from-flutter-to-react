@@ -8,10 +8,13 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/json_coerce.dart';
 import '../../../core/providers/stock_providers.dart';
+import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/router/post_auth_route.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/list_skeleton.dart';
 import '../stock_period_utils.dart';
+import 'quick_stock_patch_sheet.dart';
+import 'widgets/assign_barcode_sheet.dart';
 import 'widgets/operational_stock_filter_sheet.dart';
 import 'widgets/stock_operational_row.dart';
 import 'widgets/stock_page_filter_header.dart';
@@ -36,12 +39,15 @@ class _StockPageState extends ConsumerState<StockPage> {
   final _scroll = ScrollController();
   Timer? _debounce;
   bool _loadingMore = false;
-  bool _searchExpanded = false;
   bool _fabVisible = true;
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
+    final initialQuery = ref.read(stockListQueryProvider).q.trim();
+    _searchQuery = initialQuery.toLowerCase();
+    _searchCtrl.text = initialQuery;
     _searchCtrl.addListener(_onSearchChanged);
     _subcatCtrl.text = ref.read(stockListQueryProvider).subcategory;
     _scroll.addListener(_onScroll);
@@ -49,7 +55,11 @@ class _StockPageState extends ConsumerState<StockPage> {
       if (!mounted) return;
       applyStockPagePeriod(ref, ref.read(stockPagePeriodProvider));
       ref.read(stockListQueryProvider.notifier).state =
-          ref.read(stockListQueryProvider).copyWith(perPage: 50, page: 1);
+          ref.read(stockListQueryProvider).copyWith(
+                q: '',
+                perPage: 50,
+                page: 1,
+              );
     });
   }
 
@@ -70,14 +80,10 @@ class _StockPageState extends ConsumerState<StockPage> {
   }
 
   void _onSearchChanged() {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      if (!mounted) return;
-      ref.read(stockListQueryProvider.notifier).state =
-          ref.read(stockListQueryProvider).copyWith(
-                q: _searchCtrl.text.trim(),
-                page: 1,
-              );
+    final next = _searchCtrl.text.toLowerCase().trim();
+    if (next == _searchQuery) return;
+    setState(() {
+      _searchQuery = next;
       ref.read(stockSelectedItemIdProvider.notifier).state = null;
     });
   }
@@ -113,6 +119,19 @@ class _StockPageState extends ConsumerState<StockPage> {
     final op = ref.read(stockOperationalFiltersProvider);
     final q = ref.read(stockListQueryProvider);
     var items = filterStockListClient(raw, op);
+    if (_searchQuery.isNotEmpty) {
+      items = items.where((it) {
+        final haystack = [
+          it['name'],
+          it['item_code'],
+          it['barcode'],
+          it['category_name'],
+          it['subcategory_name'],
+          it['supplier_name'],
+        ].map((v) => v?.toString().toLowerCase() ?? '').join(' ');
+        return haystack.contains(_searchQuery);
+      }).toList();
+    }
     if (q.supplier.isNotEmpty) {
       items = items
           .where(
@@ -121,17 +140,8 @@ class _StockPageState extends ConsumerState<StockPage> {
           )
           .toList();
     }
-    sortStockListOperational(items);
+    sortStockListOperational(items, searchQuery: _searchQuery);
     return items;
-  }
-
-  void _toggleSearch() {
-    setState(() {
-      _searchExpanded = !_searchExpanded;
-      if (!_searchExpanded) {
-        _searchCtrl.clear();
-      }
-    });
   }
 
   void _openItem(Map<String, dynamic> item) {
@@ -142,6 +152,98 @@ class _StockPageState extends ConsumerState<StockPage> {
       ref.read(stockSelectedItemIdProvider.notifier).state = id;
     } else {
       context.push('/stock/intelligence/$id');
+    }
+  }
+
+  Future<void> _openStockActions(Map<String, dynamic> item) async {
+    final id = item['id']?.toString();
+    final name = item['name']?.toString() ?? 'Item';
+    if (id == null || id.isEmpty) return;
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+              subtitle: const Text('Choose stock action'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_note_rounded),
+              title: const Text('Update stock'),
+              onTap: () => ctx.pop('update'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.qr_code_scanner_rounded),
+              title: const Text('Scan'),
+              onTap: () => ctx.pop('scan'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.history_rounded),
+              title: const Text('Purchase history'),
+              onTap: () => ctx.pop('history'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_rounded),
+              title: const Text('Edit item'),
+              onTap: () => ctx.pop('edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.qr_code_2_rounded),
+              title: const Text('Assign barcode'),
+              onTap: () => ctx.pop('barcode'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.print_outlined),
+              title: const Text('Print labels'),
+              onTap: () => ctx.pop('print'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case 'update':
+        final saved = await showQuickStockPatchSheet(
+          context: context,
+          ref: ref,
+          item: item,
+        );
+        if (saved && mounted) {
+          ref.invalidate(stockListProvider);
+          ref.invalidate(stockAuditPeriodProvider);
+          ref.invalidate(stockItemIntelligenceProvider(id));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Stock updated')),
+          );
+        }
+        break;
+      case 'scan':
+        context.push('/barcode/scan?return=stock');
+        break;
+      case 'history':
+      case 'edit':
+        context.push('/catalog/item/$id');
+        break;
+      case 'barcode':
+        await showAssignBarcodeSheet(
+          context: context,
+          ref: ref,
+          itemId: id,
+          itemName: name,
+        );
+        break;
+      case 'print':
+        context.push('/barcode/bulk-print');
+        break;
     }
   }
 
@@ -157,8 +259,6 @@ class _StockPageState extends ConsumerState<StockPage> {
 
     final listAsync = ref.watch(stockListProvider);
     final listQ = ref.watch(stockListQueryProvider);
-    final op = ref.watch(stockOperationalFiltersProvider);
-    final filterCount = countOperationalActiveFilters(listQ, op);
     final selectedId = ref.watch(stockSelectedItemIdProvider);
     final width = MediaQuery.sizeOf(context).width;
     final useSplit = width >= _kStockDetailPaneBreakpoint;
@@ -171,25 +271,12 @@ class _StockPageState extends ConsumerState<StockPage> {
         foregroundColor: const Color(0xFF1A1A1A),
         title: const Text('Stock', style: TextStyle(fontSize: 18)),
         actions: [
-          IconButton(
-            icon: Icon(_searchExpanded ? Icons.close : Icons.search),
-            tooltip: 'Search',
-            onPressed: _toggleSearch,
-          ),
-          IconButton(
-            tooltip: 'Filters',
-            onPressed: () => showOperationalStockFilter(
-              context: context,
-              ref: ref,
-              subcategoryCtrl: _subcatCtrl,
-              isStaffMode: _isStaffMode,
+          if (!_isStaffMode)
+            IconButton(
+              icon: const Icon(Icons.swap_vert_rounded),
+              tooltip: 'Stock movement',
+              onPressed: () => context.push('/stock/movement'),
             ),
-            icon: Badge(
-              isLabelVisible: filterCount > 0,
-              label: Text('$filterCount'),
-              child: const Icon(Icons.tune),
-            ),
-          ),
           if (!_isStaffMode)
             IconButton(
               icon: const Icon(Icons.qr_code_2_rounded),
@@ -228,9 +315,13 @@ class _StockPageState extends ConsumerState<StockPage> {
                 SliverPersistentHeader(
                   pinned: true,
                   delegate: StockPageFilterSliverDelegate(
-                    searchExpanded: _searchExpanded,
                     searchController: _searchCtrl,
-                    onSearchToggle: _toggleSearch,
+                    onOpenFilters: () => showOperationalStockFilter(
+                      context: context,
+                      ref: ref,
+                      subcategoryCtrl: _subcatCtrl,
+                      isStaffMode: _isStaffMode,
+                    ),
                     showYearPeriod: !_isStaffMode,
                   ),
                 ),
@@ -265,6 +356,7 @@ class _StockPageState extends ConsumerState<StockPage> {
                             includePeriod: includePeriod,
                             canEdit: true,
                             onTap: () => _openItem(item),
+                            onAction: () => unawaited(_openStockActions(item)),
                           ),
                         );
                       },

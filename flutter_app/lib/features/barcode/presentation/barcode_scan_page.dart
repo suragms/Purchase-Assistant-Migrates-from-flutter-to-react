@@ -15,7 +15,9 @@ import '../../../core/theme/hexa_colors.dart';
 import '../../../core/errors/barcode_operation_errors.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/providers/barcode_recent_scans.dart';
+import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/providers/stock_audit_providers.dart';
+import '../../../core/providers/stock_providers.dart';
 import '../../../core/providers/stock_offline_queue_provider.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/router/navigation_ext.dart';
@@ -42,6 +44,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   MobileScannerController? _camera;
   final _manualCtrl = TextEditingController();
   final _manualFocus = FocusNode();
+  String _manualQuery = '';
   bool _torch = false;
   bool _busy = false;
   String? _lastCode;
@@ -58,8 +61,15 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true);
+    _manualCtrl.addListener(_onManualChanged);
     unawaited(_loadRecent());
     unawaited(_initCamera());
+  }
+
+  void _onManualChanged() {
+    final next = _manualCtrl.text.toLowerCase().trim();
+    if (next == _manualQuery) return;
+    setState(() => _manualQuery = next);
   }
 
   Future<void> _scanFromImage() async {
@@ -235,11 +245,20 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
       if (mounted) context.pop(Map<String, dynamic>.from(row));
       return;
     }
-    await showWarehouseScanActionSheet(
+    final saved = await showWarehouseScanActionSheet(
       context: context,
       ref: ref,
       item: Map<String, dynamic>.from(row),
     );
+    if (saved && mounted) {
+      ref.invalidate(stockListProvider);
+      ref.invalidate(catalogItemsListProvider);
+      ref.invalidate(catalogItemDetailProvider(id));
+      ref.invalidate(stockItemIntelligenceProvider(id));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Scan update saved')),
+      );
+    }
     await _resumeScan();
   }
 
@@ -356,6 +375,13 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
           item: Map<String, dynamic>.from(row),
         );
         if (saved && mounted) {
+          ref.invalidate(stockListProvider);
+          ref.invalidate(stockAuditPeriodProvider);
+          if (id.isNotEmpty) {
+            ref.invalidate(catalogItemDetailProvider(id));
+            ref.invalidate(stockItemIntelligenceProvider(id));
+          }
+          await _loadRecent();
           showStockUndoSnackBar(
             context: context,
             ref: ref,
@@ -444,6 +470,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   @override
   void dispose() {
     _scanLineCtrl.dispose();
+    _manualCtrl.removeListener(_onManualChanged);
     _manualCtrl.dispose();
     _manualFocus.dispose();
     _camera?.dispose();
@@ -456,6 +483,21 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     final screenH = MediaQuery.sizeOf(context).height;
     final cameraH = screenH * 0.42;
     final pendingSync = ref.watch(stockOfflinePendingCountProvider);
+    final catalog = ref.watch(catalogItemsListProvider).valueOrNull ??
+        const <Map<String, dynamic>>[];
+    final manualMatches = _manualQuery.isEmpty
+        ? const <Map<String, dynamic>>[]
+        : catalog.where((item) {
+            final haystack = [
+              item['name'],
+              item['item_code'],
+              item['barcode'],
+              item['category_name'],
+              item['type_name'],
+              item['subcategory_name'],
+            ].map((v) => v?.toString().toLowerCase() ?? '').join(' ');
+            return haystack.contains(_manualQuery);
+          }).take(6).toList();
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -733,6 +775,55 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                         ),
                       ],
                     ),
+                    if (manualMatches.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Expanded(
+                        child: ListView.separated(
+                          keyboardDismissBehavior:
+                              ScrollViewKeyboardDismissBehavior.onDrag,
+                          itemCount: manualMatches.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 6),
+                          itemBuilder: (context, i) {
+                            final item = manualMatches[i];
+                            final id = item['id']?.toString();
+                            final name = item['name']?.toString() ?? 'Item';
+                            final code = item['item_code']?.toString();
+                            final barcode = item['barcode']?.toString();
+                            return ListTile(
+                              dense: true,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(
+                                  color: theme.colorScheme.outlineVariant,
+                                ),
+                              ),
+                              title: Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              subtitle: Text(
+                                [
+                                  if (code != null && code.isNotEmpty) code,
+                                  if (barcode != null && barcode.isNotEmpty)
+                                    'Barcode $barcode',
+                                ].join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: const Icon(Icons.chevron_right_rounded),
+                              onTap: id == null || id.isEmpty
+                                  ? null
+                                  : () => context.push('/catalog/item/$id?source=scan'),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

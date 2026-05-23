@@ -194,6 +194,7 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
         bottom: TabBar(
           controller: _tabs,
           isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: const [
             Tab(text: 'Overview'),
             Tab(text: 'Activity'),
@@ -661,6 +662,14 @@ class _LedgerTab extends ConsumerWidget {
   }
 }
 
+String _permissionLabel(String key) {
+  return key
+      .split('_')
+      .where((w) => w.isNotEmpty)
+      .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
+}
+
 class _PermissionsTab extends ConsumerStatefulWidget {
   const _PermissionsTab({required this.userId});
   final String userId;
@@ -691,7 +700,7 @@ class _PermissionsTabState extends ConsumerState<_PermissionsTab> {
           children: [
             ...draft.keys.map(
               (k) => SwitchListTile(
-                title: Text(k.replaceAll('_', ' '), style: HexaDsType.body(14)),
+                title: Text(_permissionLabel(k), style: HexaDsType.body(14)),
                 value: draft[k] ?? false,
                 onChanged: (v) => setState(() => draft[k] = v),
               ),

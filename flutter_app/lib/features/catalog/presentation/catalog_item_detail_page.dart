@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:barcode/barcode.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -14,6 +15,7 @@ import '../../../core/models/trade_purchase_models.dart'
 import '../../../core/router/navigation_ext.dart';
 import '../../../core/units/dynamic_unit_label_engine.dart' as unit_lbl;
 import '../../../core/utils/trade_purchase_rate_display.dart';
+import '../../../core/utils/line_display.dart';
 import '../../../core/utils/unit_utils.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/json_coerce.dart';
@@ -347,11 +349,13 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
             : null;
     hero['last_line_weight_kg'] = wk;
     hero['kg_per_unit'] = ln.kgPerUnit ?? ln.defaultKgPerBag;
+    hero['last_line_total'] = ln.lineTotal;
     if (ln.landingCostPerKg != null && ln.landingCostPerKg! > 0) {
       hero['last_purchase_price'] = ln.landingCostPerKg;
       hero['purchase_rate_dim'] = 'kg';
     } else {
-      hero['last_purchase_price'] = ln.purchaseRate ?? ln.landingCost;
+      final rate = tradePurchaseLineDisplayPurchaseRate(ln);
+      hero['last_purchase_price'] = rate;
       hero['purchase_rate_dim'] =
           ln.unit.trim().isEmpty ? null : ln.unit.trim().toLowerCase();
     }
@@ -735,6 +739,11 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
                   itemId: widget.itemId,
                   item: item,
                 ),
+                _CatalogItemChangeTimelineSection(
+                  itemId: widget.itemId,
+                  itemName: item['name']?.toString() ?? 'Item',
+                  purchases: purchasesAsync.valueOrNull ?? const [],
+                ),
                 _CollapsibleDetailSection(
                   title: 'Last purchase',
                   icon: Icons.receipt_long_outlined,
@@ -1008,13 +1017,11 @@ class _CollapsibleDetailSection extends StatefulWidget {
     required this.title,
     required this.icon,
     required this.child,
-    this.initiallyExpanded = false,
   });
 
   final String title;
   final IconData icon;
   final Widget child;
-  final bool initiallyExpanded;
 
   @override
   State<_CollapsibleDetailSection> createState() =>
@@ -1025,7 +1032,6 @@ class _CollapsibleDetailSectionState extends State<_CollapsibleDetailSection> {
   @override
   Widget build(BuildContext context) {
     return ExpansionTile(
-      initiallyExpanded: widget.initiallyExpanded,
       backgroundColor: Colors.transparent,
       collapsedBackgroundColor: Colors.transparent,
       tilePadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 4),
@@ -1094,7 +1100,10 @@ class _CatalogItemStockSection extends ConsumerWidget {
         String qty(dynamic v) {
           if (v == null) return '—';
           if (v is num) {
-            return v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+            final rounded = v.roundToDouble();
+            return (v - rounded).abs() < 0.001
+                ? rounded.round().toString()
+                : v.toString();
           }
           return v.toString();
         }
@@ -1429,8 +1438,8 @@ class _CatalogItemStockHistorySection extends ConsumerWidget {
                             children: [
                               Expanded(
                                 child: Text(
-                                  '${diff >= 0 ? '+' : ''}${diff == diff.roundToDouble() ? diff.toInt() : diff.toStringAsFixed(1)} '
-                                  '(${oldQ.toStringAsFixed(0)} → ${newQ.toStringAsFixed(0)})',
+                                  '${diff >= 0 ? '+' : ''}${(diff - diff.roundToDouble()).abs() < 0.001 ? diff.round() : diff.toStringAsFixed(1)} '
+                                  '(${oldQ.round()} → ${newQ.round()})',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -1459,6 +1468,98 @@ class _CatalogItemStockHistorySection extends ConsumerWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _CatalogItemChangeTimelineSection extends ConsumerWidget {
+  const _CatalogItemChangeTimelineSection({
+    required this.itemId,
+    required this.itemName,
+    required this.purchases,
+  });
+
+  final String itemId;
+  final String itemName;
+  final List<TradePurchase> purchases;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final auditRows = ref.watch(stockItemAuditProvider(itemId)).valueOrNull ??
+        const <Map<String, dynamic>>[];
+    final purchaseRows = itemTradeHistoryRows(
+      purchases,
+      itemId,
+      catalogItemName: itemName,
+    );
+    final events = <({DateTime at, IconData icon, Color color, String title, String subtitle})>[];
+    for (final r in purchaseRows.take(4)) {
+      events.add((
+        at: r.purchaseDate,
+        icon: Icons.shopping_cart_outlined,
+        color: const Color(0xFF2E7D32),
+        title: 'Purchased ${formatLineQtyWeightFromTradeLine(r.line)}',
+        subtitle: '${r.humanId} · ${r.supplierName}',
+      ));
+    }
+    for (final row in auditRows.take(4)) {
+      final rawAt = row['created_at']?.toString() ??
+          row['updated_at']?.toString() ??
+          row['audited_at']?.toString();
+      final at = DateTime.tryParse(rawAt ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final oldQ = coerceToDouble(row['old_qty']);
+      final newQ = coerceToDouble(row['new_qty']);
+      final diff = newQ - oldQ;
+      events.add((
+        at: at,
+        icon: Icons.inventory_2_outlined,
+        color: diff >= 0 ? const Color(0xFF1565C0) : const Color(0xFFC62828),
+        title:
+            'Stock ${diff >= 0 ? '+' : ''}${(diff - diff.roundToDouble()).abs() < 0.001 ? diff.round() : diff.toStringAsFixed(1)}',
+        subtitle: row['adjustment_type']?.toString() ?? 'Stock update',
+      ));
+    }
+    events.sort((a, b) => b.at.compareTo(a.at));
+    final shown = events.take(5).toList();
+    if (shown.isEmpty) return const SizedBox.shrink();
+    final df = DateFormat('dd MMM');
+    return _CollapsibleDetailSection(
+      title: 'Item timeline',
+      icon: Icons.timeline_rounded,
+      child: Column(
+        children: [
+          for (final e in shown)
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: CircleAvatar(
+                radius: 16,
+                backgroundColor: e.color.withValues(alpha: 0.12),
+                child: Icon(e.icon, size: 17, color: e.color),
+              ),
+              title: Text(
+                e.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              ),
+              subtitle: Text(
+                '${df.format(e.at)} · ${e.subtitle}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () =>
+                  context.push('/catalog/item/$itemId/timeline'),
+              icon: const Icon(Icons.timeline_rounded, size: 18),
+              label: const Text('View full timeline'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1531,14 +1632,17 @@ class _CompactCatalogBarcodeRow extends ConsumerWidget {
               icon: const Icon(Icons.edit_outlined, size: 20),
             ),
             IconButton(
-              tooltip: 'Print label',
+              tooltip: kIsWeb ? 'Download label PDF' : 'Print label',
               visualDensity: VisualDensity.compact,
               onPressed: code.isEmpty
                   ? null
                   : () => context.push(
                         '/barcode/print/${Uri.encodeComponent(itemId)}',
                       ),
-              icon: const Icon(Icons.print_outlined, size: 20),
+              icon: Icon(
+                kIsWeb ? Icons.download_rounded : Icons.print_outlined,
+                size: 20,
+              ),
             ),
             IconButton(
               tooltip: 'Bulk print',
@@ -1657,8 +1761,11 @@ class _CatalogItemBarcodeSection extends StatelessWidget {
                   onPressed: () => context.push(
                     '/barcode/print/${Uri.encodeComponent(itemId)}',
                   ),
-                  icon: const Icon(Icons.print_rounded, size: 18),
-                  label: const Text('Print label'),
+                  icon: Icon(
+                    kIsWeb ? Icons.download_rounded : Icons.print_rounded,
+                    size: 18,
+                  ),
+                  label: Text(kIsWeb ? 'Download label PDF' : 'Print label'),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => _shareCode(context, code),
@@ -1736,7 +1843,10 @@ class _ItemWarehouseHeroHeader extends StatelessWidget {
   static String _fmtQty(dynamic v) {
     if (v == null) return '—';
     if (v is num) {
-      return v == v.roundToDouble() ? v.toInt().toString() : v.toString();
+      final rounded = v.roundToDouble();
+      return (v - rounded).abs() < 0.001
+          ? rounded.round().toString()
+          : v.toString();
     }
     return '$v';
   }
@@ -2004,7 +2114,9 @@ String _fmtDate(String raw) {
 }
 
 String _fmtNum(double n) =>
-    n == n.roundToDouble() ? n.toInt().toString() : n.toStringAsFixed(2);
+    (n - n.roundToDouble()).abs() < 0.001
+        ? n.round().toString()
+        : n.toStringAsFixed(2);
 
 class _ItemSectionLabel extends StatelessWidget {
   const _ItemSectionLabel({required this.label});

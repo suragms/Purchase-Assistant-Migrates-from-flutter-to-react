@@ -62,7 +62,7 @@ class ApiWarmupService {
   /// Keeps sleepy hosts warmer during a session (battery/network tradeoff).
   static void startPeriodicHealth(HexaApi api) {
     _keepAlive?.cancel();
-    _keepAlive = Timer.periodic(const Duration(minutes: 5), (_) {
+    _keepAlive = Timer.periodic(const Duration(minutes: 10), (_) {
       unawaited(() async {
         try {
           await api.healthReady().timeout(const Duration(seconds: 12));

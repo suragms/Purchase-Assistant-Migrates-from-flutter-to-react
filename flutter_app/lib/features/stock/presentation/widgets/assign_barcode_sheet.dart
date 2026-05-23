@@ -6,6 +6,7 @@ import '../../../../core/errors/user_facing_errors.dart';
 import '../../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../../core/providers/catalog_providers.dart';
 import '../../../../core/providers/stock_providers.dart';
+import '../../../../core/providers/trade_purchases_provider.dart';
 
 Future<bool> showAssignBarcodeSheet({
   required BuildContext context,
@@ -52,6 +53,29 @@ Future<bool> showAssignBarcodeSheet({
               final session = ref.read(sessionProvider);
               if (session == null) return;
               try {
+                final lookup = await ref
+                    .read(hexaApiProvider)
+                    .barcodeStockLookup(
+                      businessId: session.primaryBusiness.id,
+                      code: code,
+                    );
+                final otherId = lookup['item_id']?.toString() ??
+                    lookup['catalog_item_id']?.toString() ??
+                    '';
+                if (otherId.isNotEmpty && otherId != itemId) {
+                  final otherName =
+                      lookup['name']?.toString() ?? 'another item';
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Barcode $code is already assigned to $otherName. Use a different barcode.',
+                        ),
+                      ),
+                    );
+                  }
+                  return;
+                }
                 await ref.read(hexaApiProvider).patchCatalogItemBarcode(
                       businessId: session.primaryBusiness.id,
                       itemId: itemId,
@@ -61,6 +85,8 @@ Future<bool> showAssignBarcodeSheet({
                 ref.invalidate(stockListProvider);
                 ref.invalidate(bulkStockListProvider);
                 ref.invalidate(catalogItemsListProvider);
+                invalidateTradePurchaseCaches(ref);
+                ref.invalidate(catalogItemDetailProvider(itemId));
                 if (ctx.mounted) Navigator.pop(ctx, true);
               } catch (e) {
                 if (ctx.mounted) {

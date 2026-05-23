@@ -11,13 +11,27 @@ bool tradePurchaseLineIsWeightPriced(TradePurchaseLine l) {
   return a != null && b != null && a > 0 && b > 0;
 }
 
+/// Effective per-unit purchase rate when [landingCost] is missing but line total exists.
+double? tradePurchaseLineFallbackUnitRate(TradePurchaseLine l) {
+  if (l.landingCost > 0) return null;
+  final total = l.lineTotal;
+  if (total == null || total <= 0 || l.qty <= 0) return null;
+  return total / l.qty;
+}
+
 /// Purchase rate for display: uses [rate_context] when present (₹/bag vs ₹/kg).
 double tradePurchaseLineDisplayPurchaseRate(TradePurchaseLine l) {
   final dim = unit_lbl.purchaseRateSuffix(l);
   if (dim == 'kg' && tradePurchaseLineIsWeightPriced(l)) {
+    if (l.landingCostPerKg! > 0) return l.landingCostPerKg!;
+    final fb = tradePurchaseLineFallbackUnitRate(l);
+    if (fb != null && l.kgPerUnit != null && l.kgPerUnit! > 0) {
+      return fb / l.kgPerUnit!;
+    }
     return l.landingCostPerKg!;
   }
-  return l.landingCost;
+  if (l.landingCost > 0) return l.landingCost;
+  return tradePurchaseLineFallbackUnitRate(l) ?? 0;
 }
 
 /// Selling rate for display; respects [rate_context] selling_rate_dim.

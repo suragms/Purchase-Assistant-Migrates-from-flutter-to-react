@@ -25,6 +25,7 @@ class BarcodeLabelData {
     this.lastPurchaseQty,
     this.lastPurchaseUnit,
     this.lastPurchaseRate,
+    this.supplierName,
   });
 
   /// Scannable packaging barcode (Code128/QR payload).
@@ -38,6 +39,7 @@ class BarcodeLabelData {
   final double? lastPurchaseQty;
   final String? lastPurchaseUnit;
   final double? lastPurchaseRate;
+  final String? supplierName;
 
   /// Value encoded in the barcode image (barcode column, else item_code).
   String get symbologyValue {
@@ -56,6 +58,7 @@ class BarcodeLabelData {
         'lastPurchaseQty': lastPurchaseQty,
         'lastPurchaseUnit': lastPurchaseUnit,
         'lastPurchaseRate': lastPurchaseRate,
+        'supplierName': supplierName,
       };
 
   factory BarcodeLabelData.fromJson(Map<String, dynamic> j) {
@@ -74,6 +77,7 @@ class BarcodeLabelData {
       lastPurchaseQty: coerceToDoubleNullable(j['lastPurchaseQty']),
       lastPurchaseUnit: j['lastPurchaseUnit'] as String?,
       lastPurchaseRate: coerceToDoubleNullable(j['lastPurchaseRate']),
+      supplierName: j['supplierName'] as String?,
     );
   }
 
@@ -96,6 +100,7 @@ class BarcodeLabelData {
       lastPurchaseQty: coerceToDoubleNullable(j['last_purchase_qty']),
       lastPurchaseUnit: j['last_purchase_unit']?.toString(),
       lastPurchaseRate: coerceToDoubleNullable(j['last_purchase_rate']),
+      supplierName: j['supplier_name']?.toString(),
     );
   }
 }
@@ -506,19 +511,34 @@ class BarcodePdfService {
     bool hideFinancials = false,
   }) {
     if (!showLastPurchase || size == LabelSize.small) return null;
-    if (data.lastPurchaseDate == null) return 'No purchase yet';
-    final d = data.lastPurchaseDate!;
-    final ds =
-        '${d.day.toString().padLeft(2, '0')} ${_month(d.month)} ${d.year % 100}';
+    final parts = <String>[];
+    if (data.lastPurchaseDate != null) {
+      final d = data.lastPurchaseDate!;
+      final ds =
+          '${d.day.toString().padLeft(2, '0')} ${_month(d.month)} ${d.year % 100}';
+      parts.add(ds);
+    }
     final qty = data.lastPurchaseQty;
-    final qtyStr = qty == null
-        ? ''
-        : (qty == qty.roundToDouble() ? '${qty.round()}' : qty.toStringAsFixed(1));
-    final u = data.lastPurchaseUnit ?? data.unit ?? '';
-    final rate = !hideFinancials && data.lastPurchaseRate != null
-        ? '₹${data.lastPurchaseRate!.toStringAsFixed(0)}'
-        : '';
-    return 'Last: $ds  $qtyStr $u  $rate'.trim();
+    if (qty != null && qty > 0) {
+      final rounded = qty.roundToDouble();
+      final qtyStr = (qty - rounded).abs() < 0.001
+          ? '${rounded.toInt()}'
+          : qty.toStringAsFixed(1);
+      final u = (data.lastPurchaseUnit ?? data.unit ?? '').trim();
+      parts.add('$qtyStr${u.isEmpty ? '' : ' $u'}');
+    }
+    if (!hideFinancials &&
+        data.lastPurchaseRate != null &&
+        data.lastPurchaseRate! > 0) {
+      parts.add('₹${data.lastPurchaseRate!.toStringAsFixed(0)}');
+    }
+    final sup = data.supplierName?.trim() ?? '';
+    if (sup.isNotEmpty) {
+      final short = sup.length > 18 ? '${sup.substring(0, 18)}…' : sup;
+      parts.add(short);
+    }
+    if (parts.isEmpty) return 'No purchase yet';
+    return parts.join(' · ');
   }
 
   static String? _bagsLine(BarcodeLabelData data) {
@@ -526,7 +546,10 @@ class BarcodePdfService {
     if (qty == null || qty <= 0) return null;
     final u = (data.lastPurchaseUnit ?? data.unit ?? '').toLowerCase();
     if (u.contains('bag') || u == 'sack') {
-      final n = qty == qty.roundToDouble() ? '${qty.round()}' : qty.toStringAsFixed(1);
+      final rounded = qty.roundToDouble();
+      final n = (qty - rounded).abs() < 0.001
+          ? '${rounded.round()}'
+          : qty.toStringAsFixed(1);
       return 'Bags: $n';
     }
     return null;

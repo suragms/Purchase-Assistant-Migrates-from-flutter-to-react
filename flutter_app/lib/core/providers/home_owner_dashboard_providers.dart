@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/shell/shell_branch_provider.dart';
@@ -330,23 +332,39 @@ final homeRecentActivityFeedProvider =
     custom: ref.read(homeCustomDateRangeProvider),
   );
 
-  final purchases = await api.listTradePurchases(
-    businessId: bid,
-    limit: 24,
-    offset: 0,
-    status: 'all',
-    purchaseFrom: q.from,
-    purchaseTo: q.to,
-  );
-  final auditRows = await api.listStockAuditRecent(
-    businessId: bid,
-    limit: 80,
-  );
+  const feedTimeout = Duration(seconds: 15);
+  late final List<Map<String, dynamic>> purchases;
+  late final List<Map<String, dynamic>> auditRows;
+  try {
+    final results = await Future.wait([
+      api.listTradePurchases(
+        businessId: bid,
+        limit: 24,
+        offset: 0,
+        status: 'all',
+        purchaseFrom: q.from,
+        purchaseTo: q.to,
+      ),
+      api.listStockAuditRecent(
+        businessId: bid,
+        limit: 80,
+      ),
+    ]).timeout(feedTimeout);
+    purchases = results[0];
+    auditRows = results[1];
+  } on TimeoutException {
+    throw Exception('Recent changes timed out. Pull to refresh.');
+  }
   final audits = _filterAuditsToHomePeriod(ref, auditRows);
   final items = <HomeActivityItem>[];
+  final seenPurchaseIds = <String>{};
 
   for (final p in purchases) {
     final id = p['id']?.toString() ?? '';
+    if (id.isNotEmpty) {
+      if (seenPurchaseIds.contains(id)) continue;
+      seenPurchaseIds.add(id);
+    }
     final atRaw = p['purchase_date']?.toString() ?? p['created_at']?.toString();
     final at = atRaw != null ? DateTime.tryParse(atRaw) : null;
     if (at == null) continue;

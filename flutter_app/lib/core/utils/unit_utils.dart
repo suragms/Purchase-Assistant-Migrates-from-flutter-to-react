@@ -1,11 +1,18 @@
 // Stock quantity display helpers (primary unit + derived KG for bags/tins).
 
-String stockDisplayPrimary(double qty, String unit) {
+String stockDisplayPrimary(double qty, String unit, [String? packType]) {
   final u = unit.trim().toLowerCase();
-  final label = u == 'sack' ? 'bag' : (u.isEmpty ? '' : u);
+  final p = packType?.trim().toLowerCase() ?? '';
+  final label = (p == 'bag' || u == 'sack') ? 'bag' : (u.isEmpty ? '' : u);
   final q = _fmtQty(qty);
   if (label.isEmpty) return q;
-  return '$q ${label.toUpperCase()}';
+  final plural = switch (label) {
+    'bag' => qty == 1 ? 'bag' : 'bags',
+    'box' => qty == 1 ? 'box' : 'boxes',
+    'tin' => qty == 1 ? 'tin' : 'tins',
+    _ => label,
+  };
+  return '$q $plural';
 }
 
 String? stockDisplaySecondary(
@@ -25,8 +32,9 @@ String? stockDisplaySecondary(
 }
 
 String _fmtQty(double n) {
-  if (n == n.roundToDouble()) {
-    return n.round().toString().replaceAllMapped(
+  final rounded = n.roundToDouble();
+  if ((n - rounded).abs() < 0.001) {
+    return rounded.toInt().toString().replaceAllMapped(
           RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
           (m) => '${m[1]},',
         );

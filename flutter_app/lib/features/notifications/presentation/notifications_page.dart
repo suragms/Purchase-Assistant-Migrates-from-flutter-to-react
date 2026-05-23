@@ -28,7 +28,7 @@ class NotificationsPage extends ConsumerStatefulWidget {
 }
 
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
-  String _filter = 'all'; // all | alerts | reminders | system
+  String _filter = 'all'; // all | stock | purchase | system
   final _textSearch = TextEditingController();
 
   @override
@@ -39,20 +39,21 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   bool _matchesFilter(NotificationItem n) {
     switch (_filter) {
-      case 'alerts':
+      case 'stock':
         return n.type == NotificationType.priceAlert ||
             n.type == NotificationType.profitLow ||
             (n.type == NotificationType.serverInApp &&
                 n.serverKind == 'low_stock');
-      case 'reminders':
-        return n.type == NotificationType.reminder ||
-            n.type == NotificationType.purchaseDue ||
+      case 'purchase':
+        return n.type == NotificationType.purchaseDue ||
             n.type == NotificationType.purchaseOverdue ||
-            n.type == NotificationType.cloudCost ||
-            n.type == NotificationType.maintenance;
+            (n.actionRoute?.startsWith('/purchase') ?? false);
       case 'system':
         return n.type == NotificationType.system ||
+            n.type == NotificationType.reminder ||
             n.type == NotificationType.whatsapp ||
+            n.type == NotificationType.cloudCost ||
+            n.type == NotificationType.maintenance ||
             (n.type == NotificationType.serverInApp &&
                 n.serverKind != null &&
                 n.serverKind != 'low_stock');
@@ -99,7 +100,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       appBar: AppBar(
         backgroundColor: context.adaptiveAppBarBg,
         surfaceTintColor: Colors.transparent,
-        title: Text('Alerts & Reminders',
+        title: Text('Notifications',
             style: tt.titleLarge?.copyWith(
                 fontWeight: FontWeight.w800, color: onSurf)),
         leading: IconButton(
@@ -210,13 +211,13 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                     selected: _filter == 'all',
                     onTap: () => setState(() => _filter = 'all')),
                 _FilterChip(
-                    label: 'Alerts',
-                    selected: _filter == 'alerts',
-                    onTap: () => setState(() => _filter = 'alerts')),
+                    label: 'Stock alerts',
+                    selected: _filter == 'stock',
+                    onTap: () => setState(() => _filter = 'stock')),
                 _FilterChip(
-                    label: 'Reminders',
-                    selected: _filter == 'reminders',
-                    onTap: () => setState(() => _filter = 'reminders')),
+                    label: 'Purchase',
+                    selected: _filter == 'purchase',
+                    onTap: () => setState(() => _filter = 'purchase')),
                 _FilterChip(
                     label: 'System',
                     selected: _filter == 'system',
@@ -349,35 +350,72 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     required DateFormat rel,
     required TextTheme tt,
   }) {
+    if (visible.isEmpty) {
+      return [
+        const SizedBox(height: 80),
+        Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.notifications_none_rounded,
+                  size: 48, color: Color(0xFFB0BEC5)),
+              SizedBox(height: 12),
+              Text(
+                'No notifications yet',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Alerts will appear here when actions happen',
+                style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ];
+    }
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
-    String? lastHeader;
     final widgets = <Widget>[];
 
-    for (final n in visible) {
-      final day = DateTime(
-        n.createdAt.year,
-        n.createdAt.month,
-        n.createdAt.day,
-      );
-      final header = day == today
-          ? 'Today'
-          : day == yesterday
-              ? 'Yesterday'
-              : 'Earlier';
-      if (header != lastHeader) {
-        widgets.add(_NotificationDateHeader(label: header));
-        lastHeader = header;
+    void addSection(String label, List<NotificationItem> section) {
+      if (section.isEmpty) return;
+      widgets.add(_NotificationDateHeader(label: label));
+      for (final n in section) {
+        widgets.add(_notificationTile(
+          context: context,
+          ref: ref,
+          n: n,
+          rel: rel,
+          tt: tt,
+        ));
       }
-      widgets.add(_notificationTile(
-        context: context,
-        ref: ref,
-        n: n,
-        rel: rel,
-        tt: tt,
-      ));
     }
+
+    bool isToday(NotificationItem n) {
+      final d = DateTime(n.createdAt.year, n.createdAt.month, n.createdAt.day);
+      return d == today;
+    }
+
+    bool isYesterday(NotificationItem n) {
+      final d = DateTime(n.createdAt.year, n.createdAt.month, n.createdAt.day);
+      return d == yesterday;
+    }
+
+    addSection(
+      'Today',
+      visible.where(isToday).toList(),
+    );
+    addSection(
+      'Yesterday',
+      visible.where(isYesterday).toList(),
+    );
+    addSection(
+      'Earlier',
+      visible.where((n) => !isToday(n) && !isYesterday(n)).toList(),
+    );
     return widgets;
   }
 
@@ -466,7 +504,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                         ? Theme.of(context)
                                             .colorScheme
                                             .outlineVariant
-                                        : color,
+                                        : HexaColors.brandPrimary,
                                   ),
                                   Expanded(
                                     child: Padding(

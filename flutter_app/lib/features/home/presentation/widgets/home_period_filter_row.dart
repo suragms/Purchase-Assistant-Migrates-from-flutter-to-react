@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/providers/app_period_provider.dart'
+    show syncReportsRangeFromHomePeriod;
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../shared/widgets/operational_ui.dart';
 
@@ -26,6 +28,7 @@ class _HomePeriodFilterRowState extends ConsumerState<HomePeriodFilterRow> {
 
   void _setPeriod(HomePeriod p) {
     ref.read(homePeriodProvider.notifier).state = p;
+    syncReportsRangeFromHomePeriod(ref, p);
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 150), () {
       if (!mounted) return;

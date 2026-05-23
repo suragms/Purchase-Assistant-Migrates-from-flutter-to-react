@@ -8,6 +8,7 @@ import '../../../core/json_coerce.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../core/providers/notifications_provider.dart';
+import '../../../core/providers/search_focus_provider.dart';
 import '../../../core/providers/staff_home_providers.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/providers/trade_purchases_provider.dart';
@@ -126,7 +127,8 @@ class StaffHomePage extends ConsumerWidget {
     final lowAsync = ref.watch(staffLowStockAlertsProvider);
     final recentAsync = ref.watch(staffRecentScansProvider);
     final missingCount = ref.watch(staffMissingCodeCountProvider);
-    final todayPurchases = ref.watch(staffTodayPurchasesProvider);
+    final todayPurchases =
+        ref.watch(staffTodayPurchasesProvider).valueOrNull ?? const [];
 
     return Scaffold(
       backgroundColor: HexaColors.brandBackground,
@@ -134,6 +136,7 @@ class StaffHomePage extends ConsumerWidget {
         child: RefreshIndicator(
           onRefresh: () async {
             ref.invalidate(staffTodayActivityProvider);
+            ref.invalidate(staffTodayStockWorkProvider);
             ref.invalidate(staffLowStockAlertsProvider);
             ref.invalidate(staffRecentScansProvider);
             ref.invalidate(missingCodeItemsProvider);
@@ -283,7 +286,11 @@ class StaffHomePage extends ConsumerWidget {
                   _StaffActionTile(
                     label: 'Search item',
                     icon: Icons.search_rounded,
-                    onTap: () => context.go('/staff/search'),
+                    onTap: () {
+                      ref.read(searchFocusRequestedProvider.notifier).state =
+                          true;
+                      context.go('/staff/search');
+                    },
                   ),
                   _StaffActionTile(
                     label: 'Add new item',
@@ -399,30 +406,33 @@ class StaffHomePage extends ConsumerWidget {
                   subtitle: 'Please check your connection and try again.',
                   onRetry: () => ref.invalidate(staffTodayActivityProvider),
                 ),
-                data: (s) => Row(
+                data: (s) => GridView.count(
+                  crossAxisCount: 2,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 1.8,
                   children: [
-                    Expanded(
-                      child: _ActivityCard(
-                        label: 'Scanned',
-                        value: '${s.scanned}',
-                        icon: Icons.qr_code_scanner_outlined,
-                      ),
+                    _ActivityCard(
+                      label: 'Items scanned',
+                      value: '${s.scanned}',
+                      icon: Icons.qr_code_scanner_outlined,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _ActivityCard(
-                        label: 'Stock',
-                        value: '${s.stockUpdates}',
-                        icon: Icons.inventory_2_outlined,
-                      ),
+                    _ActivityCard(
+                      label: 'Items checked',
+                      value: '${s.itemsChecked}',
+                      icon: Icons.fact_check_outlined,
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _ActivityCard(
-                        label: 'Orders',
-                        value: '${s.purchases}',
-                        icon: Icons.receipt_long_outlined,
-                      ),
+                    _ActivityCard(
+                      label: 'Stock updates',
+                      value: '${s.stockUpdates}',
+                      icon: Icons.inventory_2_outlined,
+                    ),
+                    _ActivityCard(
+                      label: 'Purchases',
+                      value: '${s.purchases}',
+                      icon: Icons.receipt_long_outlined,
                     ),
                   ],
                 ),
@@ -724,7 +734,7 @@ class _ActivityCard extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.w900,
               color: Color(0xFF0F172A),
             ),

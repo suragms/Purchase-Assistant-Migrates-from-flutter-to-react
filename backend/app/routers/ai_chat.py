@@ -1,6 +1,6 @@
 """Harisree AI — chat stub + structured intent (OpenAI / Groq / Gemini optional; keys stay on server)."""
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 import uuid
 from typing import Annotated, Any, Literal
 
@@ -12,8 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
 from app.database import get_db
-from app.deps import charge_ai_turn_for_business
+from app.deps import charge_ai_turn_for_business, require_membership
 from app.models import (
+    ApiUsageLog,
     AssistantDecision,
     AssistantSession,
     CatalogAlias,
@@ -22,6 +23,7 @@ from app.models import (
     Entry,
     EntryLineItem,
     ItemCategory,
+    Membership,
     Supplier,
     User,
 )
@@ -604,3 +606,51 @@ async def ai_commit(
     decision.status = "committed"
     await db.commit()
     return CommitResponse(committed=True, action=decision.action, record_id=record_id)
+
+
+@router.get("/usage")
+async def ai_usage_summary(
+    business_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _m: Annotated[Membership, Depends(require_membership)],
+) -> dict[str, Any]:
+    """Owner-facing assistant API usage (today + last 7 days)."""
+    del _m
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = today_start - timedelta(days=6)
+    base = ApiUsageLog.business_id == business_id
+    openai_filter = ApiUsageLog.provider.ilike("%openai%")
+    r_today = await db.execute(
+        select(
+            func.count(ApiUsageLog.id),
+            func.coalesce(func.sum(ApiUsageLog.units), 0),
+            func.coalesce(func.sum(ApiUsageLog.cost_estimate_inr_paise), 0),
+        ).where(base, openai_filter, ApiUsageLog.created_at >= today_start)
+    )
+    today_row = r_today.one()
+    daily: list[dict[str, Any]] = []
+    for offset in range(6, -1, -1):
+        day = today_start - timedelta(days=offset)
+        nxt = day + timedelta(days=1)
+        r = await db.execute(
+            select(func.count(ApiUsageLog.id)).where(
+                base,
+                openai_filter,
+                ApiUsageLog.created_at >= day,
+                ApiUsageLog.created_at < nxt,
+            )
+        )
+        daily.append(
+            {
+                "date": day.date().isoformat(),
+                "requests": int(r.scalar_one() or 0),
+            }
+        )
+    paise = int(today_row[2] or 0)
+    return {
+        "requests_today": int(today_row[0] or 0),
+        "tokens_used": int(today_row[1] or 0),
+        "estimated_cost_inr": round(paise / 100.0, 2),
+        "daily": daily,
+    }

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/session_notifier.dart';
+import 'app_period_provider.dart';
 import 'home_dashboard_provider.dart';
 
 /// Query for GET `/v1/businesses/{id}/stock/list`.
@@ -152,13 +153,18 @@ int countOperationalActiveFilters(StockListQuery q, StockOperationalFilters op) 
   return n;
 }
 
-final stockTotalsProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
-  final session = ref.watch(sessionProvider);
-  if (session == null) return {};
-  return ref.read(hexaApiProvider).getStockTotals(
-        businessId: session.primaryBusiness.id,
-      );
-});
+final stockTotalsProvider =
+    FutureProvider.autoDispose.family<Map<String, dynamic>, AppPeriod>(
+  (ref, period) async {
+    final session = ref.watch(sessionProvider);
+    if (session == null) return {};
+    return ref.read(hexaApiProvider).getStockTotals(
+          businessId: session.primaryBusiness.id,
+          periodStart: appPeriodApiDateFrom(ref, period),
+          periodEnd: appPeriodApiDateTo(ref, period),
+        );
+  },
+);
 
 final stockListProvider = FutureProvider.autoDispose((ref) async {
   final session = ref.watch(sessionProvider);

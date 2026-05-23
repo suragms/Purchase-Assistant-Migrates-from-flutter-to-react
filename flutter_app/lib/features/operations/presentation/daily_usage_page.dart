@@ -37,10 +37,42 @@ class _DailyUsagePageState extends ConsumerState<DailyUsagePage> {
           onRetry: () => ref.invalidate(usageTodayProvider),
         ),
         data: (data) {
+          final rawLines = data['lines'] ??
+              data['items'] ??
+              data['usage_lines'] ??
+              data['data'] ??
+              [];
           final lines = [
-            for (final e in (data['lines'] as List? ?? []))
+            for (final e in (rawLines as List? ?? []))
               if (e is Map) Map<String, dynamic>.from(e),
           ];
+          if (lines.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle_outline,
+                        size: 48, color: Colors.green),
+                    SizedBox(height: 12),
+                    Text(
+                      'Nothing to log today',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'All items are up to date',
+                      style: TextStyle(color: Colors.black54, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
           for (final line in lines) {
             final id = line['item_id']?.toString() ?? '';
             _used.putIfAbsent(

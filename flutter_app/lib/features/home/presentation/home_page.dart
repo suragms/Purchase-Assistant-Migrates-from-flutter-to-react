@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/session_notifier.dart' show hexaApiProvider, sessionProvider;
 import '../../../core/models/session.dart';
 import '../../../core/models/trade_purchase_models.dart';
+import '../../../core/providers/app_period_provider.dart'
+    show homePeriodSyncListenerProvider;
 import '../../../core/providers/home_dashboard_provider.dart'
     show bustHomeDashboardVolatileCaches, homeDashboardDataProvider;
 import '../../../core/providers/home_owner_dashboard_providers.dart'
@@ -36,6 +38,7 @@ import 'widgets/home_stock_audit_strip.dart';
 import 'widgets/home_period_filter_row.dart';
 import 'widgets/home_quick_actions_grid.dart';
 import 'widgets/home_stock_totals_card.dart';
+import 'widgets/home_analytics_comparison_strip.dart';
 import 'widgets/home_live_status_bar.dart';
 import 'widgets/home_recent_changes_section.dart';
 import 'widgets/home_stock_movement_section.dart';
@@ -55,7 +58,6 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage>
     with WidgetsBindingObserver {
-  Timer? _poll;
   Timer? _rtPoll;
   Timer? _resumeRefreshDebounce;
   bool _homeTimersActive = false;
@@ -97,23 +99,15 @@ class _HomePageState extends ConsumerState<HomePage>
     if (active == _homeTimersActive) return;
     _homeTimersActive = active;
     if (!active) {
-      _poll?.cancel();
-      _poll = null;
       _rtPoll?.cancel();
       _rtPoll = null;
       return;
     }
-    _poll?.cancel();
-    _poll = Timer.periodic(const Duration(minutes: 5), (_) {
-      if (!mounted || _throttleHomeInvalidate()) return;
-      _invalidateHomeDataProviders();
-    });
     _rtPoll?.cancel();
-    _rtPoll = Timer.periodic(const Duration(seconds: 30), (_) {
+    _rtPoll = Timer.periodic(const Duration(minutes: 5), (_) {
       if (!mounted) return;
-      if (!_throttleHomeInvalidate()) {
-        _invalidateHomeDataProviders();
-      }
+      if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) return;
+      ref.invalidate(homeRecentActivityFeedProvider);
       ref.invalidate(appNotificationUnreadCountProvider);
       _maybePushBackgroundAlert();
       _maybeNotifyStaffPurchases();
@@ -178,7 +172,6 @@ class _HomePageState extends ConsumerState<HomePage>
 
   @override
   void dispose() {
-    _poll?.cancel();
     _rtPoll?.cancel();
     _resumeRefreshDebounce?.cancel();
     WidgetsBinding.instance.removeObserver(this);
@@ -318,6 +311,8 @@ class _HomePageState extends ConsumerState<HomePage>
       });
     });
 
+    ref.watch(homePeriodSyncListenerProvider);
+
     final session = ref.watch(sessionProvider);
     final isOwner = session != null && _sessionIsOwner(session);
     final conn = ref.watch(connectivityResultsProvider);
@@ -371,6 +366,8 @@ class _HomePageState extends ConsumerState<HomePage>
                 const HomeStockAuditStrip(),
                 const SizedBox(height: HexaOp.cardGap),
                 HomeStockTotalsCard(lastUpdatedAt: _homeLastRefreshedAt),
+                const SizedBox(height: 8),
+                const HomeAnalyticsComparisonStrip(),
                 const SizedBox(height: 12),
                 const HomeRecentChangesSection(),
                 const SizedBox(height: 12),
