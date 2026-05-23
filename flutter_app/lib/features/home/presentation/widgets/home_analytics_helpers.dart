@@ -5,6 +5,7 @@ import '../../../../core/providers/home_breakdown_tab_providers.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
+import '../../../../core/utils/purchase_units_subtitle.dart';
 import '../../home_pack_unit_word.dart';
 import 'home_formatters.dart';
 
@@ -127,15 +128,7 @@ String _categoryQtyLine(CategoryStat c) {
   return parts.join(' · ');
 }
 
-String _mapQtyLine(Map<String, dynamic> m) {
-  final qty = coerceToDouble(m['total_qty'] ?? m['qty']);
-  final unit = m['unit']?.toString() ?? '';
-  if (qty > 0 && unit.isNotEmpty) {
-    return '${homeFmtQty(qty)} ${unit.toUpperCase()}';
-  }
-  if (qty > 0) return homeFmtQty(qty);
-  return '';
-}
+String _mapQtyLine(Map<String, dynamic> m) => purchaseUnitsSubtitleFromMap(m);
 
 List<HomeAnalyticsSlice> homeAnalyticsSlicesForTab({
   required HomeBreakdownTab tab,
@@ -174,7 +167,7 @@ List<HomeAnalyticsSlice> homeAnalyticsSlicesForTab({
           out.add(
             HomeAnalyticsSlice(
               title: s.label,
-              subtitle: homeFmtQty(s.totalQty),
+              subtitle: s.totalQty > 0 ? homeFmtQty(s.totalQty) : '',
               amount: s.totalAmount > 0 ? s.totalAmount : s.totalQty,
               color: palette[out.length % palette.length],
             ),
@@ -252,6 +245,26 @@ List<HomeAnalyticsSlice> homeAnalyticsSlicesForTab({
                 .compareTo(coerceToDouble(a['total_purchase'])),
           );
         out.addAll(_slicesFromItemMaps(shellRows, palette));
+      }
+      if (out.isEmpty && dash.purchaseCount > 0) {
+        for (final c in dash.categories) {
+          for (final it in c.items) {
+            if (out.length >= 8) break;
+            if (!_sliceHasActivity(amount: it.amount, qty: it.qty)) continue;
+            final sub = it.qty > 0
+                ? '${homeFmtQty(it.qty)} ${it.unit.trim().toUpperCase()}'
+                : it.unit;
+            out.add(
+              HomeAnalyticsSlice(
+                title: it.name,
+                subtitle: sub,
+                amount: it.amount,
+                color: palette[out.length % palette.length],
+              ),
+            );
+          }
+          if (out.length >= 8) break;
+        }
       }
   }
   return out;

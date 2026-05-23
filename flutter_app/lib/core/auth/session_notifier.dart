@@ -103,13 +103,28 @@ final hexaApiProvider = Provider<HexaApi>((ref) {
             } on DioException catch (e) {
               final sc = e.response?.statusCode;
               final invalidRefresh = sc == 401 || sc == 403;
-              if (invalidRefresh && !disposed) {
+              if (!disposed) {
                 try {
                   await ref.read(sessionProvider.notifier).logout();
                 } catch (_) {/* container disposed */}
+                if (invalidRefresh) {
+                  SchedulerBinding.instance.addPostFrameCallback((_) {
+                    if (disposed) return;
+                    try {
+                      ref.read(apiDegradedProvider.notifier).notifyDegraded(
+                            'Session expired — open Settings and sign in again.',
+                          );
+                    } catch (_) {}
+                  });
+                }
               }
               return false;
             } catch (_) {
+              if (!disposed) {
+                try {
+                  await ref.read(sessionProvider.notifier).logout();
+                } catch (_) {}
+              }
               return false;
             }
           },

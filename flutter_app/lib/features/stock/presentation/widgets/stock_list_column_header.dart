@@ -6,58 +6,46 @@ import '../../../../core/design_system/hexa_operational_tokens.dart';
 class StockListColumnHeader extends StatelessWidget {
   const StockListColumnHeader({super.key});
 
+  static const _hdr = TextStyle(
+    fontSize: 11,
+    fontWeight: FontWeight.w800,
+    color: Color(0xFF475569),
+    letterSpacing: 0.15,
+  );
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(HexaOp.pageGutter, 2, 56, 4),
+      padding: const EdgeInsets.fromLTRB(HexaOp.pageGutter, 4, 56, 6),
       child: Row(
         children: const [
           Expanded(
-            child: Text(
-              'Item',
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-                color: Colors.black38,
-              ),
-            ),
+            child: Text('Item', style: _hdr),
           ),
           SizedBox(
-            width: 40,
+            width: 44,
             child: Text(
-              'Bought',
+              'Purchased',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: Colors.black38,
-              ),
+              style: _hdr,
             ),
           ),
-          SizedBox(width: 2),
+          SizedBox(width: 4),
           SizedBox(
-            width: 40,
+            width: 44,
             child: Text(
-              'Now',
+              'Stock',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: Colors.black38,
-              ),
+              style: _hdr,
             ),
           ),
-          SizedBox(width: 2),
+          SizedBox(width: 4),
           SizedBox(
-            width: 40,
+            width: 44,
             child: Text(
-              'Var',
+              'Diff',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 9,
-                fontWeight: FontWeight.w800,
-                color: Colors.black38,
-              ),
+              style: _hdr,
             ),
           ),
         ],

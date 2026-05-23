@@ -13,6 +13,7 @@ import '../models/trade_purchase_models.dart';
 import '../services/offline_store.dart';
 import '../utils/line_display.dart';
 import '../reporting/trade_report_aggregate.dart';
+import 'api_degraded_provider.dart';
 import 'catalog_providers.dart';
 
 /// Period chips on the home dashboard. [custom] uses
@@ -917,9 +918,19 @@ class HomeDashboardDataNotifier extends AutoDisposeNotifier<HomeDashboardDashSta
         if (!_dead) {
           ref.invalidate(homeDashboardDataProvider);
         }
+      } on DioException catch (e) {
+        if (_dead) return;
+        final sc = e.response?.statusCode;
+        if (sc == 401 || sc == 403) {
+          try {
+            ref.read(apiDegradedProvider.notifier).notifyDegraded(
+                  'Session expired — open Settings and sign in again.',
+                );
+          } catch (_) {}
+        }
+        state = HomeDashboardDashState(snapshot: seed, refreshing: false);
       } catch (_) {
         if (_dead) return;
-        // Never leave `refreshing: true` — empty catch used to strand the shell spinner.
         state = HomeDashboardDashState(snapshot: seed, refreshing: false);
       }
     });

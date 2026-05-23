@@ -80,11 +80,18 @@ class _StockPageState extends ConsumerState<StockPage> {
   }
 
   void _onSearchChanged() {
-    final next = _searchCtrl.text.toLowerCase().trim();
+    final raw = _searchCtrl.text.trim();
+    final next = raw.toLowerCase();
     if (next == _searchQuery) return;
-    setState(() {
-      _searchQuery = next;
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      setState(() => _searchQuery = next);
       ref.read(stockSelectedItemIdProvider.notifier).state = null;
+      final q = ref.read(stockListQueryProvider);
+      if (q.q == raw) return;
+      ref.read(stockListQueryProvider.notifier).state =
+          q.copyWith(q: raw, page: 1);
     });
   }
 
@@ -144,6 +151,8 @@ class _StockPageState extends ConsumerState<StockPage> {
       items,
       searchQuery: _searchQuery,
       sort: q.sort,
+      prioritizePeriodPurchases:
+          op.purchasedInPeriodOnly || q.purchasedInPeriod,
     );
     return items;
   }

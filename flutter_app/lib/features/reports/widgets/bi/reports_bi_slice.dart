@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/theme/hexa_colors.dart';
+import '../../../../core/utils/purchase_units_subtitle.dart';
 import '../../../home/presentation/widgets/home_formatters.dart';
 
 /// Ring/list slice for Reports BI (aligned with Home analytics slices).
@@ -29,15 +30,7 @@ class ReportsBiSlice {
 bool _hasActivity({required double amount, required double qty}) =>
     amount > 0 || qty > 0;
 
-String _mapQtyLine(Map<String, dynamic> m) {
-  final qty = coerceToDouble(m['total_qty'] ?? m['qty']);
-  final unit = m['unit']?.toString() ?? '';
-  if (qty > 0 && unit.isNotEmpty) {
-    return '${homeFmtQty(qty)} ${unit.toUpperCase()}';
-  }
-  if (qty > 0) return homeFmtQty(qty);
-  return '';
-}
+String _mapQtyLine(Map<String, dynamic> m) => purchaseUnitsSubtitleFromMap(m);
 
 List<ReportsBiSlice> slicesFromCategoryMaps(
   List<Map<String, dynamic>> rows, {
@@ -58,8 +51,12 @@ List<ReportsBiSlice> slicesFromCategoryMaps(
     final name = r['category_name']?.toString().trim() ??
         r['name']?.toString().trim() ??
         '—';
+    final units = _mapQtyLine(r);
     final typeCount = r['item_count'] ?? r['line_count'];
-    final sub = typeCount != null ? '$typeCount lines' : _mapQtyLine(r);
+    final sub = [
+      if (units.isNotEmpty) units,
+      if (typeCount != null) '$typeCount lines',
+    ].join(' · ');
     out.add(
       ReportsBiSlice(
         title: name,
@@ -126,10 +123,15 @@ List<ReportsBiSlice> slicesFromDashboardCategories(
   for (var i = 0; i < rows.length && i < 8; i++) {
     final c = rows[i];
     if (!_hasActivity(amount: c.totalAmount, qty: c.totalQty)) continue;
+    final units = categoryStatUnitsSubtitle(c.units);
+    final sub = [
+      if (units.isNotEmpty) units,
+      if (c.items.isNotEmpty) '${c.items.length} items',
+    ].join(' · ');
     out.add(
       ReportsBiSlice(
         title: c.categoryName,
-        subtitle: '${c.items.length} items · ${homeFmtQty(c.totalQty)}',
+        subtitle: sub.isNotEmpty ? sub : homeFmtQty(c.totalQty),
         amount: c.totalAmount,
         qty: c.totalQty,
         pct: total > 0 ? (c.totalAmount / total) * 100 : 0,
@@ -155,7 +157,7 @@ List<ReportsBiSlice> slicesFromDashboardSubcategories(HomeDashboardData dash) {
     out.add(
       ReportsBiSlice(
         title: s.label,
-        subtitle: homeFmtQty(s.totalQty),
+        subtitle: s.totalQty > 0 ? homeFmtQty(s.totalQty) : '',
         amount: s.totalAmount,
         qty: s.totalQty,
         pct: total > 0 ? (s.totalAmount / total) * 100 : 0,

@@ -14,8 +14,10 @@ import '../../../core/providers/stock_providers.dart';
 import '../../stock/presentation/widgets/stock_qty_metric_column.dart';
 import '../../../core/widgets/hexa_error_card.dart';
 import '../../stock/presentation/widgets/operational_stock_filter_sheet.dart';
+import '../../../core/providers/api_degraded_provider.dart';
 import '../services/barcode_pdf_service.dart';
 import '../services/bulk_label_batch.dart';
+import '../services/bulk_label_from_stock.dart';
 import '../services/bulk_pdf_chunks.dart';
 import 'bulk_barcode_print_controller.dart';
 import 'bulk_barcode_print_preview_panel.dart';
@@ -38,7 +40,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
   bool _busy = false;
   bool _denseA4 = true;
   bool _useQr = true;
-  BulkLabelsPerPdfFile _labelsPerPdfFile = BulkLabelsPerPdfFile.n40;
+  BulkLabelsPerPdfFile _labelsPerPdfFile = BulkLabelsPerPdfFile.n50;
   String? _pdfStatus;
   int _labelProgressDone = 0;
   int _labelProgressTotal = 0;
@@ -73,6 +75,16 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
     _setSelected(next);
   }
 
+  Map<String, Map<String, dynamic>> _stockRowsById() {
+    final data = ref.read(bulkStockListProvider).valueOrNull;
+    final items = data?['items'];
+    if (items is! List) return const {};
+    return stockRowsByIdFromList([
+      for (final e in items)
+        if (e is Map) Map<String, dynamic>.from(e),
+    ]);
+  }
+
   Future<BulkLabelBatchResult> _loadLabels({List<String>? ids}) async {
     final target = ids ?? ref.read(bulkBarcodeSelectionProvider).toList();
     if (mounted) {
@@ -84,6 +96,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
     final batch = await fetchBulkLabels(
       ref: ref,
       ids: target,
+      stockById: _stockRowsById(),
       onProgress: (done, total) {
         if (!mounted) return;
         setState(() {
@@ -125,12 +138,25 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
         );
         return;
       }
-      var batch = await _loadLabels(ids: targetIds);
-      if (batch.isTotalFailure) {
+      final batch = await _loadLabels(ids: targetIds);
+      if (batch.labels.isEmpty) {
         if (!mounted) return;
         _showError(
-          '${batch.failedIds.length} items could not be loaded. '
-          'Check barcodes and try again.',
+          batch.isTotalFailure
+              ? (batch.failuresById.values.isNotEmpty
+                  ? batch.failuresById.values.first
+                  : 'Could not load labels. Sign in, check network, or pick items with barcodes.')
+              : 'No printable labels in selection.',
+        );
+        return;
+      }
+      if (batch.isTotalFailure) {
+        if (!mounted) return;
+        final hint = batch.failuresById.values.isNotEmpty
+            ? batch.failuresById.values.first
+            : 'Check barcodes and try again.';
+        _showError(
+          '${batch.failedIds.length} items could not be loaded. $hint',
         );
         return;
       }
@@ -139,9 +165,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
         if (cont != true) return;
       }
       setState(() => _pdfStatus = 'Generating PDF…');
-      final symbol = _useQr
-          ? BarcodeSymbolMode.code128WithQr
-          : BarcodeSymbolMode.code128;
+      final symbol = bulkPrintSymbolMode(denseA4: _denseA4, useQr: _useQr);
       final pdfs = await generateBulkPdfParts(
         context: context,
         ref: ref,
@@ -159,9 +183,13 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            pdfs.length == 1
-                ? 'PDF ready ($perFile labels max per file).'
-                : '${pdfs.length} PDFs ready (up to $perFile labels each).',
+            _denseA4
+                ? (pdfs.length == 1
+                    ? 'One A4 PDF ready — up to $perFile labels per page. Print once and cut.'
+                    : '${pdfs.length} PDFs ready.')
+                : (pdfs.length == 1
+                    ? 'PDF ready (up to $perFile labels per file).'
+                    : '${pdfs.length} PDFs ready (up to $perFile labels each).'),
           ),
         ),
       );
@@ -483,6 +511,8 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
         ? _labelProgressDone / _labelProgressTotal
         : null;
 
+    final sessionHint = ref.watch(apiDegradedProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Bulk print'),
@@ -512,7 +542,12 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
         labelsPerPdfFile: _labelsPerPdfFile,
         progress: progress,
         statusText: _pdfStatus,
-        onDenseA4Changed: (v) => setState(() => _denseA4 = v),
+        onDenseA4Changed: (v) => setState(() {
+          _denseA4 = v;
+          if (v && _labelsPerPdfFile == BulkLabelsPerPdfFile.n30) {
+            _labelsPerPdfFile = BulkLabelsPerPdfFile.n50;
+          }
+        }),
         onQrChanged: (v) => setState(() => _useQr = v),
         onCopiesChanged: (v) => setState(() => _copies = v),
         onLabelsPerPdfFileChanged: (v) => setState(() => _labelsPerPdfFile = v),
@@ -527,6 +562,57 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
           final listPane = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (sessionHint != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    HexaOp.pageGutter,
+                    8,
+                    HexaOp.pageGutter,
+                    0,
+                  ),
+                  child: Material(
+                    color: const Color(0xFFFFEBEE),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.warning_amber_rounded,
+                            size: 20,
+                            color: Color(0xFFC62828),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              sessionHint,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              if (!_denseA4)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    HexaOp.pageGutter,
+                    6,
+                    HexaOp.pageGutter,
+                    0,
+                  ),
+                  child: Text(
+                    'Tip: choose A4 + 50/pg for one sheet with many labels to cut.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ),
               _searchRow(),
               _quickFilterChips(),
               _filterSummaryChip(),

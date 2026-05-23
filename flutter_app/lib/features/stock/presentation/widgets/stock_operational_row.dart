@@ -49,8 +49,8 @@ class StockOperationalRow extends ConsumerWidget {
         ? coerceToDouble(item['period_purchased_qty'])
         : coerceToDouble(item['purchased_today_qty']);
 
-    final ledgerVar = item['ledger_variance_qty'] ?? item['period_variance_qty'];
-    final moved = includePeriod ? coerceToDouble(ledgerVar) : 0.0;
+    // Diff = physical stock minus purchased in period (sales / not yet received show negative).
+    final moved = includePeriod ? cur - purchased : 0.0;
 
     final status =
         (item['stock_status']?.toString() ?? 'healthy').toLowerCase();
@@ -202,6 +202,7 @@ class StockOperationalRow extends ConsumerWidget {
                       moved: moved,
                       highlightCurrent: highlightCurrent,
                       currentSubtitle: nowDual.secondary,
+                      showColumnLabels: false,
                     ),
                     if (daysSince != null)
                       Padding(

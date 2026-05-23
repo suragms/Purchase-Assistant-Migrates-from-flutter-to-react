@@ -165,6 +165,17 @@ int countOperationalActiveFilters(StockListQuery q, StockOperationalFilters op) 
   return n;
 }
 
+/// On-hand warehouse totals (bags/kg/boxes/tins). Never pass period — that returns purchases.
+final stockOnHandTotalsProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final session = ref.watch(sessionProvider);
+  if (session == null) return {};
+  return ref.read(hexaApiProvider).getStockTotals(
+        businessId: session.primaryBusiness.id,
+      );
+});
+
+/// Purchased qty totals for [period] (used when comparing to on-hand).
 final stockTotalsProvider =
     FutureProvider.autoDispose.family<Map<String, dynamic>, AppPeriod>(
   (ref, period) async {

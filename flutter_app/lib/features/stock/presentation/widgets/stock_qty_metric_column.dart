@@ -10,16 +10,18 @@ class StockQtyMetricColumn extends StatelessWidget {
     required this.value,
     this.highlight = false,
     this.muted = false,
+    this.showLabel = true,
   });
 
   final String label;
   final double value;
   final bool highlight;
   final bool muted;
+  final bool showLabel;
 
   @override
   Widget build(BuildContext context) {
-    final show = value.abs() > 0.0001 || label == 'Now';
+    final show = value.abs() > 0.0001 || label == 'Stock';
     final text = show ? formatStockQtyNumber(value) : '—';
     final color = highlight
         ? const Color(0xFFE65100)
@@ -27,20 +29,22 @@ class StockQtyMetricColumn extends StatelessWidget {
             ? Colors.black38
             : Colors.black87;
     return SizedBox(
-      width: 40,
+      width: 44,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              color: Colors.black38,
-              letterSpacing: 0.2,
+          if (showLabel) ...[
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: Colors.black38,
+                letterSpacing: 0.2,
+              ),
             ),
-          ),
-          const SizedBox(height: 2),
+            const SizedBox(height: 2),
+          ],
           Text(
             text,
             textAlign: TextAlign.center,
@@ -67,6 +71,7 @@ class StockQtyMetricTriple extends StatelessWidget {
     required this.moved,
     this.highlightCurrent = false,
     this.currentSubtitle,
+    this.showColumnLabels = true,
   });
 
   final double purchased;
@@ -76,30 +81,34 @@ class StockQtyMetricTriple extends StatelessWidget {
   /// Low / critical / out styling on current qty.
   final bool highlightCurrent;
   final String? currentSubtitle;
+  final bool showColumnLabels;
 
   @override
   Widget build(BuildContext context) {
+    final labels = showColumnLabels;
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         StockQtyMetricColumn(
-          label: 'Buy',
+          label: 'Purchased',
           value: purchased,
           muted: purchased <= 0,
+          showLabel: labels,
         ),
-        const SizedBox(width: 2),
+        const SizedBox(width: 4),
         Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             StockQtyMetricColumn(
-              label: 'Now',
+              label: 'Stock',
               value: current,
               highlight: highlightCurrent,
+              showLabel: labels,
             ),
             if (currentSubtitle != null && currentSubtitle!.isNotEmpty)
               SizedBox(
-                width: 40,
+                width: 44,
                 child: Text(
                   currentSubtitle!,
                   textAlign: TextAlign.center,
@@ -110,12 +119,13 @@ class StockQtyMetricTriple extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(width: 2),
+        const SizedBox(width: 4),
         StockQtyMetricColumn(
-          label: 'Var',
+          label: 'Diff',
           value: moved,
           muted: moved == 0,
           highlight: moved.abs() > 0.0001,
+          showLabel: labels,
         ),
       ],
     );

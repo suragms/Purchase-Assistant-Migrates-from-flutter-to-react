@@ -1,9 +1,11 @@
 import '../services/barcode_pdf_service.dart';
 
-/// Labels per output PDF file when splitting bulk print (30 / 40 / 60).
+/// A4 sheet: labels per page (one PDF, multiple pages).
+/// Thermal roll: max labels per output PDF when splitting.
 enum BulkLabelsPerPdfFile {
   n30(30),
   n40(40),
+  n50(50),
   n60(60);
 
   const BulkLabelsPerPdfFile(this.count);

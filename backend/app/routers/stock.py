@@ -1068,6 +1068,113 @@ async def barcode_label(
     return await _barcode_label(db, business_id, item)
 
 
+async def _latest_purchase_by_item(
+    db: AsyncSession,
+    items: dict[uuid.UUID, CatalogItem],
+) -> dict[uuid.UUID, RecentPurchaseOut]:
+    """One query for latest purchase line per catalog item (bulk label print)."""
+    if not items:
+        return {}
+    ids = list(items.keys())
+    r = await db.execute(
+        select(TradePurchaseLine, TradePurchase, Supplier.name)
+        .join(TradePurchase, TradePurchaseLine.trade_purchase_id == TradePurchase.id)
+        .outerjoin(Supplier, TradePurchase.supplier_id == Supplier.id)
+        .where(TradePurchaseLine.catalog_item_id.in_(ids))
+        .order_by(
+            TradePurchaseLine.catalog_item_id,
+            desc(TradePurchase.purchase_date),
+        )
+    )
+    out: dict[uuid.UUID, RecentPurchaseOut] = {}
+    for line, tp, sup_name in r.all():
+        cid = line.catalog_item_id
+        if cid in out:
+            continue
+        item = items.get(cid)
+        if item is None:
+            continue
+        pd = tp.purchase_date
+        if pd is not None and not isinstance(pd, datetime):
+            from datetime import date as date_cls
+
+            if isinstance(pd, date_cls):
+                pd = datetime.combine(pd, datetime.min.time(), tzinfo=timezone.utc)
+        su = catalog_stock_unit(item)
+        qty_su = line_qty_in_stock_unit(line, item)
+        out[cid] = RecentPurchaseOut(
+            id=tp.id,
+            invoice_number=tp.invoice_number,
+            human_id=tp.human_id,
+            purchase_date=pd,
+            qty=line.qty,
+            unit=line.unit,
+            entered_qty=line.qty,
+            entered_unit=line.unit,
+            qty_in_stock_unit=qty_su,
+            stock_unit=su,
+            rate=getattr(line, "landing_cost", None) or getattr(line, "purchase_rate", None),
+            supplier_name=sup_name,
+        )
+    return out
+
+
+async def _supplier_names_bulk(
+    db: AsyncSession, items: dict[uuid.UUID, CatalogItem]
+) -> dict[uuid.UUID, str | None]:
+    sup_ids = {i.last_supplier_id for i in items.values() if i.last_supplier_id}
+    if not sup_ids:
+        return {}
+    r = await db.execute(select(Supplier.id, Supplier.name).where(Supplier.id.in_(sup_ids)))
+    names = {row[0]: row[1] for row in r.all()}
+    return {
+        iid: names.get(item.last_supplier_id)
+        for iid, item in items.items()
+        if item.last_supplier_id
+    }
+
+
+async def _category_names_bulk(
+    db: AsyncSession, items: dict[uuid.UUID, CatalogItem]
+) -> dict[uuid.UUID, str | None]:
+    cat_ids = {i.category_id for i in items.values() if i.category_id}
+    if not cat_ids:
+        return {}
+    r = await db.execute(
+        select(ItemCategory.id, ItemCategory.name).where(ItemCategory.id.in_(cat_ids))
+    )
+    names = {row[0]: row[1] for row in r.all()}
+    return {
+        iid: names.get(item.category_id)
+        for iid, item in items.items()
+        if item.category_id
+    }
+
+
+def _barcode_label_from_parts(
+    item: CatalogItem,
+    *,
+    category_name: str | None,
+    lp: RecentPurchaseOut | None,
+    supplier_name: str | None,
+) -> BarcodeLabelOut:
+    bc = getattr(item, "barcode", None) or item.item_code
+    return BarcodeLabelOut(
+        id=item.id,
+        barcode=bc,
+        item_code=item.item_code,
+        item_name=item.name,
+        category_name=category_name,
+        unit=item.stock_unit or item.default_unit,
+        current_stock=catalog_stock_qty(item),
+        last_purchase_date=lp.purchase_date if lp else None,
+        last_purchase_qty=lp.qty if lp else None,
+        last_purchase_unit=lp.unit if lp else None,
+        last_purchase_rate=lp.rate if lp else None,
+        supplier_name=supplier_name,
+    )
+
+
 @router.post("/barcode/batch", response_model=BarcodeBatchOut)
 async def barcode_batch(
     business_id: uuid.UUID,
@@ -1083,11 +1190,23 @@ async def barcode_batch(
         )
     )
     items = {i.id: i for i in r.scalars().all()}
+    if not items:
+        return BarcodeBatchOut(labels=[])
+    lp_map = await _latest_purchase_by_item(db, items)
+    sup_map = await _supplier_names_bulk(db, items)
+    cat_map = await _category_names_bulk(db, items)
     labels: list[BarcodeLabelOut] = []
     for iid in body.item_ids:
         item = items.get(iid)
         if item:
-            labels.append(await _barcode_label(db, business_id, item))
+            labels.append(
+                _barcode_label_from_parts(
+                    item,
+                    category_name=cat_map.get(item.id),
+                    lp=lp_map.get(item.id),
+                    supplier_name=sup_map.get(item.id),
+                )
+            )
     return BarcodeBatchOut(labels=labels)
 
 

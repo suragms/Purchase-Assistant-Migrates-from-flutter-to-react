@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/json_coerce.dart';
-import '../../../../core/providers/app_period_provider.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/providers/stock_providers.dart';
@@ -28,12 +27,11 @@ class HomeStockTotalsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final appPeriod = appPeriodFromHomePeriod(ref.watch(homePeriodProvider));
-    final totalsAsync = ref.watch(stockTotalsProvider(appPeriod));
+    final onHandAsync = ref.watch(stockOnHandTotalsProvider);
     final invAsync = ref.watch(homeInventorySummaryProvider);
     final dash = ref.watch(homeDashboardDataProvider);
 
-    return totalsAsync.when(
+    return onHandAsync.when(
       loading: () => const Card(
         child: Padding(
           padding: EdgeInsets.all(HexaOp.cardPadding),
@@ -42,19 +40,18 @@ class HomeStockTotalsCard extends ConsumerWidget {
       ),
       error: (_, __) => FriendlyLoadError(
         message: 'Could not load stock totals',
-        onRetry: () => ref.invalidate(stockTotalsProvider(appPeriod)),
+        onRetry: () => ref.invalidate(stockOnHandTotalsProvider),
       ),
-      data: (totals) {
-        final onHandBags = coerceToDouble(totals['total_bags']);
+      data: (onHand) {
+        final onHandBags = coerceToDouble(onHand['total_bags']);
+        final onHandKg = coerceToDouble(onHand['total_kg']);
+        final onHandBoxes = coerceToDouble(onHand['total_boxes']);
+        final onHandTins = coerceToDouble(onHand['total_tins']);
         final periodData = dash.snapshot.data;
-        final bags = periodData.totalBags;
-        final kg = periodData.totalKg;
-        final boxes = periodData.totalBoxes;
-        final tins = periodData.totalTins;
         final inv = invAsync.valueOrNull ?? HomeInventorySummary.empty;
         final items = inv.itemCount > 0
             ? inv.itemCount
-            : coerceToInt(totals['total_items']);
+            : coerceToInt(onHand['total_items']);
 
         final period = ref.watch(homePeriodProvider);
         final purchasedBags = periodData.totalBags;
@@ -71,7 +68,7 @@ class HomeStockTotalsCard extends ConsumerWidget {
             ),
           );
         }
-        if (bags > 0) {
+        if (onHandBags > 0) {
           movementCells.add(
             Expanded(
               child: _movementCell(
@@ -107,30 +104,30 @@ class HomeStockTotalsCard extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: const Color(0xFFE2E8F0)),
               ),
-            child: Column(
-              children: [
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 24,
-                    color: color,
-                    letterSpacing: -0.5,
-                    height: 1.1,
+              child: Column(
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 24,
+                      color: color,
+                      letterSpacing: -0.5,
+                      height: 1.1,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-                Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    color: HexaDsColors.textMuted,
-                    fontWeight: FontWeight.w500,
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: HexaDsColors.textMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
+                ],
+              ),
             ),
           );
         }
@@ -162,10 +159,10 @@ class HomeStockTotalsCard extends ConsumerWidget {
                   const SizedBox(height: 10),
                   Row(
                     children: [
-                      miniStat('Bags', _fmtNum(bags), const Color(0xFF3B6D11)),
-                      miniStat('KG', _fmtNum(kg), const Color(0xFF185FA5)),
-                      miniStat('Boxes', _fmtNum(boxes), const Color(0xFF6D4C1B)),
-                      miniStat('Tins', _fmtNum(tins), const Color(0xFF7C3D3D)),
+                      miniStat('Bags', _fmtNum(onHandBags), const Color(0xFF3B6D11)),
+                      miniStat('KG', _fmtNum(onHandKg), const Color(0xFF185FA5)),
+                      miniStat('Boxes', _fmtNum(onHandBoxes), const Color(0xFF6D4C1B)),
+                      miniStat('Tins', _fmtNum(onHandTins), const Color(0xFF7C3D3D)),
                     ],
                   ),
                   const SizedBox(height: 10),

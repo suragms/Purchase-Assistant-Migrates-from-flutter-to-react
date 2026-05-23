@@ -105,11 +105,17 @@ void sortStockListOperational(
   List<Map<String, dynamic>> items, {
   String? searchQuery,
   String sort = 'name',
+  bool prioritizePeriodPurchases = false,
 }) {
   final q = searchQuery?.trim().toLowerCase() ?? '';
   final apiSort = sort.trim().toLowerCase();
   final useWarehouseKey = apiSort == 'name' || apiSort.isEmpty;
   items.sort((a, b) {
+    if (prioritizePeriodPurchases) {
+      final pp = _num(b['period_purchased_qty'])
+          .compareTo(_num(a['period_purchased_qty']));
+      if (pp != 0) return pp;
+    }
     if (q.isNotEmpty) {
       final pr = _stockNamePrefixRank(a, q).compareTo(_stockNamePrefixRank(b, q));
       if (pr != 0) return pr;

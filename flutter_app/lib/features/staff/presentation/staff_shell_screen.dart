@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design_system/hexa_ds_tokens.dart';
+import '../../../core/providers/api_degraded_provider.dart';
 import '../../../core/providers/connectivity_provider.dart';
 import '../../../core/providers/home_dashboard_provider.dart';
 import '../../../core/providers/home_owner_dashboard_providers.dart';
@@ -70,6 +71,7 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
     final conn = ref.watch(connectivityResultsProvider);
     final offline =
         conn.valueOrNull != null && isOfflineResult(conn.valueOrNull!);
+    final sessionHint = ref.watch(apiDegradedProvider);
 
     void go(int branch) {
       HapticFeedback.selectionClick();
@@ -87,6 +89,37 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
             Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (sessionHint != null)
+              Material(
+                color: const Color(0xFFFFEBEE),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: HexaDsLayout.pageGutter,
+                    vertical: HexaDsSpace.xs + 2,
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.lock_reset_rounded,
+                          size: 18, color: Color(0xFFC62828)),
+                      const SizedBox(width: HexaDsLayout.inlineGap),
+                      Expanded(
+                        child: Text(
+                          sessionHint,
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelMedium
+                              ?.copyWith(
+                                color: const Color(0xFF7F1D1D),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 12,
+                                height: 1.25,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             if (offline)
               Semantics(
                 liveRegion: true,

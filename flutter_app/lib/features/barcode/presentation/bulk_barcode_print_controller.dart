@@ -10,27 +10,64 @@ import '../../../core/errors/barcode_operation_errors.dart';
 import '../../../core/router/post_auth_route.dart';
 import '../services/barcode_pdf_service.dart';
 import '../services/bulk_label_batch.dart';
+import '../services/bulk_label_from_stock.dart';
 import '../services/bulk_pdf_chunks.dart';
+
+/// Resolves symbology for dense A4 cells (no Code128+QR combo — overflows small cells).
+BarcodeSymbolMode bulkPrintSymbolMode({
+  required bool denseA4,
+  required bool useQr,
+}) {
+  if (useQr) return BarcodeSymbolMode.qrCode;
+  return BarcodeSymbolMode.code128;
+}
 
 Future<BulkLabelBatchResult> fetchBulkLabels({
   required WidgetRef ref,
   required List<String> ids,
+  Map<String, Map<String, dynamic>>? stockById,
   void Function(int done, int total)? onProgress,
 }) async {
   final session = ref.read(sessionProvider);
-  if (session == null || ids.isEmpty) {
+  if (session == null) {
+    throw BarcodeOperationException(
+      'Sign in to print labels.',
+      kind: BarcodeOperationKind.network,
+    );
+  }
+  if (ids.isEmpty) {
     return const BulkLabelBatchResult(labels: []);
   }
-  const chunkSize = 200;
+
+  final stock = stockById ?? const <String, Map<String, dynamic>>{};
+  const chunkSize = 50;
   final api = ref.read(hexaApiProvider);
   final labels = <BarcodeLabelData>[];
   final failedIds = <String>[];
   final failuresById = <String, String>{};
+  final labeledIds = <String>{};
+
+  bool tryStockFallback(String rawId) {
+    final nid = normalizeItemId(rawId);
+    if (labeledIds.contains(nid)) {
+      failedIds.remove(rawId);
+      failuresById.remove(rawId);
+      return true;
+    }
+    final built = labelDataFromStockRow(stock[nid]);
+    if (built == null) return false;
+    labels.add(built);
+    labeledIds.add(nid);
+    failedIds.remove(rawId);
+    failuresById.remove(rawId);
+    return true;
+  }
 
   for (var i = 0; i < ids.length; i += chunkSize) {
     final end = (i + chunkSize < ids.length) ? i + chunkSize : ids.length;
     final chunk = ids.sublist(i, end);
     onProgress?.call(end, ids.length);
+
     try {
       final rows = await api.barcodeLabelBatch(
         businessId: session.primaryBusiness.id,
@@ -42,30 +79,73 @@ Future<BulkLabelBatchResult> fetchBulkLabels({
         final label = BarcodeLabelData.fromApiMap(j);
         if (label != null) {
           labels.add(label);
-          if (id.isNotEmpty) returned.add(id);
+          if (id.isNotEmpty) {
+            final nid = normalizeItemId(id);
+            returned.add(nid);
+            labeledIds.add(nid);
+          }
         } else if (id.isNotEmpty) {
           failedIds.add(id);
           failuresById[id] = 'Missing barcode and item code';
         }
       }
-      for (final id in chunk) {
-        if (!returned.contains(id) && !failedIds.contains(id)) {
-          failedIds.add(id);
-          failuresById[id] ??= 'No label data returned';
+      for (final rawId in chunk) {
+        final nid = normalizeItemId(rawId);
+        if (returned.contains(nid)) continue;
+        if (failedIds.contains(rawId)) {
+          tryStockFallback(rawId);
+          continue;
         }
+        failedIds.add(rawId);
+        failuresById[rawId] = 'No label data returned';
+        tryStockFallback(rawId);
       }
     } on DioException catch (e) {
-      for (final id in chunk) {
-        failedIds.add(id);
-        failuresById[id] = friendlyApiError(e);
+      final status = e.response?.statusCode;
+      if (status == 401 || status == 403) {
+        throw BarcodeOperationException(
+          friendlyApiError(e),
+          kind: BarcodeOperationKind.network,
+        );
+      }
+      final offline = e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
+          e.type == DioExceptionType.unknown;
+      if (offline && stock.isNotEmpty) {
+        for (final rawId in chunk) {
+          if (tryStockFallback(rawId)) {
+            failuresById.remove(rawId);
+          } else {
+            failedIds.add(rawId);
+            failuresById[rawId] =
+                'Offline — item needs a barcode or code on the list.';
+          }
+        }
+        continue;
+      }
+      if (offline) {
+        throw BarcodeOperationException(
+          'No internet connection. Check your network and try again.',
+          kind: BarcodeOperationKind.network,
+        );
+      }
+      for (final rawId in chunk) {
+        failedIds.add(rawId);
+        failuresById[rawId] = friendlyApiError(e);
+        tryStockFallback(rawId);
       }
     } catch (e) {
-      for (final id in chunk) {
-        failedIds.add(id);
-        failuresById[id] = barcodeMessageForUser(e);
+      if (e is BarcodeOperationException) rethrow;
+      for (final rawId in chunk) {
+        failedIds.add(rawId);
+        failuresById[rawId] = barcodeMessageForUser(e);
+        tryStockFallback(rawId);
       }
     }
   }
+
   return BulkLabelBatchResult(
     labels: labels,
     failedIds: failedIds,
@@ -82,15 +162,17 @@ Future<Uint8List> _generatePdfForLabelChunk({
   required BarcodeSymbolMode symbol,
   required LabelSize thermalSize,
   required bool hideFinancials,
+  int? targetLabelsPerPage,
 }) async {
   if (denseA4) {
-    final cols = MediaQuery.sizeOf(context).width >= 600 ? 4 : 2;
     return await BarcodePdfService.generateBatchA4Dense(
       items: labels,
       size: thermalSize,
       copiesPerItem: 1,
       hideFinancials: hideFinancials,
-      columns: cols,
+      columns: MediaQuery.sizeOf(context).width >= 600 ? 5 : 4,
+      targetLabelsPerPage: targetLabelsPerPage,
+      symbol: symbol,
     );
   }
   return await BarcodePdfService.generateBatch(
@@ -112,6 +194,7 @@ Future<Uint8List> generateBulkPdfBytes({
   required int perRow,
   required BarcodeSymbolMode symbol,
   required LabelSize thermalSize,
+  required int labelsPerFile,
 }) async {
   final parts = await generateBulkPdfParts(
     context: context,
@@ -122,7 +205,7 @@ Future<Uint8List> generateBulkPdfBytes({
     perRow: perRow,
     symbol: symbol,
     thermalSize: thermalSize,
-    labelsPerFile: batch.labels.length * copies.clamp(1, 5),
+    labelsPerFile: labelsPerFile,
   );
   if (parts.isEmpty) {
     throw BarcodeOperationException(
@@ -133,7 +216,7 @@ Future<Uint8List> generateBulkPdfBytes({
   return parts.first;
 }
 
-/// One PDF per chunk (30 / 40 / 60 expanded labels). Copies are applied before chunking.
+/// A4: one PDF, many labels per page. Thermal: optional split by [labelsPerFile].
 Future<List<Uint8List>> generateBulkPdfParts({
   required BuildContext context,
   required WidgetRef ref,
@@ -147,19 +230,45 @@ Future<List<Uint8List>> generateBulkPdfParts({
 }) async {
   if (batch.labels.isEmpty) {
     throw BarcodeOperationException(
-      'No printable labels in selection.',
+      batch.failedIds.isEmpty
+          ? 'No items selected.'
+          : 'No printable labels — assign barcodes or item codes first.',
       kind: BarcodeOperationKind.emptySelection,
     );
   }
   final session = ref.read(sessionProvider);
   final hideFinancials =
       session != null && !sessionCanSeeFinancials(session);
-  final chunks = chunkExpandedLabelsForPdfFiles(
-    items: batch.labels,
-    copiesPerItem: copies,
-    perFile: labelsPerFile.clamp(1, 100),
-  );
+  final perFile = labelsPerFile.clamp(1, 100);
+  final copyN = copies.clamp(1, 5);
+
   try {
+    if (denseA4) {
+      final expanded = <BarcodeLabelData>[];
+      for (final data in batch.labels) {
+        for (var c = 0; c < copyN; c++) {
+          expanded.add(data);
+        }
+      }
+      final pdf = await _generatePdfForLabelChunk(
+        context: context,
+        ref: ref,
+        labels: expanded,
+        denseA4: true,
+        perRow: perRow,
+        symbol: symbol,
+        thermalSize: thermalSize,
+        hideFinancials: hideFinancials,
+        targetLabelsPerPage: perFile,
+      );
+      return [pdf];
+    }
+
+    final chunks = chunkExpandedLabelsForPdfFiles(
+      items: batch.labels,
+      copiesPerItem: copyN,
+      perFile: perFile,
+    );
     final out = <Uint8List>[];
     for (final chunk in chunks) {
       out.add(
@@ -167,7 +276,7 @@ Future<List<Uint8List>> generateBulkPdfParts({
           context: context,
           ref: ref,
           labels: chunk,
-          denseA4: denseA4,
+          denseA4: false,
           perRow: perRow,
           symbol: symbol,
           thermalSize: thermalSize,

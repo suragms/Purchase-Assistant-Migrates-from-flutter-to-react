@@ -101,18 +101,22 @@ class BulkBarcodePrintToolbar extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     SegmentedButton<BulkLabelsPerPdfFile>(
-                      segments: const [
+                      segments: [
                         ButtonSegment(
                           value: BulkLabelsPerPdfFile.n30,
-                          label: Text('30/PDF'),
+                          label: Text(denseA4 ? '30/pg' : '30/PDF'),
                         ),
                         ButtonSegment(
                           value: BulkLabelsPerPdfFile.n40,
-                          label: Text('40/PDF'),
+                          label: Text(denseA4 ? '40/pg' : '40/PDF'),
+                        ),
+                        ButtonSegment(
+                          value: BulkLabelsPerPdfFile.n50,
+                          label: Text(denseA4 ? '50/pg' : '50/PDF'),
                         ),
                         ButtonSegment(
                           value: BulkLabelsPerPdfFile.n60,
-                          label: Text('60/PDF'),
+                          label: Text(denseA4 ? '60/pg' : '60/PDF'),
                         ),
                       ],
                       selected: {labelsPerPdfFile},

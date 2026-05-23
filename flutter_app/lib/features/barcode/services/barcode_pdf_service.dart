@@ -260,6 +260,9 @@ class BarcodePdfService {
     bool showLastPurchase = true,
     bool hideFinancials = false,
     int columns = 4,
+    /// When set, fits about this many stickers per A4 page (e.g. 50).
+    int? targetLabelsPerPage,
+    BarcodeSymbolMode symbol = BarcodeSymbolMode.code128WithQr,
   }) async {
     final printable = _requirePrintable(items);
     final expanded = <BarcodeLabelData>[];
@@ -274,6 +277,9 @@ class BarcodePdfService {
       'showLastPurchase': showLastPurchase,
       'hideFinancials': hideFinancials,
       'maxCols': columns.clamp(1, 6),
+      if (targetLabelsPerPage != null)
+        'targetLabelsPerPage': targetLabelsPerPage.clamp(20, 60),
+      'symbol': symbol.index,
     };
     if (kIsWeb) {
       return _barcodeA4DenseFromPayload(payload);
@@ -298,23 +304,52 @@ class BarcodePdfService {
     final size = LabelSize.values[sizeIdx.clamp(0, LabelSize.values.length - 1)];
     final showLastPurchase = payload['showLastPurchase'] as bool? ?? true;
     final hideFinancials = payload['hideFinancials'] as bool? ?? false;
+    final symbolIdx = (payload['symbol'] as int?) ?? BarcodeSymbolMode.code128WithQr.index;
+    final symbol = BarcodeSymbolMode.values[
+        symbolIdx.clamp(0, BarcodeSymbolMode.values.length - 1)];
 
     final mm = PdfPageFormat.mm;
     const margin = 5.0 * PdfPageFormat.mm;
     const gap = 2.0 * PdfPageFormat.mm;
-    final (lwMm, lhMm) = a4DenseCellMm(size);
-    final labelW = lwMm * mm;
-    final labelH = lhMm * mm;
     const sheet = PdfPageFormat.a4;
     final innerW = sheet.width - 2 * margin;
     final innerH = sheet.height - 2 * margin;
-    final maxCols = (payload['maxCols'] as int?) ?? 4;
-    final cols = math.min(
-      maxCols,
-      math.max(1, ((innerW + gap) / (labelW + gap)).floor()),
-    );
-    final rows = math.max(1, ((innerH + gap) / (labelH + gap)).floor());
-    final perPage = cols * rows;
+
+    final targetPerPage = payload['targetLabelsPerPage'] as int?;
+    late final int cols;
+    late final int rows;
+    late final double labelW;
+    late final double labelH;
+    late final int perPage;
+    late final LabelSize cellSize;
+
+    if (targetPerPage != null && targetPerPage > 0) {
+      final target = targetPerPage.clamp(20, 60);
+      cols = switch (target) {
+        <= 32 => 4,
+        <= 42 => 4,
+        <= 50 => 5,
+        _ => 6,
+      };
+      rows = math.max(1, (target / cols).ceil().clamp(1, 12));
+      perPage = cols * rows;
+      labelW = (innerW - (cols - 1) * gap) / cols;
+      labelH = (innerH - (rows - 1) * gap) / rows;
+      final hMm = labelH / mm;
+      cellSize = hMm < 14 ? LabelSize.small : LabelSize.medium;
+    } else {
+      final (lwMm, lhMm) = a4DenseCellMm(size);
+      labelW = lwMm * mm;
+      labelH = lhMm * mm;
+      cellSize = size;
+      final maxCols = (payload['maxCols'] as int?) ?? 4;
+      cols = math.min(
+        maxCols,
+        math.max(1, ((innerW + gap) / (labelW + gap)).floor()),
+      );
+      rows = math.max(1, ((innerH + gap) / (labelH + gap)).floor());
+      perPage = cols * rows;
+    }
 
     final doc = pw.Document();
     for (var base = 0; base < labels.length; base += perPage) {
@@ -353,9 +388,10 @@ class BarcodePdfService {
                             mainAxisSize: pw.MainAxisSize.min,
                             children: _labelBody(
                               data: chunk[idx],
-                              size: size,
+                              size: cellSize,
                               showLastPurchase: showLastPurchase,
                               hideFinancials: hideFinancials,
+                              symbol: symbol,
                             ),
                           ),
                         ),

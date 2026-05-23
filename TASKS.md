@@ -42,10 +42,20 @@
 
 - [x] Stock row: **Buy / Now / Δ** numeric columns (no `150 bags` suffix); no horizontal scroll
 - [x] Bulk print: same qty columns; **100-label cap** before PDF; **Download** opens PDF preview page with app-bar download
-- [x] Bulk print: split PDFs **30/40/60** labels per file; label footer **stock + last purchase**; scan sheet shows purchase + **Update** stock
+- [x] Bulk print: **A4 = one PDF**, **30/40/50/60 labels per page** (cut sheet); thermal still splits multi-PDF; footer **stock + last purchase**; scan **Update stock**; auth/offline errors on label fetch
 - [x] Staff search: catalog item → **item detail** (history, ledger, purchases); purchase bills visible; staff bill → `/staff/purchase-history/:id`
 - [x] Search PO lines: qty numbers only (no bag/kg); PUR id bold primary
 - [x] Item detail stock panel: purchased/moved period numbers without unit suffix
+
+## Stock / Home data fix (2026-05-23)
+
+- [x] Home **Warehouse Stock Overview** uses `stockOnHandTotalsProvider` (physical on-hand), not purchase-period totals
+- [x] Stock search debounces to API `q=` (finds SUGAR etc. beyond first 50 rows)
+- [x] Stock table headers: **Purchased | Stock | Diff**; Diff = physical − purchased in period
+- [x] Purchased filter: sort by highest period purchase qty first
+- [x] 401 session: logout on failed refresh; degraded banner + Home session hint (not fake ₹0)
+- [x] Reports/Home breakdown rows: bags · boxes · tins · kg subtitle when API sends unit totals
+- [x] Warehouse analytics Items tab: fallback slices from category top items when `itemSlices` empty
 
 ## Stock Page UX V8 (2026-05-23)
 
