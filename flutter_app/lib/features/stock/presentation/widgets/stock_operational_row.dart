@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/json_coerce.dart';
 import '../../../../core/utils/operational_date_format.dart';
 import '../../../../core/utils/unit_utils.dart';
 import 'edit_item_code_sheet.dart';
 import 'stock_qty_metric_column.dart';
+import 'stock_table_layout.dart';
 
 /// Dense 72dp warehouse stock row.
 class StockOperationalRow extends ConsumerWidget {
@@ -17,6 +19,8 @@ class StockOperationalRow extends ConsumerWidget {
     required this.onTap,
     this.onAction,
     this.canEdit = true,
+    this.bordered = false,
+    this.isFirstRow = false,
   });
 
   final Map<String, dynamic> item;
@@ -24,6 +28,8 @@ class StockOperationalRow extends ConsumerWidget {
   final VoidCallback onTap;
   final VoidCallback? onAction;
   final bool canEdit;
+  final bool bordered;
+  final bool isFirstRow;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -94,15 +100,15 @@ class StockOperationalRow extends ConsumerWidget {
         ? 'Bought $boughtPrimary this period'
         : '';
 
-    return Material(
+    final row = Material(
       color: Colors.white,
       child: InkWell(
         onTap: onTap,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 96),
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: HexaOp.pageGutter,
+            padding: EdgeInsets.symmetric(
+              horizontal: bordered ? 8 : HexaOp.pageGutter,
               vertical: 6,
             ),
             child: Column(
@@ -121,10 +127,7 @@ class StockOperationalRow extends ConsumerWidget {
                             name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                            ),
+                            style: HexaDsType.heading(15),
                           ),
                           GestureDetector(
                             onTap: missingCode
@@ -243,6 +246,14 @@ class StockOperationalRow extends ConsumerWidget {
             ),
           ),
         ),
+      ),
+    );
+    if (!bordered) return row;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: HexaOp.pageGutter),
+      child: DecoratedBox(
+        decoration: StockTableLayout.rowDecoration(isFirst: isFirstRow),
+        child: row,
       ),
     );
   }

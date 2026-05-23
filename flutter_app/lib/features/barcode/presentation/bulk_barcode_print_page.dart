@@ -575,6 +575,47 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
           final listPane = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (listAsync.valueOrNull?['partial'] == true)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    HexaOp.pageGutter,
+                    8,
+                    HexaOp.pageGutter,
+                    0,
+                  ),
+                  child: Material(
+                    color: const Color(0xFFFFF8E1),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.wifi_off_rounded,
+                            size: 20,
+                            color: Color(0xFFF57F17),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Connection dropped while loading items. '
+                              'Showing ${listAsync.valueOrNull?['loaded'] ?? 0} loaded — retry when online.',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () =>
+                                ref.invalidate(bulkStockListProvider),
+                            child: const Text('Retry'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               if (sessionHint != null)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(

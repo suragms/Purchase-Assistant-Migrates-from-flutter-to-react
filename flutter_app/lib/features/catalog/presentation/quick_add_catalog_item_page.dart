@@ -21,8 +21,9 @@ class QuickAddCatalogItemPage extends ConsumerStatefulWidget {
       _QuickAddCatalogItemPageState();
 }
 
-class _QuickAddCatalogItemPageState
-    extends ConsumerState<QuickAddCatalogItemPage> {
+class _QuickAddCatalogItemPageState extends ConsumerState<QuickAddCatalogItemPage>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
   final _nameCtrl = TextEditingController();
   final _itemCodeCtrl = TextEditingController();
   final _kgCtrl = TextEditingController();
@@ -41,7 +42,17 @@ class _QuickAddCatalogItemPageState
   String? _error;
 
   @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this)
+      ..addListener(() {
+        if (!_tabController.indexIsChanging) setState(() {});
+      });
+  }
+
+  @override
   void dispose() {
+    _tabController.dispose();
     _nameCtrl.dispose();
     _itemCodeCtrl.dispose();
     _kgCtrl.dispose();
@@ -305,19 +316,44 @@ class _QuickAddCatalogItemPageState
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add New Item'),
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabs: const [
+            Tab(text: 'Basics'),
+            Tab(text: 'Unit & codes'),
+            Tab(text: 'Review'),
+          ],
+        ),
+        actions: [
+          if (_tabController.index == 2)
+            TextButton(
+              onPressed: _saving ? null : () => _submit(addMore: false),
+              child: _saving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Save'),
+            ),
+        ],
       ),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        child: TabBarView(
+          controller: _tabController,
           children: [
-            Text(
-              'Pick subcategory first — category is set automatically. Then supplier and optional broker.',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-            const SizedBox(height: 16),
-            typesAsync.when(
+            ListView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              children: [
+                Text(
+                  'Subcategory first — category is set automatically.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                typesAsync.when(
               loading: () => const LinearProgressIndicator(),
               error: (e, st) {
                 logSilencedApiError(e, st);
@@ -458,128 +494,189 @@ class _QuickAddCatalogItemPageState
                 );
               },
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Item name *',
-                hintText: 'e.g. THUVARA JP 50 KG',
-                border: OutlineInputBorder(),
-              ),
-              textCapitalization: TextCapitalization.characters,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _itemCodeCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Item code (optional)',
-                helperText: 'Leave empty to auto-generate later. Staff should verify before printing labels.',
-                border: OutlineInputBorder(),
-              ),
-              textCapitalization: TextCapitalization.characters,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _hsnCtrl,
-              decoration: const InputDecoration(
-                labelText: 'HSN code (optional)',
-                border: OutlineInputBorder(),
-              ),
-              textCapitalization: TextCapitalization.characters,
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Text('Unit: '),
-                const SizedBox(width: 8),
-                for (final u in ['kg', 'bag', 'piece', 'box', 'tin'])
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: ChoiceChip(
-                      label: Text(u.toUpperCase()),
-                      selected: _unit == u,
-                      onSelected: (_) => setState(() {
-                        _unit = u;
-                        _kgCtrl.clear();
-                      }),
-                    ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Item name *',
+                    hintText: 'e.g. THUVARA JP 50 KG',
+                    border: OutlineInputBorder(),
                   ),
-              ],
-            ),
-            if (_unit == 'bag') ...[
-              const SizedBox(height: 8),
-              TextField(
-                controller: _kgCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Weight per bag (kg)',
-                  hintText: 'e.g. 50',
-                  border: OutlineInputBorder(),
+                  textCapitalization: TextCapitalization.characters,
                 ),
-              ),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _purchaseRateCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Purchase rate',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _sellingRateCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Selling rate',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Barcode option: add item code now, or generate barcode from item detail after saving.',
-              style: TextStyle(fontSize: 12, color: Colors.black54),
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(color: Colors.red)),
-            ],
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _saving ? null : () => _submit(addMore: true),
-                    child: const Text('Save & add more'),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerRight,
                   child: FilledButton(
-                    onPressed: _saving ? null : () => _submit(addMore: false),
-                    child: _saving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Save'),
+                    onPressed: () => _tabController.animateTo(1),
+                    child: const Text('Next: Unit & codes'),
                   ),
+                ),
+              ],
+            ),
+            ListView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              children: [
+                TextField(
+                  controller: _itemCodeCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Item code (optional)',
+                    helperText:
+                        'Leave empty to auto-generate later. Verify before printing labels.',
+                    border: OutlineInputBorder(),
+                  ),
+                  textCapitalization: TextCapitalization.characters,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _hsnCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'HSN code (optional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  textCapitalization: TextCapitalization.characters,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    const Text('Unit: '),
+                    const SizedBox(width: 8),
+                    for (final u in ['kg', 'bag', 'piece', 'box', 'tin'])
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: ChoiceChip(
+                          label: Text(u.toUpperCase()),
+                          selected: _unit == u,
+                          onSelected: (_) => setState(() {
+                            _unit = u;
+                            _kgCtrl.clear();
+                          }),
+                        ),
+                      ),
+                  ],
+                ),
+                if (_unit == 'bag') ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _kgCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Weight per bag (kg)',
+                      hintText: 'e.g. 50',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _purchaseRateCtrl,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Purchase rate',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextField(
+                        controller: _sellingRateCtrl,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(
+                          labelText: 'Selling rate',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton(
+                    onPressed: () => _tabController.animateTo(2),
+                    child: const Text('Next: Review'),
+                  ),
+                ),
+              ],
+            ),
+            ListView(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+              children: [
+                _reviewLine('Name', _nameCtrl.text),
+                _reviewLine('Subcategory', _typeSearchCtrl.text),
+                _reviewLine('Supplier', _supplierSearchCtrl.text),
+                if (_brokerSearchCtrl.text.trim().isNotEmpty)
+                  _reviewLine('Broker', _brokerSearchCtrl.text),
+                _reviewLine('Unit', _unit.toUpperCase()),
+                if (_unit == 'bag') _reviewLine('Kg per bag', _kgCtrl.text),
+                if (_itemCodeCtrl.text.trim().isNotEmpty)
+                  _reviewLine('Item code', _itemCodeCtrl.text),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_error!, style: const TextStyle(color: Colors.red)),
+                ],
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _saving ? null : () => _submit(addMore: true),
+                        child: const Text('Save & add more'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: _saving ? null : () => _submit(addMore: false),
+                        child: _saving
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Text('Save'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _reviewLine(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontWeight: FontWeight.w700,
+                color: Colors.black54,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value.trim().isEmpty ? '—' : value.trim(),
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
       ),
     );
   }

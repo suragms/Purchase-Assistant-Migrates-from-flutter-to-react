@@ -7,20 +7,23 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/json_coerce.dart';
-import '../../../core/providers/stock_providers.dart';
 import '../../../core/providers/home_owner_dashboard_providers.dart';
+import '../../../core/providers/stock_providers.dart';
 import '../../../core/router/post_auth_route.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/list_skeleton.dart';
+import '../stock_list_merge.dart';
 import '../stock_period_utils.dart';
 import 'quick_stock_patch_sheet.dart';
+import 'stock_item_intelligence_page.dart';
 import 'widgets/assign_barcode_sheet.dart';
 import 'widgets/operational_stock_filter_sheet.dart';
+import 'widgets/stock_changes_tab.dart';
 import 'widgets/stock_list_column_header.dart';
 import 'widgets/stock_operational_row.dart';
 import 'widgets/stock_page_filter_header.dart';
+import 'widgets/stock_pagination_bar.dart';
 import 'widgets/stock_row_preview_sheet.dart';
-import 'stock_item_intelligence_page.dart';
 
 enum StockPageMode { auto, staff, owner }
 
@@ -35,37 +38,41 @@ class StockPage extends ConsumerStatefulWidget {
   ConsumerState<StockPage> createState() => _StockPageState();
 }
 
-class _StockPageState extends ConsumerState<StockPage> {
+class _StockPageState extends ConsumerState<StockPage>
+    with SingleTickerProviderStateMixin {
   final _searchCtrl = TextEditingController();
   final _subcatCtrl = TextEditingController();
   final _scroll = ScrollController();
   Timer? _debounce;
   bool _loadingMore = false;
   bool _fabVisible = true;
-  String _searchQuery = '';
-  Map<String, dynamic>? _cachedListData;
+  Map<String, dynamic>? _mergedData;
+  late TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-    final initialQuery = ref.read(stockListQueryProvider).q.trim();
-    _searchQuery = initialQuery.toLowerCase();
-    _searchCtrl.text = initialQuery;
+    _tabController = TabController(length: 2, vsync: this)
+      ..addListener(() {
+        if (!_tabController.indexIsChanging) setState(() {});
+      });
+    final initialQuery = ref.read(stockListQueryProvider);
+    _searchCtrl.text = initialQuery.q.trim();
     _searchCtrl.addListener(_onSearchChanged);
-    _subcatCtrl.text = ref.read(stockListQueryProvider).subcategory;
+    _subcatCtrl.text = initialQuery.subcategory;
     _scroll.addListener(_onScroll);
     applyStockPagePeriod(ref, ref.read(stockPagePeriodProvider));
-    ref.read(stockListQueryProvider.notifier).state =
-        ref.read(stockListQueryProvider).copyWith(
-              q: '',
-              perPage: 50,
-              page: 1,
-            );
+    final q = ref.read(stockListQueryProvider);
+    if (q.perPage != 50) {
+      ref.read(stockListQueryProvider.notifier).state =
+          q.copyWith(perPage: 50, page: 1);
+    }
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _tabController.dispose();
     _searchCtrl.dispose();
     _subcatCtrl.dispose();
     _scroll.dispose();
@@ -79,24 +86,37 @@ class _StockPageState extends ConsumerState<StockPage> {
     return session != null && sessionIsStaff(session);
   }
 
+  void _resetMerged() {
+    _mergedData = null;
+  }
+
+  void _clearSearch() {
+    _searchCtrl.clear();
+    ref.read(stockSelectedItemIdProvider.notifier).state = null;
+    ref.read(stockListQueryProvider.notifier).state =
+        ref.read(stockListQueryProvider).copyWith(q: '', page: 1);
+    _resetMerged();
+    ref.invalidate(stockListProvider);
+  }
+
   void _onSearchChanged() {
     final raw = _searchCtrl.text.trim();
-    final next = raw.toLowerCase();
-    if (next == _searchQuery) return;
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 350), () {
       if (!mounted) return;
-      setState(() => _searchQuery = next);
       ref.read(stockSelectedItemIdProvider.notifier).state = null;
       final q = ref.read(stockListQueryProvider);
       if (q.q == raw) return;
+      _resetMerged();
       ref.read(stockListQueryProvider.notifier).state =
           q.copyWith(q: raw, page: 1);
     });
   }
 
   void _onScroll() {
-    _onScrollLoadMore();
+    if (_tabController.index == 0) {
+      _onScrollLoadMore();
+    }
     if (!_scroll.hasClients) return;
     final dir = _scroll.position.userScrollDirection;
     if (dir == ScrollDirection.reverse && _fabVisible) {
@@ -111,34 +131,45 @@ class _StockPageState extends ConsumerState<StockPage> {
   void _onScrollLoadMore() {
     if (!_scroll.hasClients || _loadingMore) return;
     if (_scroll.position.extentAfter > 240) return;
+    _goNextPage();
+  }
+
+  void _goNextPage() {
     final q = ref.read(stockListQueryProvider);
-    final data = ref.read(stockListProvider).valueOrNull ?? _cachedListData;
-    if (data == null) return;
-    final total = coerceToInt(data['total']);
-    final loaded = (data['items'] as List?)?.length ?? 0;
-    if (loaded >= total) return;
+    final total = coerceToInt(_mergedData?['total']);
+    final maxPage = stockListMaxPage(total, q.perPage);
+    if (q.page >= maxPage) return;
     setState(() => _loadingMore = true);
     ref.read(stockListQueryProvider.notifier).state =
         q.copyWith(page: q.page + 1);
+  }
+
+  void _goPrevPage() {
+    final q = ref.read(stockListQueryProvider);
+    if (q.page <= 1) return;
+    final newPage = q.page - 1;
+    final keep = newPage * q.perPage;
+    setState(() {
+      if (_mergedData != null) {
+        final items = (_mergedData!['items'] as List?) ?? [];
+        if (items.length > keep) {
+          _mergedData = {
+            ..._mergedData!,
+            'items': items.take(keep).toList(),
+            'page': newPage,
+          };
+        }
+      }
+    });
+    ref.read(stockListQueryProvider.notifier).state =
+        q.copyWith(page: newPage);
   }
 
   List<Map<String, dynamic>> _prepareItems(List<Map<String, dynamic>> raw) {
     final op = ref.read(stockOperationalFiltersProvider);
     final q = ref.read(stockListQueryProvider);
     var items = filterStockListClient(raw, op);
-    if (_searchQuery.isNotEmpty) {
-      items = items.where((it) {
-        final haystack = [
-          it['name'],
-          it['item_code'],
-          it['barcode'],
-          it['category_name'],
-          it['subcategory_name'],
-          it['supplier_name'],
-        ].map((v) => v?.toString().toLowerCase() ?? '').join(' ');
-        return haystack.contains(_searchQuery);
-      }).toList();
-    }
+    // Server handles `q=` — client filter only for supplier (no API param).
     if (q.supplier.isNotEmpty) {
       items = items
           .where(
@@ -149,7 +180,7 @@ class _StockPageState extends ConsumerState<StockPage> {
     }
     sortStockListOperational(
       items,
-      searchQuery: _searchQuery,
+      searchQuery: q.q.trim().toLowerCase(),
       sort: q.sort,
       prioritizePeriodPurchases:
           op.purchasedInPeriodOnly || q.purchasedInPeriod,
@@ -231,8 +262,10 @@ class _StockPageState extends ConsumerState<StockPage> {
           item: item,
         );
         if (saved && mounted) {
+          _resetMerged();
           ref.invalidate(stockListProvider);
           ref.invalidate(stockAuditPeriodProvider);
+          ref.invalidate(stockChangesFeedProvider);
           ref.invalidate(stockItemIntelligenceProvider(id));
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Stock updated')),
@@ -260,7 +293,7 @@ class _StockPageState extends ConsumerState<StockPage> {
     }
   }
 
-  Widget _buildListBody({
+  Widget _buildAllTabBody({
     required Map<String, dynamic> data,
     required bool includePeriod,
     required bool isReloading,
@@ -271,10 +304,14 @@ class _StockPageState extends ConsumerState<StockPage> {
         if (e is Map) Map<String, dynamic>.from(e),
     ];
     final items = _prepareItems(raw);
+    final listQ = ref.watch(stockListQueryProvider);
+    final total = coerceToInt(data['total']);
+    final maxPage = stockListMaxPage(total, listQ.perPage);
     final bottomPad = MediaQuery.paddingOf(context).bottom + 16;
 
     return RefreshIndicator(
       onRefresh: () async {
+        _resetMerged();
         ref.invalidate(stockListProvider);
         await ref.read(stockListProvider.future);
       },
@@ -285,6 +322,7 @@ class _StockPageState extends ConsumerState<StockPage> {
             pinned: true,
             delegate: StockPageFilterSliverDelegate(
               searchController: _searchCtrl,
+              onClearSearch: _clearSearch,
               onOpenFilters: () => showOperationalStockFilter(
                 context: context,
                 ref: ref,
@@ -294,9 +332,46 @@ class _StockPageState extends ConsumerState<StockPage> {
               ),
               showYearPeriod: !_isStaffMode,
               isReloading: isReloading,
+              showingCount: raw.length,
+              totalCount: total,
+              includeInlineCategory: true,
+              subcategoryController: _subcatCtrl,
+              onFiltersCleared: _resetMerged,
             ),
           ),
-          if (items.isNotEmpty) const SliverToBoxAdapter(child: StockListColumnHeader()),
+          if (items.isNotEmpty) ...[
+            const SliverToBoxAdapter(child: StockListColumnHeader()),
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (ctx, i) {
+                  final item = items[i];
+                  return RepaintBoundary(
+                    child: StockOperationalRow(
+                      item: item,
+                      includePeriod: includePeriod,
+                      canEdit: true,
+                      bordered: true,
+                      isFirstRow: i == 0,
+                      onTap: () => _openItemPreview(item),
+                      onAction: () => unawaited(_openStockActions(item)),
+                    ),
+                  );
+                },
+                childCount: items.length,
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: StockPaginationBar(
+                showingCount: raw.length,
+                totalCount: total,
+                currentPage: listQ.page,
+                maxPage: maxPage,
+                loading: _loadingMore,
+                onPrev: listQ.page > 1 ? _goPrevPage : null,
+                onNext: listQ.page < maxPage ? _goNextPage : null,
+              ),
+            ),
+          ],
           if (items.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
@@ -308,35 +383,8 @@ class _StockPageState extends ConsumerState<StockPage> {
                   style: const TextStyle(fontSize: 13, color: Colors.black54),
                 ),
               ),
-            )
-          else
-            SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (ctx, i) {
-                  if (i >= items.length) {
-                    return _loadingMore
-                        ? const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Center(
-                              child: CircularProgressIndicator(),
-                            ),
-                          )
-                        : SizedBox(height: bottomPad);
-                  }
-                  final item = items[i];
-                  return RepaintBoundary(
-                    child: StockOperationalRow(
-                      item: item,
-                      includePeriod: includePeriod,
-                      canEdit: true,
-                      onTap: () => _openItemPreview(item),
-                      onAction: () => unawaited(_openStockActions(item)),
-                    ),
-                  );
-                },
-                childCount: items.length + 1,
-              ),
             ),
+          SliverToBoxAdapter(child: SizedBox(height: bottomPad)),
         ],
       ),
     );
@@ -344,76 +392,100 @@ class _StockPageState extends ConsumerState<StockPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(stockListQueryProvider, (prev, next) {
+      if (prev == null) return;
+      if (prev.page == 1 && next.page == 1 &&
+          (prev.q != next.q ||
+              prev.category != next.category ||
+              prev.subcategory != next.subcategory ||
+              prev.status != next.status ||
+              prev.periodStart != next.periodStart ||
+              prev.periodEnd != next.periodEnd)) {
+        _resetMerged();
+      }
+    });
+
     ref.listen(stockListProvider, (prev, next) {
-      if (next is! AsyncData) return;
+      if (next is! AsyncData<Map<String, dynamic>>) return;
+      final q = ref.read(stockListQueryProvider);
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         setState(() {
           _loadingMore = false;
-          _cachedListData = next.value;
+          _mergedData = mergeStockListPage(
+            previous: q.page > 1 ? _mergedData : null,
+            incoming: next.value,
+            page: q.page,
+          );
         });
       });
     });
 
     final listAsync = ref.watch(stockListProvider);
-    if (listAsync.hasValue && listAsync.value != null) {
-      _cachedListData = listAsync.value;
-    }
-
     final listQ = ref.watch(stockListQueryProvider);
     final op = ref.watch(stockOperationalFiltersProvider);
     final selectedId = ref.watch(stockSelectedItemIdProvider);
     final width = MediaQuery.sizeOf(context).width;
-    final useSplit = width >= _kStockDetailPaneBreakpoint;
+    final useSplit = width >= _kStockDetailPaneBreakpoint && _tabController.index == 0;
     final includePeriod = listQ.includePeriod;
-    final data = listAsync.valueOrNull ?? _cachedListData;
+    final data = _mergedData ?? listAsync.valueOrNull;
     final isReloading = listAsync.isLoading && data != null;
 
-    Widget body;
+    Widget allTabBody;
     if (data == null && listAsync.isLoading) {
-      body = const ListSkeleton(rowCount: 10);
+      allTabBody = const ListSkeleton(rowCount: 10);
     } else if (listAsync.hasError && data == null) {
-      body = FriendlyLoadError(
-        onRetry: () => ref.invalidate(stockListProvider),
+      allTabBody = FriendlyLoadError(
+        onRetry: () {
+          _resetMerged();
+          ref.invalidate(stockListProvider);
+        },
       );
     } else if (data != null) {
-      final listBody = _buildListBody(
+      allTabBody = _buildAllTabBody(
         data: data,
         includePeriod: includePeriod,
         isReloading: isReloading,
         purchasedFilterOnly: op.purchasedInPeriodOnly,
       );
-      if (!useSplit) {
-        body = listBody;
-      } else {
-        body = Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(flex: 3, child: listBody),
-            const VerticalDivider(width: 1),
-            Expanded(
-              flex: 2,
-              child: selectedId == null
-                  ? const Center(
-                      child: Text(
-                        'Select an item',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.black45,
-                        ),
-                      ),
-                    )
-                  : StockItemIntelligencePage(
-                      itemId: selectedId,
-                      embedded: true,
-                      hideOwnerAnalytics: _isStaffMode,
-                    ),
-            ),
-          ],
-        );
-      }
     } else {
-      body = const ListSkeleton(rowCount: 10);
+      allTabBody = const ListSkeleton(rowCount: 10);
+    }
+
+    final tabViews = TabBarView(
+      controller: _tabController,
+      children: [
+        allTabBody,
+        StockChangesTab(isStaffMode: _isStaffMode),
+      ],
+    );
+
+    final Widget body;
+    if (useSplit && data != null && _tabController.index == 0) {
+      body = Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(flex: 3, child: allTabBody),
+          const VerticalDivider(width: 1),
+          Expanded(
+            flex: 2,
+            child: selectedId == null
+                ? const Center(
+                    child: Text(
+                      'Select an item',
+                      style: TextStyle(fontSize: 13, color: Colors.black45),
+                    ),
+                  )
+                : StockItemIntelligencePage(
+                    itemId: selectedId,
+                    embedded: true,
+                    hideOwnerAnalytics: _isStaffMode,
+                  ),
+          ),
+        ],
+      );
+    } else {
+      body = tabViews;
     }
 
     return Scaffold(
@@ -424,9 +496,17 @@ class _StockPageState extends ConsumerState<StockPage> {
         leading: IconButton(
           icon: const Icon(Icons.home_outlined),
           tooltip: 'Home',
-          onPressed: () => context.go('/home'),
+          onPressed: () => context.go(_isStaffMode ? '/staff/home' : '/home'),
         ),
         title: const Text('Stock', style: TextStyle(fontSize: 18)),
+        bottom: TabBar(
+          controller: _tabController,
+          isScrollable: true,
+          tabs: const [
+            Tab(text: 'All items'),
+            Tab(text: 'Changes'),
+          ],
+        ),
         actions: [
           if (!_isStaffMode)
             IconButton(
@@ -434,12 +514,11 @@ class _StockPageState extends ConsumerState<StockPage> {
               tooltip: 'Stock movement',
               onPressed: () => context.push('/stock/movement'),
             ),
-          if (!_isStaffMode)
-            IconButton(
-              icon: const Icon(Icons.qr_code_2_rounded),
-              tooltip: 'Barcode',
-              onPressed: () => context.push('/barcode/scan?return=stock'),
-            ),
+          IconButton(
+            icon: const Icon(Icons.qr_code_2_rounded),
+            tooltip: 'Scan',
+            onPressed: () => context.push('/barcode/scan?return=stock'),
+          ),
           if (!_isStaffMode)
             IconButton(
               icon: const Icon(Icons.add),
@@ -448,7 +527,6 @@ class _StockPageState extends ConsumerState<StockPage> {
             ),
         ],
       ),
-      floatingActionButton: null,
       body: body,
     );
   }

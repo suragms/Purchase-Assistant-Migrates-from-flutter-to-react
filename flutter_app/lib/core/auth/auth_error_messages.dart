@@ -12,6 +12,31 @@ bool _blobLooksLikeConnectionRefused(String blob) {
       lower.contains('failed to connect');
 }
 
+/// Chrome/Edge: Wi‑Fi ↔ mobile, VPN toggle, sleep/wake — not an app bug.
+bool dioBlobLooksLikeTransientNetwork(String blob) {
+  final lower = blob.toLowerCase();
+  return lower.contains('err_network_changed') ||
+      lower.contains('network_changed') ||
+      lower.contains('err_internet_disconnected') ||
+      lower.contains('internet_disconnected') ||
+      lower.contains('err_quic_protocol') ||
+      lower.contains('quic_protocol_error') ||
+      lower.contains('err_http2_protocol') ||
+      lower.contains('http2_protocol_error');
+}
+
+String? _transientNetworkChangeHint(String blob) {
+  if (!dioBlobLooksLikeTransientNetwork(blob)) return null;
+  final lower = blob.toLowerCase();
+  if (lower.contains('internet_disconnected')) {
+    return 'You appear to be offline. Check your network and try again.';
+  }
+  if (lower.contains('quic') || lower.contains('http2_protocol')) {
+    return 'Connection was interrupted while loading data. Try again in a moment.';
+  }
+  return 'Your connection changed (Wi‑Fi or mobile). Wait a moment and try again.';
+}
+
 /// When the browser cannot open a TCP connection to the API (backend not running / wrong host).
 String? _connectionUnreachableHint(DioException e) {
   final blob = '${e.message} ${e.error}';
@@ -39,12 +64,16 @@ String? _connectionUnreachableHint(DioException e) {
   if (lower.contains('connection reset')) {
     return 'Connection was interrupted. Try again.';
   }
+  final transient = _transientNetworkChangeHint(blob);
+  if (transient != null) return transient;
   return null;
 }
 
 /// Web-only: Dio often reports CORS / fetch failures as unknown + empty body.
 String? _webBrowserNetworkHint(DioException e) {
   final blob = '${e.message} ${e.error}'.toLowerCase();
+  final transient = _transientNetworkChangeHint(blob);
+  if (transient != null) return transient;
   if (blob.contains('failed to fetch') ||
       blob.contains('xmlhttprequest') ||
       blob.contains('networkerror') ||
@@ -62,11 +91,33 @@ bool isDioNoConnectionError(DioException e) {
   if (e.type == DioExceptionType.badResponse) return false;
   if (e.response != null) return false;
   final t = e.type;
-  return t == DioExceptionType.connectionTimeout ||
+  if (t == DioExceptionType.connectionTimeout ||
       t == DioExceptionType.sendTimeout ||
       t == DioExceptionType.receiveTimeout ||
-      t == DioExceptionType.connectionError ||
-      (t == DioExceptionType.unknown && e.response == null);
+      t == DioExceptionType.connectionError) {
+    return true;
+  }
+  if (t == DioExceptionType.unknown && e.response == null) {
+    return true;
+  }
+  return false;
+}
+
+/// Safe GET retry after Wi‑Fi/mobile handoff (Chrome `ERR_NETWORK_CHANGED`).
+bool dioIsAutoRetryableTransport(DioException e) {
+  if (e.requestOptions.extra['skipAutoRetry'] == true) return false;
+  if (e.response != null) return false;
+  final t = e.type;
+  if (t == DioExceptionType.connectionError ||
+      t == DioExceptionType.connectionTimeout ||
+      t == DioExceptionType.sendTimeout ||
+      t == DioExceptionType.receiveTimeout) {
+    return true;
+  }
+  if (t == DioExceptionType.unknown) {
+    return dioBlobLooksLikeTransientNetwork('${e.message} ${e.error}');
+  }
+  return false;
 }
 
 /// For bill scan uploads: do **not** treat read/write timeouts as "offline".

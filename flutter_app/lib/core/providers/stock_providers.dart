@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../api/hexa_api.dart';
 import '../auth/session_notifier.dart';
 import 'app_period_provider.dart';
 import 'home_dashboard_provider.dart';
@@ -189,6 +191,48 @@ final stockTotalsProvider =
   },
 );
 
+/// Stock audit events for the stock page **Changes** tab (newest first).
+final stockChangesFeedProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final session = ref.watch(sessionProvider);
+  if (session == null) return [];
+  ref.watch(stockPagePeriodProvider);
+  final rows = await ref.read(hexaApiProvider).listStockAuditRecent(
+        businessId: session.primaryBusiness.id,
+        limit: HexaApi.stockAuditRecentMaxLimit,
+      );
+  final period = ref.read(stockPagePeriodProvider);
+  final range = homePeriodRange(period, now: DateTime.now());
+  final from = DateTime(range.start.year, range.start.month, range.start.day);
+  final end = DateTime(
+    range.end.year,
+    range.end.month,
+    range.end.day,
+    23,
+    59,
+    59,
+  );
+  final out = <Map<String, dynamic>>[];
+  for (final raw in rows) {
+    final m = Map<String, dynamic>.from(raw);
+    final at = DateTime.tryParse(
+          m['created_at']?.toString() ?? m['audited_at']?.toString() ?? '',
+        ) ??
+        DateTime.tryParse(m['on']?.toString() ?? '');
+    if (at == null) continue;
+    if (at.isBefore(from) || at.isAfter(end)) continue;
+    out.add(m);
+  }
+  out.sort((a, b) {
+    final ta = DateTime.tryParse(a['created_at']?.toString() ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    final tb = DateTime.tryParse(b['created_at']?.toString() ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0);
+    return tb.compareTo(ta);
+  });
+  return out;
+});
+
 final stockListProvider = FutureProvider.autoDispose((ref) async {
   final session = ref.watch(sessionProvider);
   final query = ref.watch(stockListQueryProvider);
@@ -230,32 +274,46 @@ final bulkStockListProvider =
     return {'items': <Map<String, dynamic>>[], 'total': 0, 'loaded': 0};
   }
   final api = ref.read(hexaApiProvider);
-  const pageSize = 500;
+  // Smaller pages on web: large JSON over HTTP/3 (QUIC) often trips
+  // ERR_QUIC_PROTOCOL_ERROR on flaky networks / Render cold paths.
+  final pageSize = kIsWeb ? 100 : 500;
   var page = 1;
   final merged = <Map<String, dynamic>>[];
   var total = 0;
   while (page <= 40) {
-    final res = await api.listStock(
-      businessId: session.primaryBusiness.id,
-      page: page,
-      perPage: pageSize,
-      q: query.q,
-      category: query.category,
-      subcategory: query.subcategory,
-      status: query.status,
-      sort: query.sort,
-      includePeriod: query.includePeriod,
-      periodStart: query.periodStart,
-      periodEnd: query.periodEnd,
-    );
-    total = (res['total'] as num?)?.toInt() ?? 0;
-    final raw = (res['items'] as List?) ?? const [];
-    if (raw.isEmpty) break;
-    for (final e in raw) {
-      if (e is Map) merged.add(Map<String, dynamic>.from(e));
+    try {
+      final res = await api.listStock(
+        businessId: session.primaryBusiness.id,
+        page: page,
+        perPage: pageSize,
+        q: query.q,
+        category: query.category,
+        subcategory: query.subcategory,
+        status: query.status,
+        sort: query.sort,
+        includePeriod: query.includePeriod,
+        periodStart: query.periodStart,
+        periodEnd: query.periodEnd,
+      );
+      total = (res['total'] as num?)?.toInt() ?? 0;
+      final raw = (res['items'] as List?) ?? const [];
+      if (raw.isEmpty) break;
+      for (final e in raw) {
+        if (e is Map) merged.add(Map<String, dynamic>.from(e));
+      }
+      if (merged.length >= total) break;
+      page++;
+    } on DioException {
+      if (merged.isNotEmpty) {
+        return {
+          'items': merged,
+          'total': total > 0 ? total : merged.length,
+          'loaded': merged.length,
+          'partial': true,
+        };
+      }
+      rethrow;
     }
-    if (merged.length >= total) break;
-    page++;
   }
   return {'items': merged, 'total': total, 'loaded': merged.length};
 });

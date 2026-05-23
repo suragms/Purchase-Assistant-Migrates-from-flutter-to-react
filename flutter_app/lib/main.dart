@@ -36,7 +36,11 @@ bool _hexaAsyncErrorLikelyBenign(Object error) {
       s.contains('Connection reset') ||
       s.contains('Connection closed') ||
       s.contains('HandshakeException') ||
-      s.contains('Failed host lookup');
+      s.contains('Failed host lookup') ||
+      s.contains('ERR_NETWORK') ||
+      s.contains('ERR_QUIC') ||
+      s.contains('network changed') ||
+      s.contains('QUIC_PROTOCOL');
 }
 
 void _installHexaPlatformAsyncErrorHook() {

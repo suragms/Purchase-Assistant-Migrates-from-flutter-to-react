@@ -18,6 +18,7 @@ import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/list_skeleton.dart';
 import '../../stock/presentation/update_stock_sheet.dart';
+import 'widgets/staff_warehouse_totals_card.dart';
 
 String _staffInitials(String name) {
   final parts = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
@@ -141,6 +142,7 @@ class StaffHomePage extends ConsumerWidget {
             ref.invalidate(staffRecentScansProvider);
             ref.invalidate(missingCodeItemsProvider);
             ref.invalidate(tradePurchasesListProvider);
+            ref.invalidate(stockOnHandTotalsProvider);
           },
           child: ListView(
             padding: const EdgeInsets.fromLTRB(
@@ -215,6 +217,8 @@ class StaffHomePage extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 16),
+              const StaffWarehouseTotalsCard(),
+              const SizedBox(height: 12),
               Material(
                 elevation: 2,
                 shadowColor: HexaColors.brandPrimary.withValues(alpha: 0.35),

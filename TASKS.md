@@ -1,6 +1,21 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-05-23 (Unit normalization + stock reconciliation)
+**Last updated:** 2026-05-23 (Stock/staff UX overhaul + unit normalization)
+
+---
+
+## Stock / staff UX overhaul (2026-05-23)
+
+- [x] Stock **All | Changes** tabs; Changes = audit feed newest first (`stockChangesFeedProvider`)
+- [x] Stock list **page merge** + Prev/Next footer; `Showing N of total` (fixes load-more replacing rows)
+- [x] Search: API `q=` only, **clear (X)**, no initState `q` wipe
+- [x] Inline **category + subcategory** autocomplete on All tab; **Clear filters**
+- [x] Bordered table rows + shared column header (`stock_table_layout.dart`)
+- [x] Staff home **Warehouse stock** card (bags/kg/boxes/tins on-hand) → subcategory sheet → `/staff/stock`
+- [x] Quick add **Basics | Unit & codes | Review** tabs
+- [x] Stock movement page: `stockPagePeriodProvider` + error retry
+- [x] Network: QUIC/`ERR_NETWORK_CHANGED` retry, session-expired banner, web bulk list 100/page
+- [ ] Deploy Vercel + sign out/in after release
 
 ---
 

@@ -218,6 +218,28 @@ class SessionNotifier extends Notifier<Session?> {
         isSuperAdmin: session.isSuperAdmin);
   }
 
+  void _notifySessionExpiredBanner() {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (_disposed) return;
+      try {
+        ref.read(apiDegradedProvider.notifier).notifyDegraded(
+              'Session expired — open Settings and sign in again.',
+            );
+      } catch (_) {}
+    });
+  }
+
+  void _notifyOfflineCachedWorkspaceBanner() {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (_disposed) return;
+      try {
+        ref.read(apiDegradedProvider.notifier).notifyDegraded(
+              'Offline — showing saved workspace. Reconnect to sync.',
+            );
+      } catch (_) {}
+    });
+  }
+
   /// Post-login bootstrap: does not block [restore] / [login] UI — runs after a microtask.
   /// Soft-fail: [HexaApi.bootstrapWorkspace] returns null on 404/501 (older server).
   void _scheduleWorkspaceBootstrap() {
@@ -338,6 +360,7 @@ class SessionNotifier extends Notifier<Session?> {
           api.setAuthToken(null);
           state = null;
           authRefresh.value++;
+          _notifySessionExpiredBanner();
           return;
         }
         try {
@@ -376,6 +399,7 @@ class SessionNotifier extends Notifier<Session?> {
           api.setAuthToken(null);
           state = null;
           authRefresh.value++;
+          _notifySessionExpiredBanner();
           return;
         } catch (_) {
           await store.clear();
@@ -383,6 +407,7 @@ class SessionNotifier extends Notifier<Session?> {
           api.setAuthToken(null);
           state = null;
           authRefresh.value++;
+          _notifySessionExpiredBanner();
           return;
         }
       }
@@ -395,7 +420,7 @@ class SessionNotifier extends Notifier<Session?> {
               businesses: cached,
               isSuperAdmin: cache.loadIsSuperAdmin());
           authRefresh.value++;
-          _warmWorkspaceListCaches();
+          _notifyOfflineCachedWorkspaceBanner();
           return;
         }
         state = null;
@@ -410,7 +435,7 @@ class SessionNotifier extends Notifier<Session?> {
             businesses: cached,
             isSuperAdmin: cache.loadIsSuperAdmin());
         authRefresh.value++;
-        _warmWorkspaceListCaches();
+        _notifyOfflineCachedWorkspaceBanner();
         return;
       }
       state = null;
@@ -424,7 +449,7 @@ class SessionNotifier extends Notifier<Session?> {
             businesses: cached,
             isSuperAdmin: cache.loadIsSuperAdmin());
         authRefresh.value++;
-        _warmWorkspaceListCaches();
+        _notifyOfflineCachedWorkspaceBanner();
         return;
       }
       state = null;

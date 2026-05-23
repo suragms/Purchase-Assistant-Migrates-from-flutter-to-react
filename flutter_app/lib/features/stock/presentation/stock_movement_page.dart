@@ -6,7 +6,10 @@ import 'package:intl/intl.dart';
 import '../../../core/api/hexa_api.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/json_coerce.dart';
-import '../../../core/providers/app_period_provider.dart';
+import '../../../core/providers/home_dashboard_provider.dart';
+import '../../../core/providers/stock_providers.dart';
+import '../../../core/widgets/hexa_error_card.dart';
+import '../stock_period_utils.dart';
 /// Owner view of stock audit events for the selected app period.
 class StockMovementPage extends ConsumerStatefulWidget {
   const StockMovementPage({super.key});
@@ -17,6 +20,7 @@ class StockMovementPage extends ConsumerStatefulWidget {
 
 class _StockMovementPageState extends ConsumerState<StockMovementPage> {
   bool _loading = true;
+  Object? _loadError;
   List<Map<String, dynamic>> _rows = const [];
 
   @override
@@ -34,19 +38,27 @@ class _StockMovementPageState extends ConsumerState<StockMovementPage> {
       return;
     }
     if (!mounted) return;
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
     try {
       final rows = await ref.read(hexaApiProvider).listStockAuditRecent(
             businessId: session.primaryBusiness.id,
             limit: HexaApi.stockAuditRecentMaxLimit,
           );
       if (!mounted) return;
-      final range = appPeriodDateRange(
-        ref as Ref,
-        ref.read(appSelectedPeriodProvider),
+      final range = homePeriodRange(ref.read(stockPagePeriodProvider));
+      final endInclusive = range.end.subtract(const Duration(days: 1));
+      final from = DateTime(range.start.year, range.start.month, range.start.day);
+      final to = DateTime(
+        endInclusive.year,
+        endInclusive.month,
+        endInclusive.day,
+        23,
+        59,
+        59,
       );
-      final from = DateTime(range.from.year, range.from.month, range.from.day);
-      final to = DateTime(range.to.year, range.to.month, range.to.day, 23, 59, 59);
       final filtered = <Map<String, dynamic>>[];
       for (final raw in rows) {
         final at = DateTime.tryParse(
@@ -71,20 +83,23 @@ class _StockMovementPageState extends ConsumerState<StockMovementPage> {
         _rows = filtered;
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() => _loading = false);
+      setState(() {
+        _loading = false;
+        _loadError = e;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(appSelectedPeriodProvider, (_, __) {
+    ref.listen(stockPagePeriodProvider, (_, __) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _load();
       });
     });
-    final period = ref.watch(appSelectedPeriodProvider);
+    final period = ref.watch(stockPagePeriodProvider);
 
     var totalIn = 0.0;
     var totalOut = 0.0;
@@ -113,20 +128,23 @@ class _StockMovementPageState extends ConsumerState<StockMovementPage> {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: Row(
               children: [
-                for (final p in AppPeriod.values)
-                  if (p != AppPeriod.custom)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 6),
-                      child: FilterChip(
-                        label: Text(p.label),
-                        selected: period == p,
-                        onSelected: (_) {
-                          ref.read(appSelectedPeriodProvider.notifier).state =
-                              p;
-                          _load();
-                        },
-                      ),
+                for (final p in const [
+                  HomePeriod.today,
+                  HomePeriod.week,
+                  HomePeriod.month,
+                  HomePeriod.allTime,
+                ])
+                  Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: FilterChip(
+                      label: Text(p.label),
+                      selected: period == p,
+                      onSelected: (_) {
+                        applyStockPagePeriod(ref, p);
+                        _load();
+                      },
                     ),
+                  ),
               ],
             ),
           ),
@@ -146,9 +164,17 @@ class _StockMovementPageState extends ConsumerState<StockMovementPage> {
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : _rows.isEmpty
-                    ? const Center(
-                        child: Text('No stock events for this period'),
+                : _loadError != null
+                    ? HexaErrorCard.fromError(
+                        error: _loadError!,
+                        title: 'Could not load stock movement',
+                        onRetry: _load,
+                      )
+                    : _rows.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No stock events for ${period.label.toLowerCase()}',
+                        ),
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),

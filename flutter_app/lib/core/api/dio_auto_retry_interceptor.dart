@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 
+import '../auth/auth_error_messages.dart' show dioIsAutoRetryableTransport;
+
 /// Retries safe, idempotent requests up to [maxAttempts] on transient failures.
 /// Register on the main [Dio] after other interceptors; [onError] order is last-registered first.
 class DioAutoRetryInterceptor extends Interceptor {
@@ -15,13 +17,7 @@ class DioAutoRetryInterceptor extends Interceptor {
     if (err.requestOptions.extra['skipAutoRetry'] == true) return false;
     final m = err.requestOptions.method.toUpperCase();
     if (m != 'GET' && m != 'HEAD') return false;
-    final t = err.type;
-    if (t == DioExceptionType.connectionError ||
-        t == DioExceptionType.connectionTimeout ||
-        t == DioExceptionType.sendTimeout ||
-        t == DioExceptionType.receiveTimeout) {
-      return true;
-    }
+    if (dioIsAutoRetryableTransport(err)) return true;
     final sc = err.response?.statusCode;
     // 503: short backoff only (local DB cold start / transient outage).
     return sc == 502 || sc == 503 || sc == 504 || sc == 500;

@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:http_parser/http_parser.dart';
 
 import 'dio_auto_retry_interceptor.dart';
+import '../auth/auth_error_messages.dart' show dioIsAutoRetryableTransport;
 import '../config/app_config.dart';
 import '../models/session.dart';
 import '../strict_decimal.dart';
@@ -108,10 +109,7 @@ class _BusinessConnectivityBannerInterceptor extends Interceptor {
       if (sc == 503) {
         final h = err.response?.headers.value('x-database-unavailable');
         fn(true, h == '1' ? 'Database temporarily unavailable' : null);
-      } else if (err.type == DioExceptionType.connectionError ||
-          err.type == DioExceptionType.receiveTimeout ||
-          err.type == DioExceptionType.connectionTimeout ||
-          err.type == DioExceptionType.sendTimeout ||
+      } else if (dioIsAutoRetryableTransport(err) ||
           (sc != null && sc >= 502 && sc <= 504)) {
         fn(true, null);
       }
