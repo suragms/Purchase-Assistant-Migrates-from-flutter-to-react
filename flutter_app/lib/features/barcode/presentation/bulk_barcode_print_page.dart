@@ -8,11 +8,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 
+import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../core/errors/barcode_operation_errors.dart';
 import '../../../core/json_coerce.dart';
 import '../../../core/providers/stock_providers.dart';
-import '../../stock/presentation/widgets/stock_qty_metric_column.dart';
+import '../../stock/presentation/widgets/stock_table_layout.dart';
+import '../../../shared/widgets/stock_number_display.dart';
 import '../../../core/widgets/hexa_error_card.dart';
 import '../../stock/presentation/widgets/operational_stock_filter_sheet.dart';
 import '../../../core/providers/api_degraded_provider.dart';
@@ -172,6 +174,30 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
     setState(() => _busy = true);
     try {
       var allIds = ref.read(bulkBarcodeSelectionProvider).toList();
+      final rowsById = _stockRowsById();
+      final printableIds = filterPrintableItemIds(allIds, rowsById);
+      final skippedUnprintable = allIds.length - printableIds.length;
+      if (skippedUnprintable > 0 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              skippedUnprintable == allIds.length
+                  ? 'None of the selected items have a barcode or item code.'
+                  : 'Skipped $skippedUnprintable without barcode or item code.',
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+      if (printableIds.isEmpty) {
+        if (mounted) {
+          _showError(
+            'No printable labels. Add barcodes or item codes in catalog first.',
+          );
+        }
+        return;
+      }
+      allIds = printableIds;
       if (!multiBatch && allIds.length > _kMaxLabelsPerPdf) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1060,36 +1086,47 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(HexaOp.pageGutter, 0, 56, 2),
-          child: Row(
-            children: const [
-              Expanded(child: SizedBox()),
-              SizedBox(
-                width: 40,
-                child: Text(
-                  'Buy',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black38,
+          padding: const EdgeInsets.fromLTRB(HexaOp.pageGutter, 0, HexaOp.pageGutter, 2),
+          child: Container(
+            decoration: const BoxDecoration(
+              color: StockTableLayout.headerFill,
+              border: Border(
+                left: StockTableLayout.cellBorder,
+                right: StockTableLayout.cellBorder,
+                top: StockTableLayout.cellBorder,
+              ),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 44),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
+                    child: Text(
+                      'Item',
+                      style: HexaDsType.label(10, color: HexaDsColors.textMuted),
+                    ),
                   ),
                 ),
-              ),
-              SizedBox(width: 2),
-              SizedBox(
-                width: 40,
-                child: Text(
-                  'Now',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black38,
+                SizedBox(
+                  width: StockTableLayout.metricWidth + 8,
+                  child: Text(
+                    'Ordered',
+                    textAlign: TextAlign.center,
+                    style: HexaDsType.label(10, color: HexaDsColors.textMuted),
                   ),
                 ),
-              ),
-            ],
+                SizedBox(
+                  width: StockTableLayout.metricWidth + 8,
+                  child: Text(
+                    'Stock',
+                    textAlign: TextAlign.center,
+                    style: HexaDsType.label(10, color: HexaDsColors.textMuted),
+                  ),
+                ),
+                const SizedBox(width: 40),
+              ],
+            ),
           ),
         ),
         Expanded(
@@ -1106,16 +1143,24 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
               final purchased = coerceToDouble(
                 it['period_purchased_qty'] ?? it['purchased_today_qty'],
               );
+              final unit =
+                  it['stock_unit']?.toString() ?? it['unit']?.toString() ?? 'piece';
+              final hasPending = it['has_pending_order'] == true;
+              final pendingDays = (it['pending_order_days'] as num?)?.toInt();
               final sub = barcode.isEmpty
                   ? (code.isEmpty ? 'No barcode · $st' : '$code · $st')
                   : (code.isEmpty ? '$barcode · $st' : '$code · $barcode · $st');
               return _BulkPrintRow(
                 selected: selected.contains(id),
+                isFirstRow: i == 0,
                 name: name,
                 subtitle: sub,
                 purchased: purchased,
                 current: cur,
-                stockHighlight: st == 'low' || st == 'critical' || st == 'out',
+                unit: unit,
+                stockStatus: st,
+                hasPendingOrder: hasPending,
+                pendingOrderDays: pendingDays,
                 onChanged: (v) => _toggleSelected(id, v),
                 onPreview: id.isEmpty
                     ? null
@@ -1161,77 +1206,125 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
 class _BulkPrintRow extends StatelessWidget {
   const _BulkPrintRow({
     required this.selected,
+    required this.isFirstRow,
     required this.name,
     required this.subtitle,
     required this.purchased,
     required this.current,
-    required this.stockHighlight,
+    required this.unit,
+    required this.stockStatus,
+    required this.hasPendingOrder,
+    this.pendingOrderDays,
     required this.onChanged,
     this.onPreview,
   });
 
   final bool selected;
+  final bool isFirstRow;
   final String name;
   final String subtitle;
   final double purchased;
   final double current;
-  final bool stockHighlight;
+  final String unit;
+  final String stockStatus;
+  final bool hasPendingOrder;
+  final int? pendingOrderDays;
   final ValueChanged<bool> onChanged;
   final VoidCallback? onPreview;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: HexaOp.listRowMax,
+    final displayStatus = stockDisplayStatusFromApi(stockStatus);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: HexaOp.pageGutter),
       child: Material(
-        color: Colors.white,
+        color: Colors.transparent,
         child: InkWell(
           onTap: () => onChanged(!selected),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: [
-                Checkbox(
-                  value: selected,
-                  onChanged: (v) => onChanged(v ?? false),
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11, color: Colors.black54),
-                      ),
-                    ],
+          child: Container(
+            constraints: const BoxConstraints(
+              minHeight: StockTableLayout.rowMinHeight,
+            ),
+            decoration: StockTableLayout.rowDecoration(isFirst: isFirstRow),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    width: 44,
+                    alignment: Alignment.center,
+                    decoration: StockTableLayout.cellDecoration(),
+                    child: Checkbox(
+                      value: selected,
+                      onChanged: (v) => onChanged(v ?? false),
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
-                ),
-                if (onPreview != null)
-                  IconButton(
-                    tooltip: 'Preview label',
-                    icon: const Icon(Icons.visibility_outlined, size: 20),
-                    onPressed: onPreview,
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(6, 6, 4, 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.black54,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                StockQtyMetricTriple(
-                  purchased: purchased,
-                  current: current,
-                  moved: 0,
-                  highlightCurrent: stockHighlight,
-                ),
-              ],
+                  Container(
+                    width: StockTableLayout.metricWidth + 8,
+                    alignment: Alignment.center,
+                    decoration: StockTableLayout.cellDecoration(),
+                    child: StockNumberDisplay(
+                      qty: purchased,
+                      unit: unit,
+                      status: StockDisplayStatus.normal,
+                      hasPendingOrder: hasPendingOrder,
+                      pendingDays: pendingOrderDays,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Container(
+                    width: StockTableLayout.metricWidth + 8,
+                    alignment: Alignment.center,
+                    decoration: StockTableLayout.cellDecoration(),
+                    child: StockNumberDisplay(
+                      qty: current,
+                      unit: unit,
+                      status: displayStatus,
+                      fontSize: 14,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 40,
+                    child: onPreview != null
+                        ? IconButton(
+                            tooltip: 'Preview label',
+                            icon: const Icon(Icons.visibility_outlined, size: 20),
+                            onPressed: onPreview,
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

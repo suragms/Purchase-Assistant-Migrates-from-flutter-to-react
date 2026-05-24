@@ -44,7 +44,7 @@ export default function LoginPage() {
         <div className="login-brand-glow login-brand-glow--b" />
         <div className="login-brand-inner">
           <div className="login-brand-mark">H</div>
-          <h1 className="login-brand-title">Harisree Purchases</h1>
+          <h1 className="login-brand-title">Harisree Warehouse</h1>
           <p className="login-brand-tagline">Purchase Intelligence Platform</p>
           <p className="login-brand-sub">Operator console — secure admin access.</p>
           <ul className="login-brand-list">

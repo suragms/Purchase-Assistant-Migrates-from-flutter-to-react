@@ -18,7 +18,7 @@ logger = logging.getLogger("harisree.health")
 async def root():
     """Avoid a bare 404 at the API origin — browsers often open `/` first."""
     return {
-        "service": "Harisree Purchases API",
+        "service": "Harisree Warehouse API",
         "docs": "/docs",
         "openapi_json": "/openapi.json",
         "health": "/health",

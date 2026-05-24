@@ -3,6 +3,25 @@ import 'barcode_pdf_service.dart';
 
 String normalizeItemId(String id) => id.trim().toLowerCase();
 
+/// True when row has barcode or item code for PDF generation.
+bool isStockRowPrintable(Map<String, dynamic>? row) {
+  if (row == null) return false;
+  final ic = row['item_code']?.toString().trim() ?? '';
+  final bc = row['barcode']?.toString().trim() ?? '';
+  return ic.isNotEmpty || bc.isNotEmpty;
+}
+
+/// Keeps only ids with a printable code on [rowsById] (normalized keys).
+List<String> filterPrintableItemIds(
+  Iterable<String> ids,
+  Map<String, Map<String, dynamic>> rowsById,
+) {
+  return [
+    for (final id in ids)
+      if (isStockRowPrintable(rowsById[normalizeItemId(id)])) id,
+  ];
+}
+
 /// Build printable label data from a stock list row (offline / API fallback).
 BarcodeLabelData? labelDataFromStockRow(Map<String, dynamic>? row) {
   if (row == null) return null;

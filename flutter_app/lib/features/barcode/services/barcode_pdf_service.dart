@@ -426,14 +426,13 @@ class BarcodePdfService {
       perPage = cols * rows;
     }
 
-    if (!labelW.isFinite ||
-        labelW <= 0 ||
-        !labelH.isFinite ||
-        labelH <= 0 ||
-        cols < 1 ||
-        rows < 1 ||
-        perPage < 1) {
-      throw StateError('Invalid A4 label grid ($cols×$rows, ${labelW}x$labelH)');
+    final clamped = _clampLabelDimensions(labelW, labelH);
+    final safeLabelW = clamped.$1;
+    final safeLabelH = clamped.$2;
+    if (cols < 1 || rows < 1 || perPage < 1) {
+      throw StateError(
+        'Invalid A4 label grid ($cols×$rows, ${safeLabelW}x$safeLabelH)',
+      );
     }
 
     final doc = pw.Document();
@@ -462,9 +461,9 @@ class BarcodePdfService {
                   rowCells.add(
                     pw.Padding(
                       padding: pw.EdgeInsets.only(right: right, bottom: bottom),
-                      child: _tableLabelCell(
-                        width: labelW,
-                        height: labelH,
+                      child: _safeTableLabelCell(
+                        width: safeLabelW,
+                        height: safeLabelH,
                         data: chunk[idx],
                         serialNumber: sl,
                         cellSize: cellSize,
@@ -480,8 +479,8 @@ class BarcodePdfService {
                     pw.Padding(
                       padding: pw.EdgeInsets.only(right: right, bottom: bottom),
                       child: pw.Container(
-                        width: labelW,
-                        height: labelH,
+                        width: safeLabelW,
+                        height: safeLabelH,
                         decoration: pw.BoxDecoration(
                           border: pw.Border.all(
                             color: PdfColors.grey300,
@@ -499,7 +498,7 @@ class BarcodePdfService {
                   children: [
                     pw.Container(
                       width: 10,
-                      height: labelH,
+                      height: safeLabelH,
                       alignment: pw.Alignment.center,
                       child: pw.Text(
                         '${r + 1}',
@@ -555,7 +554,7 @@ class BarcodePdfService {
                 children: [
                   for (var c = 0; c < cols; c++)
                     pw.SizedBox(
-                      width: labelW + (c < cols - 1 ? gap : 0),
+                      width: safeLabelW + (c < cols - 1 ? gap : 0),
                       child: pw.Center(
                         child: pw.Text(
                           '${c + 1}',
@@ -600,6 +599,60 @@ class BarcodePdfService {
             LabelSize.large => (10.0, 8.0, 40.0, 36.0),
             LabelSize.medium => (8.0, 7.0, 36.0, 28.0),
           };
+
+  static const double _minLabelW = 12.0;
+  static const double _minLabelH = 8.0;
+
+  static (double w, double h) _clampLabelDimensions(double w, double h) {
+    final mm = PdfPageFormat.mm;
+    final safeW = math.max(w, _minLabelW * mm);
+    final safeH = math.max(h, _minLabelH * mm);
+    if (!safeW.isFinite || !safeH.isFinite || safeW <= 0 || safeH <= 0) {
+      return (30.0 * mm, 10.0 * mm);
+    }
+    return (safeW, safeH);
+  }
+
+  static pw.Widget _safeTableLabelCell({
+    required double width,
+    required double height,
+    required BarcodeLabelData data,
+    required int serialNumber,
+    required LabelSize cellSize,
+    required bool showLastPurchase,
+    required bool hideFinancials,
+    required BarcodeSymbolMode symbol,
+    required bool compact,
+  }) {
+    try {
+      return _tableLabelCell(
+        width: width,
+        height: height,
+        data: data,
+        serialNumber: serialNumber,
+        cellSize: cellSize,
+        showLastPurchase: showLastPurchase,
+        hideFinancials: hideFinancials,
+        symbol: symbol,
+        compact: compact,
+      );
+    } catch (_) {
+      return pw.Container(
+        width: width,
+        height: height,
+        alignment: pw.Alignment.center,
+        decoration: pw.BoxDecoration(
+          border: pw.Border.all(color: PdfColors.red300, width: 0.75),
+          color: PdfColors.grey100,
+        ),
+        child: pw.Text(
+          'SL $serialNumber\nSkip',
+          textAlign: pw.TextAlign.center,
+          style: const pw.TextStyle(fontSize: 6, color: PdfColors.red800),
+        ),
+      );
+    }
+  }
 
   /// Bordered grid cell with serial number badge (A4 table layout).
   static pw.Widget _tableLabelCell({
@@ -654,26 +707,60 @@ class BarcodePdfService {
             ],
           ),
           pw.Expanded(
-            child: pw.FittedBox(
-              fit: pw.BoxFit.scaleDown,
-              alignment: pw.Alignment.topCenter,
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                mainAxisSize: pw.MainAxisSize.min,
-                children: _labelBody(
-                  data: data,
-                  size: cellSize,
-                  showLastPurchase: showLastPurchase,
-                  hideFinancials: hideFinancials,
-                  symbol: symbol,
-                  compact: compact,
-                  serialNumber: serialNumber,
-                  showSerialBadge: false,
-                ),
-              ),
+            child: _labelBodyContainer(
+              height: height,
+              compact: compact,
+              data: data,
+              cellSize: cellSize,
+              showLastPurchase: showLastPurchase,
+              hideFinancials: hideFinancials,
+              symbol: symbol,
+              serialNumber: serialNumber,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  static pw.Widget _labelBodyContainer({
+    required double height,
+    required bool compact,
+    required BarcodeLabelData data,
+    required LabelSize cellSize,
+    required bool showLastPurchase,
+    required bool hideFinancials,
+    required BarcodeSymbolMode symbol,
+    int? serialNumber,
+  }) {
+    final body = _labelBody(
+      data: data,
+      size: cellSize,
+      showLastPurchase: showLastPurchase,
+      hideFinancials: hideFinancials,
+      symbol: symbol,
+      compact: compact,
+      serialNumber: serialNumber,
+      showSerialBadge: false,
+    );
+    final minFitted = 14.0 * PdfPageFormat.mm;
+    if (compact && height < minFitted) {
+      return pw.Align(
+        alignment: pw.Alignment.topCenter,
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+          mainAxisSize: pw.MainAxisSize.min,
+          children: body,
+        ),
+      );
+    }
+    return pw.FittedBox(
+      fit: pw.BoxFit.scaleDown,
+      alignment: pw.Alignment.topCenter,
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        mainAxisSize: pw.MainAxisSize.min,
+        children: body,
       ),
     );
   }

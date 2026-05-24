@@ -32,6 +32,15 @@
 
 - [ ] Deploy Vercel + sign out/in after release
 
+### Staff UX + bulk PDF (2026-05-24)
+- [x] Bulk PDF: clamp label dims, skip FittedBox on tiny cells, per-label safe cells, infinity-friendly errors
+- [x] Bulk print toolbar: compact chip row + action row (no stacked SegmentedButtons)
+- [x] Bulk list: StockTableLayout rows, Ordered/Stock columns, truck on pending qty
+- [x] Printable-only filter before PDF (skip items without barcode/code)
+- [x] Staff home: 3-col quick grid, horizontal activity chips, compact scan CTA
+- [x] Receive shipment: `/staff/receive` list + `/staff/receive/:id` checklist + mark delivered
+- [ ] Push + Vercel redeploy (web title + bulk PDF fixes)
+
 ---
 
 ## Harisree Warehouse Master Fix v3 (2026-05-24)

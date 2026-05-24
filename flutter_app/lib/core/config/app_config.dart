@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+import '../theme/hexa_colors.dart';
+
 /// API base URL. Override at run time:
 /// `flutter run --dart-define=API_BASE_URL=http://192.168.1.10:8000`
 /// - Web/desktop: http://127.0.0.1:8000 (default; override with API_BASE_URL)
@@ -8,7 +10,7 @@ class AppConfig {
   AppConfig._();
 
   /// Default product name (store listing / package name are separate).
-  static const String appName = 'Harisree Purchases';
+  static const String appName = HexaColors.appName;
 
   /// Vercel web builds: set `API_BASE_URL` in project env (see `scripts/vercel-flutter-build.sh`).
   /// If `POST /v1/me/bootstrap-workspace` returns **404**, the client is not hitting the

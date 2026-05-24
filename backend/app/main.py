@@ -218,7 +218,7 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 
-app = FastAPI(title="Harisree Purchases API", lifespan=lifespan)
+app = FastAPI(title="Harisree Warehouse API", lifespan=lifespan)
 
 
 def _http_measurement_payload(

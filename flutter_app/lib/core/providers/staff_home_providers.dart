@@ -93,9 +93,19 @@ final staffLowStockAlertsProvider =
 
 /// Undelivered trade purchases visible to staff (for home alert pill).
 final staffPendingDeliveryCountProvider = Provider.autoDispose<int>((ref) {
-  final purchases = ref.watch(tradePurchasesParsedProvider).valueOrNull;
-  if (purchases == null) return 0;
-  return purchases.where((p) => !p.isDelivered).length;
+  final purchases = ref.watch(staffPendingDeliveriesProvider).valueOrNull;
+  return purchases?.length ?? 0;
+});
+
+/// Pending warehouse deliveries — oldest purchase date first.
+final staffPendingDeliveriesProvider =
+    Provider.autoDispose<AsyncValue<List<TradePurchase>>>((ref) {
+  final list = ref.watch(tradePurchasesParsedProvider);
+  return list.whenData((purchases) {
+    final pending = purchases.where((p) => !p.isDelivered).toList()
+      ..sort((a, b) => a.purchaseDate.compareTo(b.purchaseDate));
+    return pending;
+  });
 });
 
 /// Last barcode scans from device prefs (shared with [BarcodeScanPage]).

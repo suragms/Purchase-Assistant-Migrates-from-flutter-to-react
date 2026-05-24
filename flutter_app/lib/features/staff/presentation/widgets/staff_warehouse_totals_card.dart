@@ -120,11 +120,11 @@ class StaffWarehouseTotalsCard extends ConsumerWidget {
                 onTap: () => _openSubcategorySheet(context, ref),
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
-                  constraints: const BoxConstraints(minHeight: 48),
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                  constraints: const BoxConstraints(minHeight: 44),
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: HexaColors.brandBorder),
                   ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -152,20 +152,20 @@ class StaffWarehouseTotalsCard extends ConsumerWidget {
         return Card(
           margin: EdgeInsets.zero,
           child: Padding(
-            padding: const EdgeInsets.all(HexaOp.cardPadding),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Warehouse stock',
-                  style: HexaDsType.heading(16),
+                  style: HexaDsType.heading(15),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
-                  'On hand now · tap a unit for subcategories',
-                  style: HexaDsType.body(12, color: HexaDsColors.textMuted),
+                  'On hand · tap for subcategories',
+                  style: HexaDsType.body(11, color: HexaDsColors.textMuted),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Row(
                   children: [
                     unitTile('Bags', bags, HexaColors.brandPrimary),

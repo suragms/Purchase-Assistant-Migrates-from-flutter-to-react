@@ -62,13 +62,18 @@ String barcodeMessageForUser(
       return 'Could not prepare this label. Check barcode and item code.';
     case BarcodeOperationContext.preview:
     case BarcodeOperationContext.bulkPrint:
+      if (s.contains('infinity') ||
+          s.contains('nan') ||
+          s.contains('unsupported operation')) {
+        return 'Some label numbers were invalid. Try A4 + Code128, or fewer items per batch.';
+      }
       if (s.contains('too big') ||
           s.contains('memory') ||
           s.contains('overflow') ||
           s.contains('widget')) {
         return 'PDF too large for browser. Use A4 + Code128 and try 50 items.';
       }
-      return 'Could not prepare labels. Use A4 + Code128, or try 50 items.';
+      return 'Could not prepare labels. Use A4 + Code128, or fewer items per batch.';
   }
 }
 

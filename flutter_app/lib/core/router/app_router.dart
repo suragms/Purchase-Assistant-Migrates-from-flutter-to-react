@@ -79,6 +79,8 @@ import '../../features/staff/presentation/staff_activity_page.dart';
 import '../../features/staff/presentation/staff_purchase_history_page.dart';
 import '../../features/staff/presentation/staff_low_stock_page.dart';
 import '../../features/staff/presentation/staff_purchase_order_detail_page.dart';
+import '../../features/staff/presentation/staff_pending_deliveries_page.dart';
+import '../../features/staff/presentation/staff_receive_shipment_page.dart';
 import '../../features/shell/shell_screen.dart';
 import '../../features/splash/presentation/splash_page.dart';
 import '../../features/admin/presentation/super_admin_page.dart';
@@ -685,6 +687,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: const SuperAdminPage(),
         ),
+      ),
+      GoRoute(
+        path: '/staff/receive',
+        name: 'staff_receive_list',
+        pageBuilder: (context, state) => iosPushPage(
+          key: state.pageKey,
+          child: const StaffPendingDeliveriesPage(),
+        ),
+        routes: [
+          GoRoute(
+            path: ':purchaseId',
+            name: 'staff_receive_detail',
+            pageBuilder: (context, state) => iosPushPage(
+              key: state.pageKey,
+              child: StaffReceiveShipmentPage(
+                purchaseId: state.pathParameters['purchaseId']!,
+              ),
+            ),
+          ),
+        ],
       ),
       GoRoute(
         path: '/staff/low-stock',

@@ -18,6 +18,7 @@ import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/list_skeleton.dart';
 import '../../stock/presentation/update_stock_sheet.dart';
+import 'widgets/staff_home_quick_grid.dart';
 import 'widgets/staff_warehouse_totals_card.dart';
 
 String _staffInitials(String name) {
@@ -228,7 +229,7 @@ class StaffHomePage extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(16),
                   onTap: () => context.push('/barcode/scan'),
                   child: Ink(
-                    height: HexaOp.listRowMin,
+                    height: 52,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
                       gradient: LinearGradient(
@@ -241,14 +242,14 @@ class StaffHomePage extends ConsumerWidget {
                     child: const Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 32),
-                        SizedBox(width: 12),
+                        Icon(Icons.qr_code_scanner_rounded, color: Colors.white, size: 26),
+                        SizedBox(width: 10),
                         Text(
                           'Scan barcode',
                           style: TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w900,
-                            fontSize: 18,
+                            fontSize: 16,
                           ),
                         ),
                       ],
@@ -280,16 +281,10 @@ class StaffHomePage extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 16),
-              GridView.count(
-                crossAxisCount: 2,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-                childAspectRatio: 1.35,
+              StaffHomeQuickGrid(
                 children: [
-                  _StaffActionTile(
-                    label: 'Search item',
+                  StaffHomeQuickTile(
+                    label: 'Search',
                     icon: Icons.search_rounded,
                     onTap: () {
                       ref.read(searchFocusRequestedProvider.notifier).state =
@@ -297,27 +292,27 @@ class StaffHomePage extends ConsumerWidget {
                       context.go('/staff/search');
                     },
                   ),
-                  _StaffActionTile(
-                    label: 'Add new item',
+                  StaffHomeQuickTile(
+                    label: 'Add item',
                     icon: Icons.add_box_outlined,
                     onTap: () => context.push('/catalog/quick-add'),
                   ),
-                  _StaffActionTile(
-                    label: 'Update stock',
+                  StaffHomeQuickTile(
+                    label: 'Stock',
                     icon: Icons.inventory_2_outlined,
                     onTap: () => context.go('/staff/stock'),
                   ),
-                  _StaffActionTile(
+                  StaffHomeQuickTile(
                     label: 'History',
                     icon: Icons.receipt_long_outlined,
                     onTap: () => context.go('/staff/purchase-history'),
                   ),
-                  _StaffActionTile(
+                  StaffHomeQuickTile(
                     label: 'Print',
                     icon: Icons.print_outlined,
                     onTap: () => context.push('/barcode/bulk-print'),
                   ),
-                  _StaffActionTile(
+                  StaffHomeQuickTile(
                     label: 'Low stock',
                     icon: Icons.warning_amber_rounded,
                     badge: lowAsync.valueOrNull?.length ?? 0,
@@ -338,9 +333,7 @@ class StaffHomePage extends ConsumerWidget {
                           label:
                               '🚚 $pendingDeliveries pending deliver${pendingDeliveries == 1 ? 'y' : 'ies'}',
                           color: const Color(0xFFBA7517),
-                          onTap: () => context.go(
-                            '/staff/purchase-history',
-                          ),
+                          onTap: () => context.push('/staff/receive'),
                         ),
                       if (pendingDeliveries > 0 && missingCount > 0)
                         const SizedBox(width: 8),
@@ -421,35 +414,33 @@ class StaffHomePage extends ConsumerWidget {
                   subtitle: 'Please check your connection and try again.',
                   onRetry: () => ref.invalidate(staffTodayActivityProvider),
                 ),
-                data: (s) => GridView.count(
-                  crossAxisCount: 2,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  childAspectRatio: 1.8,
-                  children: [
-                    _ActivityCard(
-                      label: 'Items scanned',
-                      value: '${s.scanned}',
-                      icon: Icons.qr_code_scanner_outlined,
-                    ),
-                    _ActivityCard(
-                      label: 'Items checked',
-                      value: '${s.itemsChecked}',
-                      icon: Icons.fact_check_outlined,
-                    ),
-                    _ActivityCard(
-                      label: 'Stock updates',
-                      value: '${s.stockUpdates}',
-                      icon: Icons.inventory_2_outlined,
-                    ),
-                    _ActivityCard(
-                      label: 'Purchases',
-                      value: '${s.purchases}',
-                      icon: Icons.receipt_long_outlined,
-                    ),
-                  ],
+                data: (s) => SizedBox(
+                  height: 72,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      _ActivityChip(
+                        label: 'Scanned',
+                        value: '${s.scanned}',
+                        icon: Icons.qr_code_scanner_outlined,
+                      ),
+                      _ActivityChip(
+                        label: 'Checked',
+                        value: '${s.itemsChecked}',
+                        icon: Icons.fact_check_outlined,
+                      ),
+                      _ActivityChip(
+                        label: 'Stock',
+                        value: '${s.stockUpdates}',
+                        icon: Icons.inventory_2_outlined,
+                      ),
+                      _ActivityChip(
+                        label: 'Purchases',
+                        value: '${s.purchases}',
+                        icon: Icons.receipt_long_outlined,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               if (todayPurchases.isNotEmpty) ...[
@@ -678,80 +669,8 @@ class _StaffAlertPill extends StatelessWidget {
   }
 }
 
-class _StaffActionTile extends StatelessWidget {
-  const _StaffActionTile({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-    this.badge = 0,
-    this.badgeColor = const Color(0xFFDC2626),
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  final int badge;
-  final Color badgeColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Material(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, color: HexaColors.brandPrimary, size: 28),
-                  const SizedBox(height: 8),
-                  Text(
-                    label,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w800,
-                      fontSize: 13,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        if (badge > 0)
-          Positioned(
-            top: 6,
-            right: 6,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: badgeColor,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                badge > 99 ? '99+' : '$badge',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _ActivityCard extends StatelessWidget {
-  const _ActivityCard({
+class _ActivityChip extends StatelessWidget {
+  const _ActivityChip({
     required this.label,
     required this.value,
     required this.icon,
@@ -763,31 +682,42 @@ class _ActivityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: HexaColors.brandBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 20, color: HexaColors.brandPrimary),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w900,
-              color: Color(0xFF0F172A),
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Container(
+        width: 108,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: HexaColors.brandBorder),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 16, color: HexaColors.brandPrimary),
+                const Spacer(),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
             ),
-          ),
-          Text(
-            label,
-            style: HexaDsType.label(11, color: HexaDsColors.textMuted),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: HexaDsType.label(10, color: HexaDsColors.textMuted),
+            ),
+          ],
+        ),
       ),
     );
   }

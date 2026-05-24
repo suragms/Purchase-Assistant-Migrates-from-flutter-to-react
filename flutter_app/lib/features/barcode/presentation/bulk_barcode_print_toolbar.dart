@@ -52,105 +52,96 @@ class BulkBarcodePrintToolbar extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(
             HexaOp.pageGutter,
-            8,
+            6,
             HexaOp.pageGutter,
-            8,
+            6,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (progress != null || statusText != null) ...[
-                LinearProgressIndicator(minHeight: 3, value: progress),
+                LinearProgressIndicator(minHeight: 2, value: progress),
                 if (statusText != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(statusText!, style: const TextStyle(fontSize: 11)),
+                    padding: const EdgeInsets.only(top: 2, bottom: 4),
+                    child: Text(
+                      statusText!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10),
+                    ),
                   ),
-                const SizedBox(height: 8),
               ],
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: true, label: Text('A4')),
-                        ButtonSegment(value: false, label: Text('Thermal')),
-                      ],
-                      selected: {denseA4},
-                      onSelectionChanged: busy
-                          ? null
-                          : (s) => onDenseA4Changed(s.first),
+                    _FmtChip(
+                      label: denseA4 ? 'A4' : 'Thermal',
+                      selected: denseA4,
+                      onTap: busy ? null : () => onDenseA4Changed(!denseA4),
                     ),
-                    const SizedBox(width: 8),
-                    SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: true, label: Text('QR')),
-                        ButtonSegment(value: false, label: Text('Code128')),
-                      ],
-                      selected: {useQr},
-                      onSelectionChanged: busy
-                          ? null
-                          : (s) => onQrChanged(s.first),
+                    const SizedBox(width: 4),
+                    _FmtChip(
+                      label: useQr ? 'QR' : 'Code128',
+                      selected: !useQr,
+                      onTap: busy ? null : () => onQrChanged(!useQr),
                     ),
-                    const SizedBox(width: 8),
-                    _CopiesStepper(
+                    const SizedBox(width: 4),
+                    _CopiesChip(
                       value: copies,
                       enabled: !busy,
                       onChanged: onCopiesChanged,
                     ),
-                    const SizedBox(width: 8),
-                    SegmentedButton<BulkLabelsPerPdfFile>(
-                      segments: [
-                        ButtonSegment(
-                          value: BulkLabelsPerPdfFile.n30,
-                          label: Text(denseA4 ? '30/pg' : '30/PDF'),
-                        ),
-                        ButtonSegment(
-                          value: BulkLabelsPerPdfFile.n40,
-                          label: Text(denseA4 ? '40/pg' : '40/PDF'),
-                        ),
-                        ButtonSegment(
-                          value: BulkLabelsPerPdfFile.n50,
-                          label: Text(denseA4 ? '50/pg' : '50/PDF'),
-                        ),
-                        ButtonSegment(
-                          value: BulkLabelsPerPdfFile.n60,
-                          label: Text(denseA4 ? '60/pg' : '60/PDF'),
-                        ),
-                      ],
-                      selected: {labelsPerPdfFile},
-                      onSelectionChanged: busy
-                          ? null
-                          : (s) => onLabelsPerPdfFileChanged(s.first),
-                    ),
+                    if (denseA4) ...[
+                      const SizedBox(width: 4),
+                      _FmtChip(
+                        label: '${labelsPerPdfFile.count}/pg',
+                        selected: true,
+                        onTap: busy
+                            ? null
+                            : () {
+                                final next = switch (labelsPerPdfFile) {
+                                  BulkLabelsPerPdfFile.n30 =>
+                                    BulkLabelsPerPdfFile.n50,
+                                  BulkLabelsPerPdfFile.n50 =>
+                                    BulkLabelsPerPdfFile.n60,
+                                  _ => BulkLabelsPerPdfFile.n30,
+                                };
+                                onLabelsPerPdfFileChanged(next);
+                              },
+                      ),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Row(
                 children: [
                   Expanded(
                     child: OperationalAsyncButton(
                       label: 'Preview',
+                      icon: Icons.visibility_outlined,
                       busy: busy,
                       enabled: enabled,
                       onPressed: enabled ? onPreview : null,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: OperationalAsyncButton(
                       label: pdfButtonLabel,
+                      icon: Icons.download_outlined,
                       busy: busy,
                       enabled: enabled,
                       onPressed: enabled ? onPdf : null,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: OperationalAsyncButton(
                       label: 'Print',
+                      icon: Icons.print_outlined,
                       filled: true,
                       busy: busy,
                       enabled: enabled,
@@ -167,8 +158,32 @@ class BulkBarcodePrintToolbar extends StatelessWidget {
   }
 }
 
-class _CopiesStepper extends StatelessWidget {
-  const _CopiesStepper({
+class _FmtChip extends StatelessWidget {
+  const _FmtChip({
+    required this.label,
+    required this.selected,
+    this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilterChip(
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+      selected: selected,
+      onSelected: onTap == null ? null : (_) => onTap!(),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+    );
+  }
+}
+
+class _CopiesChip extends StatelessWidget {
+  const _CopiesChip({
     required this.value,
     required this.enabled,
     required this.onChanged,
@@ -180,23 +195,56 @@ class _CopiesStepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.remove),
-          onPressed: !enabled || value <= 1
-              ? null
-              : () => onChanged(value - 1),
-        ),
-        Text('$value', style: const TextStyle(fontWeight: FontWeight.w800)),
-        IconButton(
-          icon: const Icon(Icons.add),
-          onPressed: !enabled || value >= 5
-              ? null
-              : () => onChanged(value + 1),
-        ),
-      ],
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black26),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _MiniIconBtn(
+            icon: Icons.remove,
+            enabled: enabled && value > 1,
+            onTap: () => onChanged(value - 1),
+          ),
+          Text(
+            '×$value',
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+          ),
+          _MiniIconBtn(
+            icon: Icons.add,
+            enabled: enabled && value < 5,
+            onTap: () => onChanged(value + 1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniIconBtn extends StatelessWidget {
+  const _MiniIconBtn({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        iconSize: 16,
+        icon: Icon(icon),
+        onPressed: enabled ? onTap : null,
+      ),
     );
   }
 }
