@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/theme/hexa_colors.dart';
+import '../../../../shared/widgets/warehouse_units_breakdown_line.dart';
 import 'home_formatters.dart';
 
 /// Dense 2×2 KPI strip: today/month spend + stock alerts (fixed calendar windows).
@@ -110,11 +111,11 @@ class _KpiTile extends StatelessWidget {
               ),
               if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
                 const SizedBox(height: 2),
-                Text(
-                  subtitle!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: HexaDsType.bodySm(context).copyWith(fontSize: 10),
+                WarehouseUnitsSubtitleText(
+                  subtitle: subtitle!,
+                  fontSize: 10,
+                  fallbackStyle:
+                      HexaDsType.bodySm(context).copyWith(fontSize: 10),
                 ),
               ],
             ],

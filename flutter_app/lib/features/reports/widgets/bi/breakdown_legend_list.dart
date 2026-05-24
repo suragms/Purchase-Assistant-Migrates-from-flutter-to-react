@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../shared/widgets/warehouse_units_breakdown_line.dart';
 import 'reports_bi_slice.dart';
 
 String _inr0(num n) =>
@@ -96,11 +97,10 @@ class _LegendRow extends StatelessWidget {
                       ),
                     ),
                     if (slice.subtitle.isNotEmpty)
-                      Text(
-                        slice.subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
+                      WarehouseUnitsSubtitleText(
+                        subtitle: slice.subtitle,
+                        fontSize: 11,
+                        fallbackStyle: const TextStyle(
                           fontSize: 11,
                           color: Colors.black54,
                         ),

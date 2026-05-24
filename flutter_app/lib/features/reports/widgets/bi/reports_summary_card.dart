@@ -3,13 +3,11 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/reporting/trade_report_aggregate.dart';
 import '../../../../core/theme/hexa_colors.dart';
+import '../../../../shared/widgets/warehouse_units_breakdown_line.dart';
 
 String _inr0(num n) =>
     NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0)
         .format(n);
-
-String _qtyReadable(double q) =>
-    q == q.roundToDouble() ? '${q.round()}' : q.toStringAsFixed(1);
 
 /// Warehouse BI summary: purchase value, units, counts, optional comparison line.
 class ReportsSummaryCard extends StatelessWidget {
@@ -88,15 +86,9 @@ class ReportsSummaryCard extends StatelessWidget {
             ),
             if (!collapsed) ...[
               const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: [
-                  _unitChip('KG', _qtyReadable(totals.kg)),
-                  _unitChip('Bags', _qtyReadable(totals.bags)),
-                  _unitChip('Boxes', _qtyReadable(totals.boxes)),
-                  _unitChip('Tins', _qtyReadable(totals.tins)),
-                ],
+              WarehouseUnitsBreakdownLine(
+                segments: warehouseUnitSegmentsFromTradeTotals(totals),
+                fontSize: 13,
               ),
               const SizedBox(height: 8),
               Text(
@@ -144,24 +136,4 @@ class ReportsSummaryCard extends StatelessWidget {
     );
   }
 
-  Widget _unitChip(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF5F3EE),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE0DDD8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 9, color: Colors.black45)),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-          ),
-        ],
-      ),
-    );
-  }
 }

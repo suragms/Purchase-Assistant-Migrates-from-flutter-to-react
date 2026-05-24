@@ -6,11 +6,25 @@ import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/analytics_breakdown_providers.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/reporting/trade_report_aggregate.dart';
-import '../../widgets/bi/breakdown_legend_list.dart';
+import '../../../../shared/widgets/warehouse_units_breakdown_line.dart';
 import '../../widgets/bi/reports_bi_slice.dart';
 import '../../widgets/bi/warehouse_ring_section.dart';
 import '../reports_category_drill_page.dart';
 import '../reports_subcategory_drill_page.dart';
+
+List<ReportsBiSlice> _filterSlices(
+  List<ReportsBiSlice> slices,
+  String searchQuery,
+) {
+  final q = searchQuery.trim().toLowerCase();
+  if (q.isEmpty) return slices;
+  return [
+    for (final s in slices)
+      if (s.title.toLowerCase().contains(q) ||
+          s.subtitle.toLowerCase().contains(q))
+        s,
+  ];
+}
 
 /// Categories or subcategories tab with ring + list.
 class ReportsBreakdownTab extends ConsumerWidget {
@@ -18,16 +32,21 @@ class ReportsBreakdownTab extends ConsumerWidget {
     super.key,
     required this.subcategories,
     required this.agg,
+    this.searchQuery = '',
+    this.expanded = false,
   });
 
   final bool subcategories;
   final TradeReportAgg agg;
+  final String searchQuery;
+  final bool expanded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final typesAsync = ref.watch(analyticsTypesTableProvider);
     final catsAsync = ref.watch(analyticsCategoriesTableProvider);
     final dash = ref.watch(homeDashboardDataProvider).snapshot.data;
+    final units = warehouseUnitSegmentsFromTradeTotals(agg.totals);
 
     if (subcategories) {
       return typesAsync.when(
@@ -42,7 +61,12 @@ class ReportsBreakdownTab extends ConsumerWidget {
           if (slices.isEmpty) {
             slices = slicesFromDashboardSubcategories(dash);
           }
-          return _body(context, slices, 'Subcategory spend');
+          return _body(
+            context,
+            _filterSlices(slices, searchQuery),
+            'subcategories',
+            units,
+          );
         },
       );
     }
@@ -58,7 +82,12 @@ class ReportsBreakdownTab extends ConsumerWidget {
         if (slices.isEmpty) {
           slices = slicesFromDashboardCategories(dash);
         }
-        return _body(context, slices, 'Category spend');
+        return _body(
+          context,
+          _filterSlices(slices, searchQuery),
+          'categories',
+          units,
+        );
       },
     );
   }
@@ -84,25 +113,37 @@ class ReportsBreakdownTab extends ConsumerWidget {
     );
   }
 
-  Widget _body(BuildContext context, List<ReportsBiSlice> slices, String label) {
+  Widget _body(
+    BuildContext context,
+    List<ReportsBiSlice> slices,
+    String labelKind,
+    List<WarehouseUnitSegment> units,
+  ) {
+    final q = searchQuery.trim();
     if (slices.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(24),
           child: Text(
-            'No purchases in selected period.\nTry changing date range.',
+            q.isNotEmpty
+                ? 'No $labelKind match "$q".\nTry another search or period.'
+                : 'No purchases in selected period.\nTry changing date range.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.black54),
+            style: const TextStyle(fontSize: 13, color: Colors.black54),
           ),
         ),
       );
     }
+    final centerLabel =
+        subcategories ? 'subcategory spend' : 'category spend';
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
         WarehouseRingSection(
           slices: slices,
-          centerLabel: label,
+          centerLabel: centerLabel,
+          unitSegments: units,
+          expanded: expanded,
           onSliceTap: (_, slice) {
             if (subcategories) {
               context.push(
@@ -119,15 +160,18 @@ class ReportsBreakdownTab extends ConsumerWidget {
             }
           },
         ),
-        const SizedBox(height: 8),
-        BreakdownLegendList(
-          slices: slices,
-          onTapIndex: (i) {
-            if (i < slices.length && slices[i].onTap != null) {
-              slices[i].onTap!();
-            }
-          },
-        ),
+        if (q.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6, bottom: 4),
+            child: Text(
+              '${slices.length} match${slices.length == 1 ? '' : 'es'} for "$q"',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: () => context.push(

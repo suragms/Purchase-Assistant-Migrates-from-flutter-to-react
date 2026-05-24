@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/providers/home_breakdown_tab_providers.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
+import '../../../../core/theme/hexa_colors.dart';
+import '../../../../shared/widgets/warehouse_units_breakdown_line.dart';
 import '../../../../widgets/spend_ring_chart.dart';
 import '../home_spend_ring_diameter.dart';
 import 'home_analytics_helpers.dart';
@@ -29,6 +31,83 @@ class HomeAnalyticsRing extends ConsumerWidget {
   final double screenHeight;
   final bool mini;
 
+  Widget? _ringCenter(
+    BuildContext context, {
+    required bool showPeriodTotals,
+    required bool showEmptyHint,
+  }) {
+    if (mini) return null;
+    final profit = dash.totalProfit;
+    final pct = dash.profitPercent;
+    final pctLabel = pct != null
+        ? '(${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(1)}%)'
+        : '';
+    final unitSegments = warehouseUnitSegmentsFromDashboard(dash);
+    final emptyHint = homeAnalyticsEmptyHint(tab, dash);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showPeriodTotals) ...[
+          Text(
+            'Profit',
+            style: HexaDsType.labelCaps(context).copyWith(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: const Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            homeInr(profit),
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+              color: HexaColors.brandPrimary,
+              height: 1.05,
+            ),
+          ),
+          if (pctLabel.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              pctLabel,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                color: (pct ?? 0) >= 0
+                    ? const Color(0xFF16A34A)
+                    : const Color(0xFFDC2626),
+              ),
+            ),
+          ],
+          if (unitSegments.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            WarehouseUnitsBreakdownLine(
+              segments: unitSegments,
+              fontSize: 12,
+              compact: true,
+            ),
+          ],
+          const SizedBox(height: 6),
+        ],
+        if (showEmptyHint)
+          Text(
+            emptyHint,
+            textAlign: TextAlign.center,
+            style: HexaDsType.bodySm(context).copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+              color: const Color(0xFF64748B),
+            ),
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final diameter = mini
@@ -44,64 +123,20 @@ class HomeAnalyticsRing extends ConsumerWidget {
     final hasRingData =
         values.isNotEmpty && values.fold<double>(0, (a, b) => a + b) > 0;
 
-    final profit = dash.totalProfit;
-    final pct = dash.profitPercent;
-    final pctLabel = pct != null
-        ? '(${pct >= 0 ? '+' : ''}${pct.toStringAsFixed(1)}%)'
-        : '';
-    final units = homeDashboardUnitsLine(dash);
-    final emptyHint = homeAnalyticsEmptyHint(tab, dash);
+    final showPeriodTotals = dash.purchaseCount > 0;
 
     if (!hasRingData) {
-      final showPeriodTotals = dash.purchaseCount > 0;
       return Center(
         child: SpendRingChart(
           diameter: diameter,
           strokeWidth: stroke,
           values: const [1],
           colors: const [Color(0xFFE2E8F0)],
-          centerChild: mini
-              ? null
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (showPeriodTotals) ...[
-                      Text(
-                        'Profit',
-                        style: HexaDsType.labelCaps(context).copyWith(
-                          fontSize: 9,
-                        ),
-                      ),
-                      Text(
-                        homeInr(profit),
-                        style: HexaDsType.bodySm(context).copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      if (units.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          units,
-                          textAlign: TextAlign.center,
-                          style: HexaDsType.bodySm(context).copyWith(
-                            fontSize: 10,
-                            color: const Color(0xFF64748B),
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 6),
-                    ],
-                    Text(
-                      emptyHint,
-                      textAlign: TextAlign.center,
-                      style: HexaDsType.bodySm(context).copyWith(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 11,
-                        color: const Color(0xFF64748B),
-                      ),
-                    ),
-                  ],
-                ),
+          centerChild: _ringCenter(
+            context,
+            showPeriodTotals: showPeriodTotals,
+            showEmptyHint: true,
+          ),
         ),
       );
     }
@@ -120,10 +155,11 @@ class HomeAnalyticsRing extends ConsumerWidget {
         strokeWidth: stroke,
         values: values,
         colors: colors,
-        centerLine1: mini ? null : 'Profit',
-        centerLine2: mini ? null : homeInr(profit),
-        centerLine3: mini || pctLabel.isEmpty ? null : pctLabel,
-        centerLine4: mini || units.isEmpty ? null : units,
+        centerChild: _ringCenter(
+          context,
+          showPeriodTotals: showPeriodTotals,
+          showEmptyHint: false,
+        ),
         onSectionTap: mini ? null : onTap,
       ),
     );

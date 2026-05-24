@@ -33,9 +33,11 @@ import '../reporting/reports_item_metrics.dart';
 import '../reports_bi_tab.dart';
 import '../../../core/providers/analytics_breakdown_providers.dart';
 import '../../../core/providers/reports_bi_providers.dart';
+import 'reports_fullscreen_page.dart';
 import 'widgets/reports_breakdown_tab.dart';
 import 'widgets/reports_insights_strip.dart';
 import 'widgets/reports_movement_tab.dart';
+import 'widgets/reports_period_bar.dart';
 import 'widgets/reports_stock_intel_tab.dart';
 import '../widgets/bi/reports_summary_card.dart';
 
@@ -222,6 +224,38 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     _scheduleReportsReloadForRange();
   }
 
+  void _applyDatePresetFromLabel(String label) {
+    final p = switch (label) {
+      'Today' => _DatePreset.today,
+      'Week' => _DatePreset.week,
+      'Month' => _DatePreset.month,
+      'Year' => _DatePreset.year,
+      _ => _DatePreset.month,
+    };
+    _applyDatePreset(p);
+  }
+
+  String _searchHintForTab(ReportsBiTab tab) => switch (tab) {
+        ReportsBiTab.items => 'Search items…',
+        ReportsBiTab.suppliers => 'Search suppliers…',
+        ReportsBiTab.brokers => 'Search brokers…',
+        ReportsBiTab.categories => 'Search categories…',
+        ReportsBiTab.subcategories => 'Search subcategories…',
+        ReportsBiTab.overview => 'Search overview…',
+        _ => 'Search reports…',
+      };
+
+  void _openReportsFullscreen() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ReportsFullscreenPage(
+          initialTab: _biTab,
+          initialPresetLabel: _presetLabel(_preset),
+        ),
+      ),
+    );
+  }
+
   void _applyDatePreset(_DatePreset p) {
     final n = DateTime.now();
     final today = DateTime(n.year, n.month, n.day);
@@ -401,88 +435,14 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     }
   }
 
-  Widget _summaryHeader(TradeReportTotals t, String rangeFmt) {
-    final tt = Theme.of(context).textTheme;
+  Widget _periodBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              PopupMenuButton<_DatePreset>(
-                onSelected: (p) {
-                  if (p == _DatePreset.custom) {
-                    unawaited(_pickCustomRange());
-                  } else {
-                    _applyDatePreset(p);
-                  }
-                },
-                itemBuilder: (ctx) => [
-                  for (final p in <_DatePreset>[
-                    _DatePreset.today,
-                    _DatePreset.week,
-                    _DatePreset.month,
-                    _DatePreset.year,
-                  ])
-                    PopupMenuItem(value: p, child: Text(_presetLabel(p))),
-                  const PopupMenuItem(
-                    value: _DatePreset.custom,
-                    child: Text('Custom range…'),
-                  ),
-                ],
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _presetLabel(_preset),
-                      style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    const Icon(Icons.arrow_drop_down_rounded),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  rangeFmt,
-                  textAlign: TextAlign.end,
-                  style: tt.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: HexaColors.brandPrimary,
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip:
-                    _reportsSummaryCollapsed ? 'Show summary' : 'Hide summary',
-                visualDensity: VisualDensity.compact,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                onPressed: () => setState(() {
-                  _reportsSummaryCollapsed = !_reportsSummaryCollapsed;
-                }),
-                icon: Icon(
-                  _reportsSummaryCollapsed
-                      ? Icons.expand_more_rounded
-                      : Icons.expand_less_rounded,
-                  color: HexaColors.brandPrimary,
-                ),
-              ),
-            ],
-          ),
-          if (!_reportsSummaryCollapsed) const SizedBox(height: 4),
-          const SizedBox(height: 2),
-          TextButton(
-            onPressed: _syncRangeWithHome,
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(_matchHomePeriodButtonLabel(ref.watch(appSelectedPeriodProvider))),
-          ),
-        ],
+      padding: const EdgeInsets.fromLTRB(4, 0, 4, 6),
+      child: ReportsPeriodBar(
+        selectedPreset: _presetLabel(_preset),
+        onPresetSelected: _applyDatePresetFromLabel,
+        onCustomRange: () => unawaited(_pickCustomRange()),
+        onSyncHome: _syncRangeWithHome,
       ),
     );
   }
@@ -543,11 +503,6 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       ),
     );
   }
-
-  bool _isListTab(ReportsBiTab t) =>
-      t == ReportsBiTab.items ||
-      t == ReportsBiTab.suppliers ||
-      t == ReportsBiTab.brokers;
 
   void _selectBiTab(ReportsBiTab tab) {
     HapticFeedback.selectionClick();
@@ -616,7 +571,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           ),
         ),
         ActionChip(
-          label: Text('Items', style: tt.labelSmall?.copyWith(fontWeight: FontWeight.w800)),
+          label: Text('More', style: tt.labelSmall?.copyWith(fontWeight: FontWeight.w800)),
           onPressed: _openMoreTabsSheet,
           visualDensity: VisualDensity.compact,
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1128,9 +1083,17 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           ],
         );
       case ReportsBiTab.categories:
-        return ReportsBreakdownTab(subcategories: false, agg: aggAll);
+        return ReportsBreakdownTab(
+          subcategories: false,
+          agg: aggAll,
+          searchQuery: _debouncedQuery,
+        );
       case ReportsBiTab.subcategories:
-        return ReportsBreakdownTab(subcategories: true, agg: aggAll);
+        return ReportsBreakdownTab(
+          subcategories: true,
+          agg: aggAll,
+          searchQuery: _debouncedQuery,
+        );
       case ReportsBiTab.slowMoving:
         return const ReportsStockIntelTab(dead: false);
       case ReportsBiTab.deadStock:
@@ -1294,6 +1257,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         foregroundColor: HexaColors.brandPrimary,
         actions: [
           IconButton(
+            tooltip: 'Full screen',
+            icon: const Icon(Icons.fullscreen_rounded),
+            onPressed: _openReportsFullscreen,
+          ),
+          IconButton(
             tooltip: 'Export PDF',
             icon: const Icon(Icons.picture_as_pdf_outlined),
             onPressed: () => _openReportsPdfSheet(merged),
@@ -1374,19 +1342,22 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                   _bumpInvalidate();
                   await ref.read(reportsPurchasesPayloadProvider.future);
                 },
-                child: ListView(
+                child: CustomScrollView(
                   keyboardDismissBehavior:
                       ScrollViewKeyboardDismissBehavior.onDrag,
                   physics: const AlwaysScrollableScrollPhysics(
                     parent: BouncingScrollPhysics(),
                   ),
-                  padding: EdgeInsets.fromLTRB(
-                    12,
-                    4,
-                    12,
-                    24 + MediaQuery.viewPaddingOf(context).bottom,
-                  ),
-                  children: [
+                  slivers: [
+                    SliverPadding(
+                      padding: EdgeInsets.fromLTRB(
+                        12,
+                        4,
+                        12,
+                        24 + MediaQuery.viewPaddingOf(context).bottom,
+                      ),
+                      sliver: SliverList(
+                        delegate: SliverChildListDelegate([
                     if (purchasesAsync.isLoading && merged.isNotEmpty)
                       const LinearProgressIndicator(minHeight: 2),
                     if (_stallBanner &&
@@ -1441,36 +1412,38 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                           ),
                         ),
                       ),
-                    if (_isListTab(_biTab)) ...[
-                      TextField(
-                        controller: _searchCtl,
-                        focusNode: _reportsSearchFocus,
-                        onChanged: (_) => setState(() {}),
-                        scrollPadding: const EdgeInsets.only(bottom: 280),
-                        decoration: InputDecoration(
-                          hintText: _biTab == ReportsBiTab.items
-                              ? 'Search items…'
-                              : 'Search…',
-                          isDense: true,
-                          prefixIcon:
-                              const Icon(Icons.search_rounded, size: 20),
-                          filled: true,
-                          fillColor: HexaColors.brandCard,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                BorderSide(color: HexaColors.brandBorder),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide:
-                                BorderSide(color: HexaColors.brandBorder),
-                          ),
+                    TextField(
+                      controller: _searchCtl,
+                      focusNode: _reportsSearchFocus,
+                      onChanged: (_) => setState(() {}),
+                      scrollPadding: const EdgeInsets.only(bottom: 280),
+                      decoration: InputDecoration(
+                        hintText: _searchHintForTab(_biTab),
+                        isDense: true,
+                        prefixIcon:
+                            const Icon(Icons.search_rounded, size: 20),
+                        suffixIcon: _searchCtl.text.trim().isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear_rounded, size: 18),
+                                onPressed: _clearSearch,
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: HexaColors.brandCard,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: HexaColors.brandBorder),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide:
+                              BorderSide(color: HexaColors.brandBorder),
                         ),
                       ),
-                      const SizedBox(height: 6),
-                    ],
-                    _summaryHeader(aggAll.totals, rangeFmt),
+                    ),
+                    const SizedBox(height: 6),
+                    _periodBar(),
                     Builder(
                       builder: (context) {
                         final subCount = ref
@@ -1594,8 +1567,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         ),
                       ),
                     ],
-                    SizedBox(
-                      height: MediaQuery.sizeOf(context).height * 0.52,
+                        ]),
+                      ),
+                    ),
+                    SliverFillRemaining(
+                      hasScrollBody: true,
                       child: _buildTabContent(
                         aggList: aggList,
                         aggAll: aggAll,
@@ -1613,5 +1589,13 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               ),
             ),
     );
+  }
+
+  void _clearSearch() {
+    _searchCtl.clear();
+    setState(() {
+      _debouncedQuery = '';
+      _visibleCap = 40;
+    });
   }
 }

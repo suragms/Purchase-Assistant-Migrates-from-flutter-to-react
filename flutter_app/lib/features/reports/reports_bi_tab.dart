@@ -63,10 +63,10 @@ extension ReportsBiTabX on ReportsBiTab {
     ReportsBiTab.categories,
     ReportsBiTab.subcategories,
     ReportsBiTab.items,
+    ReportsBiTab.suppliers,
   ];
 
   static const moreSheet = [
-    ReportsBiTab.suppliers,
     ReportsBiTab.brokers,
     ReportsBiTab.slowMoving,
     ReportsBiTab.deadStock,
