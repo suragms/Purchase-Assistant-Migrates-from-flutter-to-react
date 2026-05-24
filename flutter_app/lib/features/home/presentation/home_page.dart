@@ -27,6 +27,10 @@ import '../../../core/providers/notifications_provider.dart'
     show notificationsUnreadCountProvider;
 import '../../../core/providers/prefs_provider.dart';
 import '../../../core/providers/server_notifications_provider.dart';
+import '../../../core/providers/stock_providers.dart'
+    show lowStockByCategoryProvider, stockStatusCountsProvider;
+import '../../../core/providers/warehouse_alerts_provider.dart'
+    show warehouseAlertsProvider;
 import '../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../purchase/presentation/widgets/purchase_saved_sheet.dart';
@@ -112,6 +116,9 @@ class _HomePageState extends ConsumerState<HomePage>
       if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) return;
       ref.invalidate(homeRecentActivityFeedProvider);
       ref.invalidate(appNotificationUnreadCountProvider);
+      ref.invalidate(lowStockByCategoryProvider);
+      ref.invalidate(stockStatusCountsProvider);
+      ref.invalidate(warehouseAlertsProvider);
       _maybePushBackgroundAlert();
       _maybeNotifyStaffPurchases();
     });

@@ -38,7 +38,7 @@ Future<void> showItemQuickView({
   );
 }
 
-class _ItemQuickViewBody extends ConsumerWidget {
+class _ItemQuickViewBody extends ConsumerStatefulWidget {
   const _ItemQuickViewBody({
     required this.itemId,
     required this.itemName,
@@ -50,9 +50,31 @@ class _ItemQuickViewBody extends ConsumerWidget {
   final ScrollController scrollController;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final stockAsync = ref.watch(stockItemDetailProvider(itemId));
-    final itemAsync = ref.watch(catalogItemDetailProvider(itemId));
+  ConsumerState<_ItemQuickViewBody> createState() => _ItemQuickViewBodyState();
+}
+
+class _ItemQuickViewBodyState extends ConsumerState<_ItemQuickViewBody> {
+  final _searchCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _searchStockList() {
+    final q = _searchCtrl.text.trim();
+    if (q.isEmpty) return;
+    ref.read(stockListQueryProvider.notifier).state =
+        ref.read(stockListQueryProvider).copyWith(q: q, page: 1, sort: 'recent');
+    Navigator.of(context).pop();
+    context.push('/stock');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stockAsync = ref.watch(stockItemDetailProvider(widget.itemId));
+    final itemAsync = ref.watch(catalogItemDetailProvider(widget.itemId));
 
     return Column(
       children: [
@@ -62,7 +84,7 @@ class _ItemQuickViewBody extends ConsumerWidget {
             children: [
               Expanded(
                 child: Text(
-                  itemName,
+                  widget.itemName,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: HexaDsType.heading(18),
@@ -72,7 +94,7 @@ class _ItemQuickViewBody extends ConsumerWidget {
                 tooltip: 'Open full page',
                 onPressed: () {
                   Navigator.of(context).pop();
-                  context.push('/catalog/item/$itemId');
+                  context.push('/catalog/item/${widget.itemId}');
                 },
                 icon: const Icon(Icons.open_in_new_rounded),
               ),
@@ -90,7 +112,7 @@ class _ItemQuickViewBody extends ConsumerWidget {
             loading: () => const ListSkeleton(rowCount: 4),
             error: (_, __) => FriendlyLoadError(
               message: 'Could not load stock',
-              onRetry: () => ref.invalidate(stockItemDetailProvider(itemId)),
+              onRetry: () => ref.invalidate(stockItemDetailProvider(widget.itemId)),
             ),
             data: (stock) {
               final item = itemAsync.valueOrNull ?? const <String, dynamic>{};
@@ -108,9 +130,27 @@ class _ItemQuickViewBody extends ConsumerWidget {
               ].whereType<String>().where((s) => s.trim().isNotEmpty).join(' · ');
 
               return ListView(
-                controller: scrollController,
+                controller: widget.scrollController,
                 padding: const EdgeInsets.all(16),
                 children: [
+                  TextField(
+                    controller: _searchCtrl,
+                    decoration: InputDecoration(
+                      hintText: 'Search another item…',
+                      isDense: true,
+                      prefixIcon: const Icon(Icons.search, size: 20),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.arrow_forward_rounded),
+                        onPressed: _searchStockList,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (_) => _searchStockList(),
+                  ),
+                  const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -174,7 +214,7 @@ class _ItemQuickViewBody extends ConsumerWidget {
                   FilledButton.icon(
                     onPressed: () {
                       Navigator.of(context).pop();
-                      context.push('/catalog/item/$itemId');
+                      context.push('/catalog/item/${widget.itemId}');
                     },
                     icon: const Icon(Icons.inventory_2_outlined),
                     label: const Text('Open full item page'),
@@ -183,7 +223,7 @@ class _ItemQuickViewBody extends ConsumerWidget {
                   OutlinedButton.icon(
                     onPressed: () {
                       Navigator.of(context).pop();
-                      context.push('/barcode/print/$itemId');
+                      context.push('/barcode/print/${widget.itemId}');
                     },
                     icon: const Icon(Icons.print_rounded),
                     label: const Text('Print label'),

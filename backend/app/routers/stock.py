@@ -912,7 +912,7 @@ async def stock_alerts_summary(
 ):
     """Operational alert counts for owner home strip."""
     today = date.today()
-    low = crit = missing_barcode = missing_item_code = eviction = 0
+    low = crit = out = missing_barcode = missing_item_code = eviction = 0
     ir = await db.execute(
         select(
             CatalogItem.id,
@@ -937,8 +937,10 @@ async def stock_alerts_summary(
         st = stock_status(cur_d, ro_d)
         if st == "low":
             low += 1
-        elif st in ("critical", "out"):
+        elif st == "critical":
             crit += 1
+        elif st == "out":
+            out += 1
         if not (barcode and str(barcode).strip()):
             missing_barcode += 1
         if not (code and str(code).strip()):
@@ -965,9 +967,12 @@ async def stock_alerts_summary(
     return StockAlertsSummaryOut(
         low_stock=low,
         critical_stock=crit,
+        out_of_stock=out,
         missing_barcode=missing_barcode,
+        missing_item_code=missing_item_code,
         missing_usage_logs=max(0, active - logged),
         eviction_count=eviction,
+        total_items=active,
     )
 
 

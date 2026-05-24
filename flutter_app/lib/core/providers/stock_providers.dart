@@ -6,7 +6,6 @@ import '../api/hexa_api.dart';
 import '../auth/session_notifier.dart';
 import 'app_period_provider.dart';
 import 'home_dashboard_provider.dart';
-import 'staff_home_providers.dart';
 
 /// Query for GET `/v1/businesses/{id}/stock/list`.
 class StockListQuery {
@@ -349,7 +348,7 @@ final stockItemAuditProvider =
   },
 );
 
-/// Status bucket counts for stock filter chips (server totals + client scans).
+/// Status bucket counts for stock filter chips (authoritative server summary).
 final stockStatusCountsProvider =
     FutureProvider.autoDispose<Map<String, int>>((ref) async {
   final session = ref.watch(sessionProvider);
@@ -357,51 +356,31 @@ final stockStatusCountsProvider =
   final api = ref.read(hexaApiProvider);
   final bid = session.primaryBusiness.id;
 
-  Future<int> totalFor(String status) async {
-    final res = await api.listStock(
-      businessId: bid,
-      page: 1,
-      perPage: 1,
-      status: status,
-      sort: 'recent',
-    );
-    return (res['total'] as num?)?.toInt() ?? 0;
+  final summary = await api.getStockAlertsSummary(businessId: bid);
+  final allTotal = (summary['total_items'] as num?)?.toInt();
+  if (allTotal != null && allTotal > 0) {
+    return {
+      'all': allTotal,
+      'low': (summary['low_stock'] as num?)?.toInt() ?? 0,
+      'out': (summary['out_of_stock'] as num?)?.toInt() ?? 0,
+      'missing_code': (summary['missing_item_code'] as num?)?.toInt() ?? 0,
+      'missing_barcode': (summary['missing_barcode'] as num?)?.toInt() ?? 0,
+    };
   }
 
-  final results = await Future.wait([
-    totalFor('all'),
-    totalFor('low'),
-    totalFor('out'),
-  ]);
-  var missingBarcode = 0;
-  var page = 1;
-  while (page <= 8) {
-    final res = await api.listStock(
-      businessId: bid,
-      page: page,
-      perPage: 200,
-      status: 'all',
-      sort: 'recent',
-    );
-    final raw = (res['items'] as List?) ?? const [];
-    if (raw.isEmpty) break;
-    for (final e in raw) {
-      if (e is! Map) continue;
-      if (e['missing_barcode'] == true) missingBarcode++;
-    }
-    final total = (res['total'] as num?)?.toInt() ?? 0;
-    if (page * 200 >= total) break;
-    page++;
-  }
-  final missingCode =
-      ref.watch(missingCodeItemsProvider).valueOrNull?.length ?? 0;
-
+  final res = await api.listStock(
+    businessId: bid,
+    page: 1,
+    perPage: 1,
+    status: 'all',
+    sort: 'recent',
+  );
   return {
-    'all': results[0],
-    'low': results[1],
-    'out': results[2],
-    'missing_code': missingCode,
-    'missing_barcode': missingBarcode,
+    'all': (res['total'] as num?)?.toInt() ?? 0,
+    'low': (summary['low_stock'] as num?)?.toInt() ?? 0,
+    'out': (summary['out_of_stock'] as num?)?.toInt() ?? 0,
+    'missing_code': (summary['missing_item_code'] as num?)?.toInt() ?? 0,
+    'missing_barcode': (summary['missing_barcode'] as num?)?.toInt() ?? 0,
   };
 });
 

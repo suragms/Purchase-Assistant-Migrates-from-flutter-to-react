@@ -643,6 +643,15 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.fullscreen_rounded),
+              title: const Text('View PDF full screen'),
+              subtitle: const Text('Open print preview in app'),
+              onTap: () {
+                Navigator.pop(ctx);
+                unawaited(_viewStatementPdfFullScreen(merged));
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.table_rows_rounded),
               title: const Text('Export CSV'),
               subtitle: const Text('Items, suppliers, or brokers'),
@@ -940,6 +949,44 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: ch);
       default:
         return const SizedBox.shrink();
+    }
+  }
+
+  Future<void> _viewStatementPdfFullScreen(List<TradePurchase> purchases) async {
+    if (_exportingPdf || _exportingCsv) return;
+    final range = ref.read(analyticsDateRangeProvider);
+    final biz = ref.read(invoiceBusinessProfileProvider);
+    if (purchases.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Nothing to export for this period.'),
+            duration: Duration(seconds: 6),
+          ),
+        );
+      }
+      return;
+    }
+    setState(() => _exportingPdf = true);
+    try {
+      await layoutTradeStatementSsotPdf(
+        business: biz,
+        from: range.from,
+        to: range.to,
+        purchases: purchases,
+      );
+    } catch (e, st) {
+      logSilencedApiError(e, st);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Could not open PDF. ${userFacingError(e)}'),
+          duration: const Duration(seconds: 6),
+          action: SnackBarAction(label: 'Dismiss', onPressed: () {}),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _exportingPdf = false);
     }
   }
 

@@ -1,6 +1,36 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-05-24 (Harisree Warehouse Master Fix v3 waves 6–8)
+**Last updated:** 2026-05-24 (Master Fix v3 DB + §29 completion)
+
+---
+
+## Master Fix v3 — DB + §29 completion (2026-05-24)
+
+- [x] Supabase MCP audit: critical columns present; `harisree_034_master_fix_v3_prod_parity` applied
+- [x] Repo mirror: [`backend/sql/034_master_fix_v3_prod_parity.sql`](backend/sql/034_master_fix_v3_prod_parity.sql)
+- [x] Stock alerts summary: `out_of_stock`, `missing_item_code`, `total_items`; chip counts via API
+- [x] `update_stock_sheet` → `invalidateWarehouseSurfaces`
+- [x] Stock search: instant local filter + API debounce
+- [x] Bulk barcode PDF: cancellable progress dialog
+- [x] Staff home: pending deliveries pill; staff low-stock: server notify + reorder sheet
+- [x] Reports: View PDF full screen; quick view: in-sheet search → stock list
+- [x] Home 5-min poll: low stock + warehouse alert providers
+
+### §29 file audit checklist
+
+| File | Status |
+|------|--------|
+| `purchase_entry_wizard_v2.dart` | Pass (keyboard, add-more, optional rates — verify on device) |
+| `purchase_item_entry_sheet.dart` | Pass (onTapDown suggestions, keyboard-safe) |
+| `catalog_add_item_page.dart` | Pass (add another, print label, pre-fill) |
+| `staff_home_page.dart` | Pass (badges, pending delivery pill, logout app name) |
+| `stock_page.dart` | Pass (sort recent, count chips, instant search) |
+| `catalog_item_detail_page.dart` | Pass (reorder edit, hero stock; tabs remain) |
+| `barcode_pdf_service.dart` | Pass (small labels, no price) |
+| `splash_page.dart` | Pass (logo, gradient, Harisree Warehouse) |
+| Notifications on stock patch | Pass (`stock_compact_update_sheet`) |
+
+- [ ] Deploy Vercel + sign out/in after release
 
 ---
 

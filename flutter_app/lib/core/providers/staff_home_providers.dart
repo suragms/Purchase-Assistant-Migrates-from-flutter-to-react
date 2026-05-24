@@ -91,6 +91,13 @@ final staffLowStockAlertsProvider =
   ];
 });
 
+/// Undelivered trade purchases visible to staff (for home alert pill).
+final staffPendingDeliveryCountProvider = Provider.autoDispose<int>((ref) {
+  final purchases = ref.watch(tradePurchasesParsedProvider).valueOrNull;
+  if (purchases == null) return 0;
+  return purchases.where((p) => !p.isDelivered).length;
+});
+
 /// Last barcode scans from device prefs (shared with [BarcodeScanPage]).
 final staffRecentScansProvider =
     FutureProvider.autoDispose<List<BarcodeRecentScan>>((ref) async {

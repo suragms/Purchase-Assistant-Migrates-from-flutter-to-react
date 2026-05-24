@@ -128,6 +128,7 @@ class StaffHomePage extends ConsumerWidget {
     final lowAsync = ref.watch(staffLowStockAlertsProvider);
     final recentAsync = ref.watch(staffRecentScansProvider);
     final missingCount = ref.watch(staffMissingCodeCountProvider);
+    final pendingDeliveries = ref.watch(staffPendingDeliveryCountProvider);
     final todayPurchases =
         ref.watch(staffTodayPurchasesProvider).valueOrNull ?? const [];
 
@@ -325,18 +326,30 @@ class StaffHomePage extends ConsumerWidget {
                   ),
                 ],
               ),
-              if (missingCount > 0) ...[
+              if (pendingDeliveries > 0 || missingCount > 0) ...[
                 const SizedBox(height: HexaOp.sectionGap),
                 SizedBox(
                   height: HexaOp.chipHeight + 4,
                   child: ListView(
                     scrollDirection: Axis.horizontal,
                     children: [
-                      _StaffAlertPill(
-                        label: '⚠ $missingCount barcode',
-                        color: HexaColors.loss,
-                        onTap: () => context.push('/stock/missing-barcodes'),
-                      ),
+                      if (pendingDeliveries > 0)
+                        _StaffAlertPill(
+                          label:
+                              '🚚 $pendingDeliveries pending deliver${pendingDeliveries == 1 ? 'y' : 'ies'}',
+                          color: const Color(0xFFBA7517),
+                          onTap: () => context.go(
+                            '/staff/purchase-history',
+                          ),
+                        ),
+                      if (pendingDeliveries > 0 && missingCount > 0)
+                        const SizedBox(width: 8),
+                      if (missingCount > 0)
+                        _StaffAlertPill(
+                          label: '⚠ $missingCount barcode',
+                          color: HexaColors.loss,
+                          onTap: () => context.push('/stock/missing-barcodes'),
+                        ),
                     ],
                   ),
                 ),

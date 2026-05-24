@@ -39,6 +39,7 @@ class _StockPageState extends ConsumerState<StockPage> {
   Timer? _debounce;
   bool _loadingMore = false;
   bool _searchExpanded = false;
+  String _instantSearch = '';
   Map<String, dynamic>? _mergedData;
 
   @override
@@ -91,7 +92,12 @@ class _StockPageState extends ConsumerState<StockPage> {
   }
 
   void _onSearchUiChanged() {
-    if (_searchExpanded && mounted) setState(() {});
+    final raw = _searchCtrl.text.trim();
+    if (raw != _instantSearch && mounted) {
+      setState(() => _instantSearch = raw);
+    } else if (_searchExpanded && mounted) {
+      setState(() {});
+    }
   }
 
   void _onSearchChanged() {
@@ -148,9 +154,12 @@ class _StockPageState extends ConsumerState<StockPage> {
     final op = ref.read(stockOperationalFiltersProvider);
     final q = ref.read(stockListQueryProvider);
     var items = filterStockListClient(raw, op);
+    final search = _instantSearch.isNotEmpty
+        ? _instantSearch.toLowerCase()
+        : q.q.trim().toLowerCase();
     sortStockListOperational(
       items,
-      searchQuery: q.q.trim().toLowerCase(),
+      searchQuery: search,
       sort: q.sort,
     );
     return items;

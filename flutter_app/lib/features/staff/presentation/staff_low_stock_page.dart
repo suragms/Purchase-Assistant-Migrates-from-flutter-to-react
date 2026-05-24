@@ -1,13 +1,15 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/auth/auth_error_messages.dart';
+import '../../../core/auth/session_notifier.dart';
 import '../../../core/json_coerce.dart';
-import '../../../core/utils/unit_utils.dart';
-import '../../../core/notifications/local_notifications_service.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../stock/presentation/widgets/low_stock_category_tree.dart';
+import '../../stock/presentation/widgets/reorder_level_sheet.dart';
 
 /// Staff low-stock dashboard — category tree, notify owner (no purchase create).
 class StaffLowStockPage extends ConsumerStatefulWidget {
@@ -65,17 +67,51 @@ class _StaffLowStockPageState extends ConsumerState<StaffLowStockPage>
   }
 
   Future<void> _notifyOwner(Map<String, dynamic> item) async {
+    final session = ref.read(sessionProvider);
+    if (session == null) return;
+    final id = item['id']?.toString() ?? '';
     final name = item['name']?.toString() ?? 'Item';
-    final cur = coerceToDouble(item['current_stock']);
-    final unit = item['unit']?.toString() ?? '';
-    await LocalNotificationsService.instance.showLowStockItem(
+    if (id.isEmpty) return;
+    try {
+      await ref.read(hexaApiProvider).notifyOwnerStockItem(
+            businessId: session.primaryBusiness.id,
+            itemId: id,
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Owner notified about $name'),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    } on DioException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(friendlyApiError(e)),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
+  }
+
+  Future<void> _editReorder(Map<String, dynamic> item) async {
+    final id = item['id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    final name = item['name']?.toString() ?? 'Item';
+    final unit =
+        item['stock_unit']?.toString() ?? item['unit']?.toString() ?? 'bag';
+    final ok = await showReorderLevelSheet(
+      context: context,
+      ref: ref,
+      itemId: id,
       itemName: name,
-      detail: '${formatStockQtyNumber(cur)} $unit — staff alert',
+      unit: unit,
+      currentReorder: reorderLevelFromStockRow(item),
     );
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Owner notified about $name')),
-    );
+    if (ok && mounted) {
+      ref.invalidate(lowStockByCategoryProvider);
+    }
   }
 
   @override
@@ -156,6 +192,7 @@ class _StaffLowStockPageState extends ConsumerState<StaffLowStockPage>
               searchQuery: _search,
               staffMode: true,
               onNotifyOwner: _notifyOwner,
+              onEditReorder: _editReorder,
             ),
             LowStockCategoryTree(
               grouped: grouped,
@@ -163,6 +200,7 @@ class _StaffLowStockPageState extends ConsumerState<StaffLowStockPage>
               searchQuery: _search,
               staffMode: true,
               onNotifyOwner: _notifyOwner,
+              onEditReorder: _editReorder,
             ),
             LowStockCategoryTree(
               grouped: grouped,
@@ -170,6 +208,7 @@ class _StaffLowStockPageState extends ConsumerState<StaffLowStockPage>
               searchQuery: _search,
               staffMode: true,
               onNotifyOwner: _notifyOwner,
+              onEditReorder: _editReorder,
             ),
           ],
         ),

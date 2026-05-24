@@ -45,6 +45,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
   int _labelProgressDone = 0;
   int _labelProgressTotal = 0;
   Future<void> Function()? _lastPdfRetry;
+  bool _pdfCancelled = false;
 
   @override
   void initState() {
@@ -201,21 +202,62 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
           );
         }
       }
+      _pdfCancelled = false;
+      if (!mounted) return;
+      final rootNav = Navigator.of(context, rootNavigator: true);
+      unawaited(
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (dlgCtx) => AlertDialog(
+            content: Row(
+              children: [
+                const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Text(_pdfStatus ?? 'Generating PDF…'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  _pdfCancelled = true;
+                  Navigator.pop(dlgCtx);
+                },
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ),
+      );
       setState(() => _pdfStatus = 'Generating PDF…');
       final symbol = bulkPrintSymbolMode(denseA4: denseA4, useQr: _useQr);
-      final pdfs = await generateBulkPdfParts(
-        context: context,
-        ref: ref,
-        batch: batch,
-        denseA4: denseA4,
-        copies: _copies,
-        perRow: _perRow,
-        symbol: symbol,
-        thermalSize: _thermalSize,
-        labelsPerFile: _labelsPerPdfFile.count,
-      );
-      await action(pdfs);
-      if (!mounted) return;
+      List<Uint8List>? pdfs;
+      try {
+        pdfs = await generateBulkPdfParts(
+          context: context,
+          ref: ref,
+          batch: batch,
+          denseA4: denseA4,
+          copies: _copies,
+          perRow: _perRow,
+          symbol: symbol,
+          thermalSize: _thermalSize,
+          labelsPerFile: _labelsPerPdfFile.count,
+        );
+        if (_pdfCancelled) return;
+        await action(pdfs);
+      } finally {
+        if (mounted && rootNav.canPop()) {
+          rootNav.pop();
+        }
+      }
+      if (!mounted || _pdfCancelled) return;
       final perFile = _labelsPerPdfFile.count;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

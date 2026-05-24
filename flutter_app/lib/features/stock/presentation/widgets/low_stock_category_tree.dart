@@ -16,6 +16,7 @@ class LowStockCategoryTree extends StatefulWidget {
     this.staffMode = false,
     this.onOrderNow,
     this.onNotifyOwner,
+    this.onEditReorder,
   });
 
   final Map<String, Map<String, List<Map<String, dynamic>>>> grouped;
@@ -24,6 +25,7 @@ class LowStockCategoryTree extends StatefulWidget {
   final bool staffMode;
   final void Function(Map<String, dynamic> item)? onOrderNow;
   final void Function(Map<String, dynamic> item)? onNotifyOwner;
+  final void Function(Map<String, dynamic> item)? onEditReorder;
 
   @override
   State<LowStockCategoryTree> createState() => _LowStockCategoryTreeState();
@@ -163,6 +165,7 @@ class _LowStockCategoryTreeState extends State<LowStockCategoryTree> {
                       staffMode: widget.staffMode,
                       onOrderNow: widget.onOrderNow,
                       onNotifyOwner: widget.onNotifyOwner,
+                      onEditReorder: widget.onEditReorder,
                     ),
                 ],
             ],
@@ -179,12 +182,14 @@ class _LowStockItemRow extends StatelessWidget {
     required this.staffMode,
     this.onOrderNow,
     this.onNotifyOwner,
+    this.onEditReorder,
   });
 
   final Map<String, dynamic> item;
   final bool staffMode;
   final void Function(Map<String, dynamic> item)? onOrderNow;
   final void Function(Map<String, dynamic> item)? onNotifyOwner;
+  final void Function(Map<String, dynamic> item)? onEditReorder;
 
   @override
   Widget build(BuildContext context) {
@@ -262,15 +267,31 @@ class _LowStockItemRow extends StatelessWidget {
                   ),
                 ),
               ],
-              if (staffMode && onNotifyOwner != null) ...[
+              if (staffMode) ...[
                 const SizedBox(height: 8),
-                OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  onPressed: () => onNotifyOwner!(item),
-                  icon: const Icon(Icons.notifications_active_outlined, size: 18),
-                  label: const Text('Notify owner'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    if (onEditReorder != null)
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () => onEditReorder!(item),
+                        icon: const Icon(Icons.tune_rounded, size: 18),
+                        label: const Text('Reorder level'),
+                      ),
+                    if (onNotifyOwner != null)
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: () => onNotifyOwner!(item),
+                        icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                        label: const Text('Notify owner'),
+                      ),
+                  ],
                 ),
               ],
             ],

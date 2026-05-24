@@ -5,9 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
-import '../../../core/providers/business_write_revision.dart';
+import '../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../core/providers/catalog_providers.dart';
-import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/providers/staff_home_providers.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/utils/unit_utils.dart';
@@ -131,14 +130,12 @@ class _UpdateStockSheetBodyState extends ConsumerState<_UpdateStockSheetBody> {
                 ? null
                 : _reasonCtrl.text.trim(),
           );
-      bumpBusinessDataWriteRevision(ref);
+      invalidateWarehouseSurfaces(ref);
+      invalidateWarehouseSurfaces(widget.parentRef);
       ref.invalidate(catalogItemDetailProvider(widget.itemId));
       ref.invalidate(stockItemDetailProvider(widget.itemId));
-      ref.invalidate(stockListProvider);
       widget.parentRef.invalidate(catalogItemDetailProvider(widget.itemId));
       widget.parentRef.invalidate(stockItemDetailProvider(widget.itemId));
-      widget.parentRef.invalidate(stockListProvider);
-      widget.parentRef.invalidate(stockAlertCountsProvider);
       widget.parentRef.invalidate(staffTodayActivityProvider);
       widget.parentRef.invalidate(staffTodaySummaryProvider);
       if (mounted) {

@@ -68,9 +68,12 @@ class StockListOut(BaseModel):
 class StockAlertsSummaryOut(BaseModel):
     low_stock: int = 0
     critical_stock: int = 0
+    out_of_stock: int = 0
     missing_barcode: int = 0
+    missing_item_code: int = 0
     missing_usage_logs: int = 0
     eviction_count: int = 0
+    total_items: int = 0
 
 
 class InventorySummaryOut(BaseModel):
