@@ -10,6 +10,7 @@ import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/notifications/local_notifications_service.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/utils/unit_utils.dart';
+import '../../../core/design_system/hexa_responsive.dart';
 
 const _kReasonChips = <(String label, String type)>[
   ('Physical', 'verification'),
@@ -117,7 +118,8 @@ class _StockCompactUpdateBodyState
       final note = _notesCtrl.text.trim();
       final reasonLabel =
           _kReasonChips.firstWhere((e) => e.$2 == _reasonType).$1;
-      final version = int.tryParse(widget.item['stock_version']?.toString() ?? '');
+      final version =
+          int.tryParse(widget.item['stock_version']?.toString() ?? '');
       await ref.read(hexaApiProvider).updatePhysicalStock(
             businessId: session.primaryBusiness.id,
             itemId: _itemId,
@@ -163,13 +165,7 @@ class _StockCompactUpdateBodyState
     final stockLabel = stockDisplayPrimary(_current, _unit);
     final lastPhysical = _lastPhysicalLabel;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 8,
-        bottom: 16 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
+    return HexaResponsiveSheetViewport(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -242,11 +238,11 @@ class _StockCompactUpdateBodyState
             runSpacing: 6,
             children: [
               for (final chip in _kReasonChips)
-                FilterChip(
-                  label: Text(chip.$1, style: const TextStyle(fontSize: 11)),
+                HexaAccessibleFilterChip(
+                  label: chip.$1,
                   selected: _reasonType == chip.$2,
                   onSelected: (_) => setState(() => _reasonType = chip.$2),
-                  visualDensity: VisualDensity.compact,
+                  compact: true,
                 ),
             ],
           ),

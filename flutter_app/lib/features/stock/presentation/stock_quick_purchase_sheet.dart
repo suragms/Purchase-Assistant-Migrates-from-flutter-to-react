@@ -12,6 +12,7 @@ import '../../../core/providers/staff_home_providers.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/providers/suppliers_list_provider.dart';
 import '../../../core/utils/unit_utils.dart';
+import '../../../core/design_system/hexa_responsive.dart';
 import '../../../shared/widgets/inline_search_field.dart';
 
 Future<bool> showStockQuickPurchaseSheet({
@@ -97,9 +98,11 @@ class _StockQuickPurchaseBodyState
     );
   }
 
-  bool _selectionMatches(InlineSearchItem? selected, TextEditingController ctrl) {
+  bool _selectionMatches(
+      InlineSearchItem? selected, TextEditingController ctrl) {
     if (selected == null) return false;
-    return ctrl.text.trim().toLowerCase() == selected.label.trim().toLowerCase();
+    return ctrl.text.trim().toLowerCase() ==
+        selected.label.trim().toLowerCase();
   }
 
   Future<void> _save() async {
@@ -121,7 +124,8 @@ class _StockQuickPurchaseBodyState
     if (_brokerCtrl.text.trim().isNotEmpty &&
         !_selectionMatches(_broker, _brokerCtrl)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select broker from suggestions or clear it')),
+        const SnackBar(
+            content: Text('Select broker from suggestions or clear it')),
       );
       return;
     }
@@ -165,134 +169,126 @@ class _StockQuickPurchaseBodyState
     final brokers = ref.watch(brokersListProvider);
     final supplierItems = suppliers.valueOrNull?.map(_partyItem).toList() ??
         const <InlineSearchItem>[];
-    final brokerItems =
-        brokers.valueOrNull?.map(_partyItem).toList() ?? const <InlineSearchItem>[];
+    final brokerItems = brokers.valueOrNull?.map(_partyItem).toList() ??
+        const <InlineSearchItem>[];
     final unitLabel = _unit.toUpperCase();
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 8,
-        bottom: 16 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                    ),
+    return HexaResponsiveSheetViewport(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded),
-                  onPressed: () => Navigator.of(context).pop(false),
-                ),
-              ],
-            ),
-            Text(
-              'Current Stock: ${stockDisplayPrimary(current, _unit)}',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF64748B),
               ),
-            ),
-            const Divider(height: 20),
-            const Text(
-              'Purchase quantity',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _qtyCtrl,
-              focusNode: _qtyFocus,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              textInputAction: TextInputAction.next,
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
-              ],
-              onSubmitted: (_) => _supplierFocus.requestFocus(),
-              decoration: InputDecoration(
-                isDense: true,
-                suffixText: unitLabel,
-                border: const OutlineInputBorder(),
+              IconButton(
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () => Navigator.of(context).pop(false),
               ),
+            ],
+          ),
+          Text(
+            'Current Stock: ${stockDisplayPrimary(current, _unit)}',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Color(0xFF64748B),
             ),
-            const SizedBox(height: 14),
-            const Text(
-              'Supplier',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          const Divider(height: 20),
+          const Text(
+            'Purchase quantity',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _qtyCtrl,
+            focusNode: _qtyFocus,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            textInputAction: TextInputAction.next,
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
+            ],
+            onSubmitted: (_) => _supplierFocus.requestFocus(),
+            decoration: InputDecoration(
+              isDense: true,
+              suffixText: unitLabel,
+              border: const OutlineInputBorder(),
             ),
-            const SizedBox(height: 6),
-            InlineSearchField(
-              items: supplierItems,
-              controller: _supplierCtrl,
-              focusNode: _supplierFocus,
-              focusAfterSelection: _brokerFocus,
-              placeholder: suppliers.isLoading
-                  ? 'Loading suppliers...'
-                  : 'Search supplier...',
-              prefixIcon: const Icon(Icons.storefront_outlined),
-              onSelected: (it) => setState(() => _supplier = it),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Supplier',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          InlineSearchField(
+            items: supplierItems,
+            controller: _supplierCtrl,
+            focusNode: _supplierFocus,
+            focusAfterSelection: _brokerFocus,
+            placeholder: suppliers.isLoading
+                ? 'Loading suppliers...'
+                : 'Search supplier...',
+            prefixIcon: const Icon(Icons.storefront_outlined),
+            onSelected: (it) => setState(() => _supplier = it),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Broker (optional)',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          InlineSearchField(
+            items: brokerItems,
+            controller: _brokerCtrl,
+            focusNode: _brokerFocus,
+            focusAfterSelection: _notesFocus,
+            placeholder:
+                brokers.isLoading ? 'Loading brokers...' : 'Search broker...',
+            prefixIcon: const Icon(Icons.person_search_outlined),
+            onSelected: (it) => setState(() => _broker = it),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Notes (optional)',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _notesCtrl,
+            focusNode: _notesFocus,
+            maxLines: 2,
+            decoration: const InputDecoration(
+              isDense: true,
+              border: OutlineInputBorder(),
             ),
-            const SizedBox(height: 14),
-            const Text(
-              'Broker (optional)',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 48,
+            child: FilledButton(
+              onPressed: _saving ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('ADD PURCHASE'),
             ),
-            const SizedBox(height: 6),
-            InlineSearchField(
-              items: brokerItems,
-              controller: _brokerCtrl,
-              focusNode: _brokerFocus,
-              focusAfterSelection: _notesFocus,
-              placeholder:
-                  brokers.isLoading ? 'Loading brokers...' : 'Search broker...',
-              prefixIcon: const Icon(Icons.person_search_outlined),
-              onSelected: (it) => setState(() => _broker = it),
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'Notes (optional)',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            TextField(
-              controller: _notesCtrl,
-              focusNode: _notesFocus,
-              maxLines: 2,
-              decoration: const InputDecoration(
-                isDense: true,
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 48,
-              child: FilledButton(
-                onPressed: _saving ? null : _save,
-                child: _saving
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('ADD PURCHASE'),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

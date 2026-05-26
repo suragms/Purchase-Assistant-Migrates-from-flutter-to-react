@@ -24,6 +24,7 @@ import '../../core/providers/trade_purchases_provider.dart'
     show invalidateTradePurchaseCaches;
 import '../../core/design_system/hexa_ds_tokens.dart';
 import '../../core/design_system/hexa_operational_tokens.dart';
+import '../../core/design_system/hexa_responsive.dart';
 import '../../core/theme/hexa_colors.dart';
 import 'responsive_shell_layout.dart';
 import 'shell_branch_provider.dart';
@@ -257,7 +258,7 @@ class _ShellBottomBar extends StatelessWidget {
   final int stockBadgeCount;
   final ValueChanged<int> onDestinationSelected;
 
-  static const _fabOuter = HexaOp.fabSize;
+  static const _fabOuter = 48.0;
 
   @override
   Widget build(BuildContext context) {
@@ -394,48 +395,55 @@ class _ShellNavTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: selected
-                    ? HexaColors.brandPrimary.withValues(alpha: 0.12)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Badge(
-                isLabelVisible: badgeCount > 0,
-                label: Text(
-                  badgeCount > 99 ? '99+' : '$badgeCount',
-                  style:
-                      const TextStyle(fontSize: 9, fontWeight: FontWeight.w800),
+      child: ConstrainedBox(
+        constraints:
+            const BoxConstraints(minHeight: HexaResponsive.minTouchTarget),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? HexaColors.brandPrimary.withValues(alpha: 0.12)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(
-                  ic,
-                  size: 20,
+                child: Badge(
+                  isLabelVisible: badgeCount > 0,
+                  label: Text(
+                    badgeCount > 99 ? '99+' : '$badgeCount',
+                    style: const TextStyle(
+                        fontSize: 9, fontWeight: FontWeight.w800),
+                  ),
+                  child: Icon(
+                    ic,
+                    size: 20,
+                    color: selected
+                        ? HexaColors.brandPrimary
+                        : cs.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   color:
                       selected ? HexaColors.brandPrimary : cs.onSurfaceVariant,
                 ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                color: selected ? HexaColors.brandPrimary : cs.onSurfaceVariant,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -450,75 +458,72 @@ class _FabButton extends StatelessWidget {
       context: context,
       showDragHandle: true,
       builder: (ctx) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ListTile(
-                  leading: Icon(Icons.add_shopping_cart_outlined,
-                      color: HexaColors.brandPrimary),
-                  title: Text('Add purchase',
-                      style: HexaDsType.body(16,
-                          color: HexaDsColors.textPrimary,
-                          weight: FontWeight.w700)),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    context.push('/purchase/new');
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.inventory_outlined,
-                      color: HexaColors.brandPrimary),
-                  title: Text('Add item',
-                      style: HexaDsType.body(16,
-                          color: HexaDsColors.textPrimary,
-                          weight: FontWeight.w700)),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    context.push('/catalog/quick-add');
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.qr_code_scanner_rounded,
-                      color: HexaColors.brandPrimary),
-                  title: Text('Scan barcode',
-                      style: HexaDsType.body(16,
-                          color: HexaDsColors.textPrimary,
-                          weight: FontWeight.w700)),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    context.push('/barcode/scan');
-                  },
-                ),
-                ListTile(
-                  leading: Icon(Icons.qr_code_2_rounded,
-                      color: HexaColors.brandPrimary),
-                  title: Text('Print labels',
-                      style: HexaDsType.body(16,
-                          color: HexaDsColors.textPrimary,
-                          weight: FontWeight.w700)),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    context.push('/barcode/bulk-print');
-                  },
-                ),
-                ListTile(
-                  leading:
-                      Icon(Icons.tune_rounded, color: HexaColors.brandPrimary),
-                  title: Text('Stock adjustment',
-                      style: HexaDsType.body(16,
-                          color: HexaDsColors.textPrimary,
-                          weight: FontWeight.w700)),
-                  onTap: () {
-                    Navigator.of(ctx).pop();
-                    context.go('/stock');
-                  },
-                ),
-              ],
-            ),
+        return HexaResponsiveSheetViewport(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ListTile(
+                leading: Icon(Icons.add_shopping_cart_outlined,
+                    color: HexaColors.brandPrimary),
+                title: Text('Add purchase',
+                    style: HexaDsType.body(16,
+                        color: HexaDsColors.textPrimary,
+                        weight: FontWeight.w700)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  context.push('/purchase/new');
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.inventory_outlined,
+                    color: HexaColors.brandPrimary),
+                title: Text('Add item',
+                    style: HexaDsType.body(16,
+                        color: HexaDsColors.textPrimary,
+                        weight: FontWeight.w700)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  context.push('/catalog/quick-add');
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.qr_code_scanner_rounded,
+                    color: HexaColors.brandPrimary),
+                title: Text('Scan barcode',
+                    style: HexaDsType.body(16,
+                        color: HexaDsColors.textPrimary,
+                        weight: FontWeight.w700)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  context.push('/barcode/scan');
+                },
+              ),
+              ListTile(
+                leading: Icon(Icons.qr_code_2_rounded,
+                    color: HexaColors.brandPrimary),
+                title: Text('Print labels',
+                    style: HexaDsType.body(16,
+                        color: HexaDsColors.textPrimary,
+                        weight: FontWeight.w700)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  context.push('/barcode/bulk-print');
+                },
+              ),
+              ListTile(
+                leading:
+                    Icon(Icons.tune_rounded, color: HexaColors.brandPrimary),
+                title: Text('Stock adjustment',
+                    style: HexaDsType.body(16,
+                        color: HexaDsColors.textPrimary,
+                        weight: FontWeight.w700)),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  context.go('/stock');
+                },
+              ),
+            ],
           ),
         );
       },

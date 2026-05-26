@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -11,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/errors/barcode_operation_errors.dart';
 import '../../../core/auth/session_notifier.dart';
@@ -182,8 +184,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     final now = DateTime.now();
     if (_lastCode == code &&
         _lastAt != null &&
-        now.difference(_lastAt!) <
-            const Duration(milliseconds: _kDebounceMs)) {
+        now.difference(_lastAt!) < const Duration(milliseconds: _kDebounceMs)) {
       return false;
     }
     _lastCode = code;
@@ -242,7 +243,9 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(barcodeMessageForUser(e, ctx: BarcodeOperationContext.scanner))),
+        SnackBar(
+            content: Text(barcodeMessageForUser(e,
+                ctx: BarcodeOperationContext.scanner))),
       );
       await _resumeScan();
     }
@@ -417,7 +420,9 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(barcodeMessageForUser(e, ctx: BarcodeOperationContext.scanner))),
+        SnackBar(
+            content: Text(barcodeMessageForUser(e,
+                ctx: BarcodeOperationContext.scanner))),
       );
       await _resumeScan();
     } finally {
@@ -462,7 +467,9 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(barcodeMessageForUser(e, ctx: BarcodeOperationContext.scanner))),
+        SnackBar(
+            content: Text(barcodeMessageForUser(e,
+                ctx: BarcodeOperationContext.scanner))),
       );
     }
   }
@@ -489,24 +496,30 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final screenH = MediaQuery.sizeOf(context).height;
-    final cameraH = screenH * 0.42;
+    final size = MediaQuery.sizeOf(context);
+    final landscape = size.width > size.height;
+    final cameraH = (size.height * (landscape ? 0.34 : 0.42))
+        .clamp(landscape ? 150.0 : 220.0, landscape ? 240.0 : 380.0)
+        .toDouble();
     final pendingSync = ref.watch(stockOfflinePendingCountProvider);
     final catalog = ref.watch(catalogItemsListProvider).valueOrNull ??
         const <Map<String, dynamic>>[];
     final manualMatches = _manualQuery.isEmpty
         ? const <Map<String, dynamic>>[]
-        : catalog.where((item) {
-            final haystack = [
-              item['name'],
-              item['item_code'],
-              item['barcode'],
-              item['category_name'],
-              item['type_name'],
-              item['subcategory_name'],
-            ].map((v) => v?.toString().toLowerCase() ?? '').join(' ');
-            return haystack.contains(_manualQuery);
-          }).take(6).toList();
+        : catalog
+            .where((item) {
+              final haystack = [
+                item['name'],
+                item['item_code'],
+                item['barcode'],
+                item['category_name'],
+                item['type_name'],
+                item['subcategory_name'],
+              ].map((v) => v?.toString().toLowerCase() ?? '').join(' ');
+              return haystack.contains(_manualQuery);
+            })
+            .take(6)
+            .toList();
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -550,7 +563,8 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
               content: Text('Pending sync: $pendingSync stock change(s)'),
               actions: [
                 TextButton(
-                  onPressed: () => ref.read(stockOfflineSyncProvider.notifier).syncNow(),
+                  onPressed: () =>
+                      ref.read(stockOfflineSyncProvider.notifier).syncNow(),
                   child: const Text('Sync now'),
                 ),
               ],
@@ -651,7 +665,15 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                       const Center(child: CircularProgressIndicator()),
                     Center(
                       child: Container(
-                        width: 260,
+                        width: math.min(
+                          260,
+                          size.width -
+                              HexaResponsive.pageGutter(
+                                    context,
+                                    operational: true,
+                                  ) *
+                                  2,
+                        ),
                         height: 140,
                         decoration: BoxDecoration(
                           border: Border.all(
@@ -662,27 +684,35 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                         ),
                       ),
                     ),
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      return AnimatedBuilder(
-                        animation: _scanLineCtrl,
-                        builder: (context, _) {
-                          final y = 160 * _scanLineCtrl.value;
-                          return Align(
-                            alignment: Alignment.center,
-                            child: Transform.translate(
-                              offset: Offset(0, y - 80),
-                              child: Container(
-                                width: 260,
-                                height: 2,
-                                color: Colors.redAccent,
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        return AnimatedBuilder(
+                          animation: _scanLineCtrl,
+                          builder: (context, _) {
+                            final y = 160 * _scanLineCtrl.value;
+                            return Align(
+                              alignment: Alignment.center,
+                              child: Transform.translate(
+                                offset: Offset(0, y - 80),
+                                child: Container(
+                                  width: math.min(
+                                    260,
+                                    MediaQuery.sizeOf(context).width -
+                                        HexaResponsive.pageGutter(
+                                              context,
+                                              operational: true,
+                                            ) *
+                                            2,
+                                  ),
+                                  height: 2,
+                                  color: Colors.redAccent,
+                                ),
                               ),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
+                            );
+                          },
+                        );
+                      },
+                    ),
                     if (_busy)
                       Container(
                         color: Colors.white54,
@@ -720,7 +750,8 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
             SizedBox(
               height: 44,
               child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 scrollDirection: Axis.horizontal,
                 itemCount: _recent.length.clamp(0, 8),
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
@@ -748,94 +779,95 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
           ],
           Expanded(
             child: Padding(
-                padding: EdgeInsets.fromLTRB(
-                  16,
-                  12,
-                  16,
-                  16 + MediaQuery.viewPaddingOf(context).bottom,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            focusNode: _manualFocus,
-                            controller: _manualCtrl,
-                            textCapitalization: TextCapitalization.characters,
-                            decoration: InputDecoration(
-                              hintText: 'Search item / barcode / item code',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              isDense: true,
-                            ),
-                            textInputAction: TextInputAction.search,
-                            onSubmitted: _lookupAndNavigate,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        FilledButton(
-                          onPressed: _busy
-                              ? null
-                              : () => _lookupAndNavigate(_manualCtrl.text),
-                          child: const Text('Search'),
-                        ),
-                      ],
-                    ),
-                    if (manualMatches.isNotEmpty) ...[
-                      const SizedBox(height: 10),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                16 + MediaQuery.viewPaddingOf(context).bottom,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
                       Expanded(
-                        child: ListView.separated(
-                          keyboardDismissBehavior:
-                              ScrollViewKeyboardDismissBehavior.onDrag,
-                          itemCount: manualMatches.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 6),
-                          itemBuilder: (context, i) {
-                            final item = manualMatches[i];
-                            final id = item['id']?.toString();
-                            final name = item['name']?.toString() ?? 'Item';
-                            final code = item['item_code']?.toString();
-                            final barcode = item['barcode']?.toString();
-                            return ListTile(
-                              dense: true,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: BorderSide(
-                                  color: theme.colorScheme.outlineVariant,
-                                ),
-                              ),
-                              title: Text(
-                                name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              subtitle: Text(
-                                [
-                                  if (code != null && code.isNotEmpty) code,
-                                  if (barcode != null && barcode.isNotEmpty)
-                                    'Barcode $barcode',
-                                ].join(' · '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              trailing: const Icon(Icons.chevron_right_rounded),
-                              onTap: id == null || id.isEmpty
-                                  ? null
-                                  : () => context.push('/catalog/item/$id?source=scan'),
-                            );
-                          },
+                        child: TextField(
+                          focusNode: _manualFocus,
+                          controller: _manualCtrl,
+                          textCapitalization: TextCapitalization.characters,
+                          decoration: InputDecoration(
+                            hintText: 'Search item / barcode / item code',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            isDense: true,
+                          ),
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: _lookupAndNavigate,
                         ),
                       ),
+                      const SizedBox(width: 10),
+                      FilledButton(
+                        onPressed: _busy
+                            ? null
+                            : () => _lookupAndNavigate(_manualCtrl.text),
+                        child: const Text('Search'),
+                      ),
                     ],
+                  ),
+                  if (manualMatches.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Expanded(
+                      child: ListView.separated(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        itemCount: manualMatches.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 6),
+                        itemBuilder: (context, i) {
+                          final item = manualMatches[i];
+                          final id = item['id']?.toString();
+                          final name = item['name']?.toString() ?? 'Item';
+                          final code = item['item_code']?.toString();
+                          final barcode = item['barcode']?.toString();
+                          return ListTile(
+                            dense: true,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(
+                                color: theme.colorScheme.outlineVariant,
+                              ),
+                            ),
+                            title: Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            subtitle: Text(
+                              [
+                                if (code != null && code.isNotEmpty) code,
+                                if (barcode != null && barcode.isNotEmpty)
+                                  'Barcode $barcode',
+                              ].join(' · '),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: id == null || id.isEmpty
+                                ? null
+                                : () => context
+                                    .push('/catalog/item/$id?source=scan'),
+                          );
+                        },
+                      ),
+                    ),
                   ],
-                ),
+                ],
               ),
+            ),
           ),
         ],
       ),

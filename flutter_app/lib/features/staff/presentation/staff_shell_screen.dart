@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/design_system/hexa_ds_tokens.dart';
+import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/providers/api_degraded_provider.dart';
 import '../../../core/providers/connectivity_provider.dart';
 import '../../../core/providers/home_dashboard_provider.dart';
@@ -339,39 +340,46 @@ class _StaffNavTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: selected
-                    ? HexaColors.brandPrimary.withValues(alpha: 0.12)
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
+      child: ConstrainedBox(
+        constraints:
+            const BoxConstraints(minHeight: HexaResponsive.minTouchTarget),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutCubic,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: selected
+                      ? HexaColors.brandPrimary.withValues(alpha: 0.12)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Icon(
+                  ic,
+                  size: 24,
+                  color:
+                      selected ? HexaColors.brandPrimary : cs.onSurfaceVariant,
+                ),
               ),
-              child: Icon(
-                ic,
-                size: 24,
-                color: selected ? HexaColors.brandPrimary : cs.onSurfaceVariant,
+              const SizedBox(height: 2),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                  color:
+                      selected ? HexaColors.brandPrimary : cs.onSurfaceVariant,
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                color: selected ? HexaColors.brandPrimary : cs.onSurfaceVariant,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

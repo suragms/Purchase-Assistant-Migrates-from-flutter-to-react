@@ -1,6 +1,6 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-05-26 (Staff purchase + stock workflow rebuild)
+**Last updated:** 2026-05-26 (Responsive UI/UX audit + fixes)
 
 ---
 
@@ -53,6 +53,16 @@ Canonical phase doc: [`docs/harisree/IMPLEMENTATION_PHASES.md`](docs/harisree/IM
 - [x] Owner visibility: recent feed includes quick purchase entries and stock movement projections
 - [x] Realtime sync: backend stock events + Flutter invalidation listener with polling fallback
 - [x] Validation: `pytest backend/tests` printed `259 passed`; `flutter analyze`; `flutter test test/stock_row_actions_test.dart test/trade_date_range_parity_test.dart`
+
+### Responsive UI/UX audit + fixes (2026-05-26)
+
+- [x] Flutter responsive primitives: breakpoints, adaptive gutters, max-width containers, keyboard-safe sheet viewport, accessible filter chips
+- [x] Shell/navigation: owner/staff bottom nav tap targets, compact FAB slot, responsive action sheet behavior
+- [x] Operational core: home desktop max-width, stock row/filter responsiveness, stock sheets, item barcode/actions, barcode scanner, bulk barcode print toolbar/preview
+- [x] Data screens: reports filter wraps, legacy analytics table scaling removal, purchase review mobile cards
+- [x] Forms/overlays: item code, barcode, reorder, stock row action/preview/update/purchase sheets normalized to safe scrollable sheet viewport
+- [x] Audit report: `docs/harisree/UI_UX_RESPONSIVE_AUDIT_2026-05-26.md`
+- [x] Validation: `flutter analyze`; `flutter test test/responsive_layout_smoke_test.dart test/stock_row_actions_test.dart test/trade_date_range_parity_test.dart`
 
 Verification gates per phase:
 - Backend import/app tests, migration chain, stock SQL checks when relevant.

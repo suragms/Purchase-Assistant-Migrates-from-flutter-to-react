@@ -33,6 +33,7 @@ import '../../../core/providers/stock_providers.dart'
 import '../../../core/providers/warehouse_alerts_provider.dart'
     show warehouseAlertsProvider;
 import '../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../purchase/presentation/widgets/purchase_saved_sheet.dart';
 import '../../purchase/presentation/widgets/resume_purchase_draft_banner.dart';
@@ -337,67 +338,77 @@ class _HomePageState extends ConsumerState<HomePage>
         child: RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(
-              HexaOp.pageGutter,
+            padding: EdgeInsets.fromLTRB(
+              HexaResponsive.pageGutter(context, operational: true),
               8,
-              HexaOp.pageGutter,
+              HexaResponsive.pageGutter(context, operational: true),
               120,
             ),
             children: [
-              HomeCompactHeader(
-                offline: offline,
-                onSettingsLongPress: _showAccountMenu,
-              ),
-              if (isOwner) ...[
-                const SizedBox(height: 8),
-                HomeLiveStatusBar(
-                  offline: offline,
-                  lastRefreshedAt: _homeLastRefreshedAt,
-                  isOwner: true,
+              HexaResponsiveCenter(
+                maxWidth: HexaResponsive.maxContentWidth,
+                padding: EdgeInsets.zero,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    HomeCompactHeader(
+                      offline: offline,
+                      onSettingsLongPress: _showAccountMenu,
+                    ),
+                    if (isOwner) ...[
+                      const SizedBox(height: 8),
+                      HomeLiveStatusBar(
+                        offline: offline,
+                        lastRefreshedAt: _homeLastRefreshedAt,
+                        isOwner: true,
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    const ResumePurchaseDraftBanner(),
+                    if (isOwner) ...[
+                      const SizedBox(height: 8),
+                      const HomeSessionDataBanner(),
+                      const _OpeningStockSetupBanner(),
+                      const SizedBox(height: 8),
+                      const HomePeriodFilterRow(),
+                      const SizedBox(height: 8),
+                      const HomePurchaseStatsCard(),
+                      const SizedBox(height: 8),
+                      const HomeContactsQuickRow(),
+                      const SizedBox(height: 8),
+                    ],
+                    HomeQuickActionsGrid(
+                      isOwner: isOwner,
+                      onScan: () => context.push('/barcode/scan'),
+                      onStock: () => context.go('/stock'),
+                      onPurchase: () => context.push('/purchase/new'),
+                      onReports: () => context.go('/reports'),
+                      onBarcode: () => context.push('/barcode/bulk-print'),
+                      onUsers: () => context.push('/settings/users'),
+                      onAddItem: isOwner
+                          ? () => context.push('/catalog/quick-add')
+                          : null,
+                    ),
+                    const SizedBox(height: HexaOp.cardGap),
+                    if (isOwner) ...[
+                      const HomeMultiAlertStrip(),
+                      const HomeStockAuditStrip(),
+                      const SizedBox(height: HexaOp.cardGap),
+                      HomeStockTotalsCard(lastUpdatedAt: _homeLastRefreshedAt),
+                      const SizedBox(height: 8),
+                      const HomeAnalyticsComparisonStrip(),
+                      const SizedBox(height: 12),
+                      const HomeRecentChangesSection(),
+                      const SizedBox(height: 12),
+                    ],
+                    const HomeLowStockSection(),
+                    if (isOwner) ...[
+                      const SizedBox(height: 12),
+                      const HomeStockMovementSection(),
+                    ],
+                  ],
                 ),
-              ],
-              const SizedBox(height: 12),
-              const ResumePurchaseDraftBanner(),
-              if (isOwner) ...[
-                const SizedBox(height: 8),
-                const HomeSessionDataBanner(),
-                const _OpeningStockSetupBanner(),
-                const SizedBox(height: 8),
-                const HomePeriodFilterRow(),
-                const SizedBox(height: 8),
-                const HomePurchaseStatsCard(),
-                const SizedBox(height: 8),
-                const HomeContactsQuickRow(),
-                const SizedBox(height: 8),
-              ],
-              HomeQuickActionsGrid(
-                isOwner: isOwner,
-                onScan: () => context.push('/barcode/scan'),
-                onStock: () => context.go('/stock'),
-                onPurchase: () => context.push('/purchase/new'),
-                onReports: () => context.go('/reports'),
-                onBarcode: () => context.push('/barcode/bulk-print'),
-                onUsers: () => context.push('/settings/users'),
-                onAddItem:
-                    isOwner ? () => context.push('/catalog/quick-add') : null,
               ),
-              const SizedBox(height: HexaOp.cardGap),
-              if (isOwner) ...[
-                const HomeMultiAlertStrip(),
-                const HomeStockAuditStrip(),
-                const SizedBox(height: HexaOp.cardGap),
-                HomeStockTotalsCard(lastUpdatedAt: _homeLastRefreshedAt),
-                const SizedBox(height: 8),
-                const HomeAnalyticsComparisonStrip(),
-                const SizedBox(height: 12),
-                const HomeRecentChangesSection(),
-                const SizedBox(height: 12),
-              ],
-              const HomeLowStockSection(),
-              if (isOwner) ...[
-                const SizedBox(height: 12),
-                const HomeStockMovementSection(),
-              ],
             ],
           ),
         ),

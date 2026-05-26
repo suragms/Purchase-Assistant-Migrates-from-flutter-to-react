@@ -1,5 +1,6 @@
-﻿// Deprecated: shell Reports tab now uses FullReportsPage at `/reports`. File kept for reference.
+// Deprecated: shell Reports tab now uses FullReportsPage at `/reports`. File kept for reference.
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -61,7 +62,8 @@ class _TopBarsCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+            Text(title,
+                style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             ...pick.map((r) {
               final v = valueOf(r).toDouble();
@@ -78,12 +80,14 @@ class _TopBarsCard extends StatelessWidget {
                             labelOf(r),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: tt.labelMedium?.copyWith(fontWeight: FontWeight.w600),
+                            style: tt.labelMedium
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                         ),
                         Text(
                           inr(v),
-                          style: tt.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+                          style: tt.labelMedium
+                              ?.copyWith(fontWeight: FontWeight.w700),
                         ),
                       ],
                     ),
@@ -165,7 +169,8 @@ class _SharePieCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(title, style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+            Text(title,
+                style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             SizedBox(
               height: 140,
@@ -228,7 +233,8 @@ class _RankLineCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(title, style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
+            Text(title,
+                style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
             const SizedBox(height: 8),
             SizedBox(
               height: 140,
@@ -384,12 +390,10 @@ class _AnalyticsPageState extends ConsumerState<AnalyticsPage> {
         _preset(from: DateTime(now.year, 1, 1), to: today);
         break;
       case 'last_7':
-        _preset(
-            from: today.subtract(const Duration(days: 6)), to: today);
+        _preset(from: today.subtract(const Duration(days: 6)), to: today);
         break;
       case 'last_30':
-        _preset(
-            from: today.subtract(const Duration(days: 29)), to: today);
+        _preset(from: today.subtract(const Duration(days: 29)), to: today);
         break;
       case 'last_month':
         final firstThis = DateTime(now.year, now.month, 1);
@@ -443,14 +447,14 @@ class _AnalyticsPageState extends ConsumerState<AnalyticsPage> {
           title: Text(
             'Analytics',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-              color: cs.onSurface,
-              letterSpacing: -0.3,
-            ),
+                  fontWeight: FontWeight.w800,
+                  color: cs.onSurface,
+                  letterSpacing: -0.3,
+                ),
           ),
           actions: const [AppSettingsAction()],
           bottom: TabBar(
-            isScrollable: false,
+            isScrollable: true,
             labelColor: cs.primary,
             unselectedLabelColor: cs.onSurfaceVariant,
             indicatorColor: cs.primary,
@@ -582,7 +586,8 @@ class _OverviewTab extends ConsumerWidget {
                     sectionLabel: 'Supplier performance',
                     onRetry: () =>
                         ref.invalidate(analyticsSuppliersTableProvider)),
-                data: (rows) => _SupplierShareBars(rows: rows, tt: tt, inr: inr),
+                data: (rows) =>
+                    _SupplierShareBars(rows: rows, tt: tt, inr: inr),
               ),
               const SizedBox(height: 10),
               cats.when(
@@ -840,7 +845,6 @@ class _CategoryShareBars extends StatelessWidget {
   }
 }
 
-
 class _ItemsTab extends ConsumerStatefulWidget {
   const _ItemsTab({required this.inr});
 
@@ -913,8 +917,8 @@ class _ItemsTabState extends ConsumerState<_ItemsTab> {
               child: TextField(
                 controller: _search,
                 onChanged: (_) => setState(() {}),
-                style: tt.bodyMedium?.copyWith(
-                    color: HexaColors.primaryNavy, fontSize: 14),
+                style: tt.bodyMedium
+                    ?.copyWith(color: HexaColors.primaryNavy, fontSize: 14),
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: 'Search item, category, supplier…',
@@ -958,8 +962,8 @@ class _ItemsTabState extends ConsumerState<_ItemsTab> {
                       selectedColor:
                           HexaColors.primaryLight.withValues(alpha: 0.95),
                       checkmarkColor: HexaColors.primaryDeep,
-                      labelStyle: tt.labelSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      labelStyle:
+                          tt.labelSmall?.copyWith(fontWeight: FontWeight.w700),
                     ),
                 ],
               ),
@@ -1062,7 +1066,8 @@ class _ItemsTabState extends ConsumerState<_ItemsTab> {
                             );
                           }
 
-                          DataCell itemCell(Map<String, dynamic> r, Widget child) {
+                          DataCell itemCell(
+                              Map<String, dynamic> r, Widget child) {
                             return DataCell(
                               child,
                               onTap: () => openItem(r),
@@ -1077,202 +1082,185 @@ class _ItemsTabState extends ConsumerState<_ItemsTab> {
                             child: Scrollbar(
                               thumbVisibility: true,
                               child: SizedBox(
-                                width: constraints.maxWidth,
-                                child: FittedBox(
-                                  fit: BoxFit.fitWidth,
-                                  alignment: Alignment.topLeft,
-                                  child: Theme(
-                                    data: Theme.of(context).copyWith(
-                                      dividerColor: const Color(0xFFE2E8F0),
-                                      dataTableTheme: DataTableThemeData(
-                                        headingRowHeight: 36,
-                                        dataRowMinHeight: 40,
-                                        dataRowMaxHeight: 52,
-                                        horizontalMargin: 10,
-                                        columnSpacing: 12,
-                                        headingTextStyle: tt.labelSmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 11,
-                                              color: HexaColors.textSecondary,
+                                width: math.max(760, constraints.maxWidth),
+                                child: Theme(
+                                  data: Theme.of(context).copyWith(
+                                    dividerColor: const Color(0xFFE2E8F0),
+                                    dataTableTheme: DataTableThemeData(
+                                      headingRowHeight: 36,
+                                      dataRowMinHeight: 40,
+                                      dataRowMaxHeight: 52,
+                                      horizontalMargin: 10,
+                                      columnSpacing: 12,
+                                      headingTextStyle: tt.labelSmall?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 11,
+                                        color: HexaColors.textSecondary,
+                                      ),
+                                    ),
+                                  ),
+                                  child: DataTable(
+                                    showCheckboxColumn: false,
+                                    border: const TableBorder(
+                                      horizontalInside:
+                                          BorderSide(color: Color(0xFFE2E8F0)),
+                                    ),
+                                    columns: const [
+                                      DataColumn(label: Text('Item')),
+                                      DataColumn(label: Text('Category')),
+                                      DataColumn(label: Text('Type')),
+                                      DataColumn(label: Text('Supplier')),
+                                      DataColumn(label: Text('Broker')),
+                                      DataColumn(
+                                          label: Text('Qty'), numeric: true),
+                                      DataColumn(
+                                          label: Text('Avg'), numeric: true),
+                                      DataColumn(
+                                          label: Text('Profit'), numeric: true),
+                                      DataColumn(
+                                          label: Text('Margin'), numeric: true),
+                                    ],
+                                    rows: [
+                                      for (final r in filtered)
+                                        DataRow(
+                                          cells: [
+                                            itemCell(
+                                              r,
+                                              Row(
+                                                children: [
+                                                  Container(
+                                                    width: 3,
+                                                    height: 28,
+                                                    decoration: BoxDecoration(
+                                                      color:
+                                                          analyticsMarginStripeColor(
+                                                        (r['margin_pct']
+                                                                as num?)
+                                                            ?.toDouble(),
+                                                      ),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              2),
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: Text(
+                                                      (r['item_name']?.toString() ??
+                                                                  '')
+                                                              .isEmpty
+                                                          ? '—'
+                                                          : r['item_name']
+                                                              .toString(),
+                                                      style: tt.bodySmall
+                                                          ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        fontSize: 12,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
                                             ),
-                                      ),
-                                    ),
-                                    child: DataTable(
-                                      showCheckboxColumn: false,
-                                      border: const TableBorder(
-                                        horizontalInside: BorderSide(
-                                            color: Color(0xFFE2E8F0)),
-                                      ),
-                                      columns: const [
-                                        DataColumn(label: Text('Item')),
-                                        DataColumn(label: Text('Category')),
-                                        DataColumn(label: Text('Type')),
-                                        DataColumn(label: Text('Supplier')),
-                                        DataColumn(label: Text('Broker')),
-                                        DataColumn(
-                                            label: Text('Qty'),
-                                            numeric: true),
-                                        DataColumn(
-                                            label: Text('Avg'),
-                                            numeric: true),
-                                        DataColumn(
-                                            label: Text('Profit'),
-                                            numeric: true),
-                                        DataColumn(
-                                            label: Text('Margin'),
-                                            numeric: true),
-                                      ],
-                                      rows: [
-                                        for (final r in filtered)
-                                          DataRow(
-                                            cells: [
-                                              itemCell(
-                                                r,
-                                                Row(
-                                                  children: [
-                                                    Container(
-                                                      width: 3,
-                                                      height: 28,
-                                                      decoration:
-                                                          BoxDecoration(
-                                                        color:
-                                                            analyticsMarginStripeColor(
-                                                          (r['margin_pct']
-                                                                  as num?)
-                                                              ?.toDouble(),
-                                                        ),
-                                                        borderRadius:
-                                                            BorderRadius
-                                                                .circular(2),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: Text(
-                                                        (r['item_name']
-                                                                    ?.toString() ??
-                                                                '')
-                                                            .isEmpty
-                                                            ? '—'
-                                                            : r['item_name']
-                                                                .toString(),
-                                                        style: tt.bodySmall
-                                                            ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          fontSize: 12,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
+                                            itemCell(
+                                              r,
+                                              Text(
+                                                r['category_name']
+                                                        ?.toString() ??
+                                                    '—',
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: tt.bodySmall
+                                                    ?.copyWith(fontSize: 12),
+                                              ),
+                                            ),
+                                            itemCell(
+                                              r,
+                                              Text(
+                                                r['type_name']?.toString() ??
+                                                    '—',
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: tt.bodySmall
+                                                    ?.copyWith(fontSize: 12),
+                                              ),
+                                            ),
+                                            itemCell(
+                                              r,
+                                              Text(
+                                                r['supplier_name']
+                                                        ?.toString() ??
+                                                    '—',
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: tt.bodySmall
+                                                    ?.copyWith(fontSize: 12),
+                                              ),
+                                            ),
+                                            itemCell(
+                                              r,
+                                              Text(
+                                                r['broker_name']?.toString() ??
+                                                    '—',
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: tt.bodySmall
+                                                    ?.copyWith(fontSize: 12),
+                                              ),
+                                            ),
+                                            itemCell(
+                                              r,
+                                              Text(
+                                                ((r['total_qty'] as num?) ?? 0)
+                                                    .toStringAsFixed(1),
+                                                style: tt.bodySmall
+                                                    ?.copyWith(fontSize: 12),
+                                              ),
+                                            ),
+                                            itemCell(
+                                              r,
+                                              Text(
+                                                widget.inr(
+                                                  (r['avg_landing'] as num?)
+                                                          ?.toDouble() ??
+                                                      0,
+                                                ),
+                                                style: tt.bodySmall
+                                                    ?.copyWith(fontSize: 12),
+                                              ),
+                                            ),
+                                            itemCell(
+                                              r,
+                                              Text(
+                                                widget.inr(
+                                                  (r['total_profit'] as num?)
+                                                          ?.toDouble() ??
+                                                      0,
+                                                ),
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 12,
+                                                  color: ((r['total_profit']
+                                                                  as num?) ??
+                                                              0) >=
+                                                          0
+                                                      ? HexaColors.profit
+                                                      : HexaColors.loss,
                                                 ),
                                               ),
-                                              itemCell(
-                                                r,
-                                                Text(
-                                                  r['category_name']
-                                                          ?.toString() ??
-                                                      '—',
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: tt.bodySmall
-                                                      ?.copyWith(fontSize: 12),
-                                                ),
+                                            ),
+                                            itemCell(
+                                              r,
+                                              Text(
+                                                '${((r['margin_pct'] as num?) ?? 0).toStringAsFixed(1)}%',
+                                                style: tt.bodySmall
+                                                    ?.copyWith(fontSize: 12),
                                               ),
-                                              itemCell(
-                                                r,
-                                                Text(
-                                                  r['type_name']?.toString() ??
-                                                      '—',
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: tt.bodySmall
-                                                      ?.copyWith(fontSize: 12),
-                                                ),
-                                              ),
-                                              itemCell(
-                                                r,
-                                                Text(
-                                                  r['supplier_name']
-                                                          ?.toString() ??
-                                                      '—',
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: tt.bodySmall
-                                                      ?.copyWith(fontSize: 12),
-                                                ),
-                                              ),
-                                              itemCell(
-                                                r,
-                                                Text(
-                                                  r['broker_name']
-                                                          ?.toString() ??
-                                                      '—',
-                                                  maxLines: 2,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: tt.bodySmall
-                                                      ?.copyWith(fontSize: 12),
-                                                ),
-                                              ),
-                                              itemCell(
-                                                r,
-                                                Text(
-                                                  ((r['total_qty'] as num?) ??
-                                                          0)
-                                                      .toStringAsFixed(1),
-                                                  style: tt.bodySmall
-                                                      ?.copyWith(fontSize: 12),
-                                                ),
-                                              ),
-                                              itemCell(
-                                                r,
-                                                Text(
-                                                  widget.inr(
-                                                    (r['avg_landing'] as num?)
-                                                            ?.toDouble() ??
-                                                        0,
-                                                  ),
-                                                  style: tt.bodySmall
-                                                      ?.copyWith(fontSize: 12),
-                                                ),
-                                              ),
-                                              itemCell(
-                                                r,
-                                                Text(
-                                                  widget.inr(
-                                                    (r['total_profit'] as num?)
-                                                            ?.toDouble() ??
-                                                        0,
-                                                  ),
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.w700,
-                                                    fontSize: 12,
-                                                    color: ((r['total_profit']
-                                                                    as num?) ??
-                                                                0) >=
-                                                            0
-                                                        ? HexaColors.profit
-                                                        : HexaColors.loss,
-                                                  ),
-                                                ),
-                                              ),
-                                              itemCell(
-                                                r,
-                                                Text(
-                                                  '${((r['margin_pct'] as num?) ?? 0).toStringAsFixed(1)}%',
-                                                  style: tt.bodySmall
-                                                      ?.copyWith(fontSize: 12),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                      ],
-                                    ),
+                                            ),
+                                          ],
+                                        ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -1348,8 +1336,8 @@ class _CategoriesTabState extends ConsumerState<_CategoriesTab> {
               child: TextField(
                 controller: _search,
                 onChanged: (_) => setState(() {}),
-                style: tt.bodyMedium?.copyWith(
-                    color: HexaColors.primaryNavy, fontSize: 14),
+                style: tt.bodyMedium
+                    ?.copyWith(color: HexaColors.primaryNavy, fontSize: 14),
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: 'Search category, type, best item…',
@@ -1393,8 +1381,8 @@ class _CategoriesTabState extends ConsumerState<_CategoriesTab> {
                       selectedColor:
                           HexaColors.primaryLight.withValues(alpha: 0.95),
                       checkmarkColor: HexaColors.primaryDeep,
-                      labelStyle: tt.labelSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      labelStyle:
+                          tt.labelSmall?.copyWith(fontWeight: FontWeight.w700),
                     ),
                 ],
               ),
@@ -1508,15 +1496,20 @@ class _CategoriesTabState extends ConsumerState<_CategoriesTab> {
                         itemBuilder: (context, i) {
                           final r = filtered[i];
                           final name = r['category']?.toString() ?? '—';
-                          final bestItem = r['best_item_name']?.toString() ?? '—';
+                          final bestItem =
+                              r['best_item_name']?.toString() ?? '—';
                           final profit =
                               ((r['total_profit'] as num?) ?? 0).toDouble();
-                          final qty = ((r['total_qty'] as num?) ?? 0).toDouble();
-                          final trend = r['trend']?.toString() ?? (profit >= 0 ? 'up' : 'down');
+                          final qty =
+                              ((r['total_qty'] as num?) ?? 0).toDouble();
+                          final trend = r['trend']?.toString() ??
+                              (profit >= 0 ? 'up' : 'down');
                           final contribution = totalProfit.abs() <= 0.01
                               ? 0.0
-                              : (profit.abs() / totalProfit.abs()).clamp(0.0, 1.0);
-                          final pctText = '${(contribution * 100).toStringAsFixed(1)}%';
+                              : (profit.abs() / totalProfit.abs())
+                                  .clamp(0.0, 1.0);
+                          final pctText =
+                              '${(contribution * 100).toStringAsFixed(1)}%';
                           final profitColor =
                               profit >= 0 ? HexaColors.profit : HexaColors.loss;
                           return InkWell(
@@ -1529,7 +1522,8 @@ class _CategoriesTabState extends ConsumerState<_CategoriesTab> {
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                border:
+                                    Border.all(color: const Color(0xFFE2E8F0)),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1581,7 +1575,8 @@ class _CategoriesTabState extends ConsumerState<_CategoriesTab> {
                                     child: LinearProgressIndicator(
                                       value: contribution,
                                       minHeight: 6,
-                                      backgroundColor: cs.surfaceContainerHighest,
+                                      backgroundColor:
+                                          cs.surfaceContainerHighest,
                                       color: profitColor,
                                     ),
                                   ),
@@ -1726,8 +1721,8 @@ class _SuppliersTabState extends ConsumerState<_SuppliersTab> {
               child: TextField(
                 controller: _search,
                 onChanged: (_) => setState(() {}),
-                style: tt.bodyMedium?.copyWith(
-                    color: HexaColors.primaryNavy, fontSize: 14),
+                style: tt.bodyMedium
+                    ?.copyWith(color: HexaColors.primaryNavy, fontSize: 14),
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: 'Search suppliers…',
@@ -1771,8 +1766,8 @@ class _SuppliersTabState extends ConsumerState<_SuppliersTab> {
                       selectedColor:
                           HexaColors.primaryLight.withValues(alpha: 0.95),
                       checkmarkColor: HexaColors.primaryDeep,
-                      labelStyle: tt.labelSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      labelStyle:
+                          tt.labelSmall?.copyWith(fontWeight: FontWeight.w700),
                     ),
                 ],
               ),
@@ -1873,8 +1868,7 @@ class _SuppliersTabState extends ConsumerState<_SuppliersTab> {
                           final profit =
                               ((r['total_profit'] as num?) ?? 0).toDouble();
                           final deals = (r['deals'] as num?) ?? 0;
-                          final tq =
-                              ((r['total_qty'] as num?) ?? 0).toDouble();
+                          final tq = ((r['total_qty'] as num?) ?? 0).toDouble();
                           final name =
                               r['supplier_name']?.toString() ?? 'Supplier';
                           return Material(
@@ -1883,7 +1877,8 @@ class _SuppliersTabState extends ConsumerState<_SuppliersTab> {
                             child: DecoratedBox(
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: const Color(0xFFE2E8F0)),
+                                border:
+                                    Border.all(color: const Color(0xFFE2E8F0)),
                               ),
                               child: Theme(
                                 data: Theme.of(context).copyWith(
@@ -1913,8 +1908,7 @@ class _SuppliersTabState extends ConsumerState<_SuppliersTab> {
                                         size: 20, color: HexaColors.primaryMid),
                                     onPressed: sid == null || sid.isEmpty
                                         ? null
-                                        : () =>
-                                            context.push('/supplier/$sid'),
+                                        : () => context.push('/supplier/$sid'),
                                   ),
                                   title: Text(
                                     name,
@@ -1948,7 +1942,8 @@ class _SuppliersTabState extends ConsumerState<_SuppliersTab> {
                                     else
                                       Builder(
                                         builder: (ctx) {
-                                          final items = _supplierItemsCache[sid];
+                                          final items =
+                                              _supplierItemsCache[sid];
                                           if (items == null) {
                                             return const Padding(
                                               padding: EdgeInsets.symmetric(
@@ -1974,20 +1969,21 @@ class _SuppliersTabState extends ConsumerState<_SuppliersTab> {
                                           return Scrollbar(
                                             thumbVisibility: true,
                                             child: SizedBox(
-                                              width: MediaQuery.sizeOf(ctx).width - 32,
-                                              child: FittedBox(
-                                                fit: BoxFit.fitWidth,
-                                                alignment: Alignment.topLeft,
-                                                child: DataTable(
+                                              width: math.max(
+                                                680,
+                                                MediaQuery.sizeOf(ctx).width -
+                                                    32,
+                                              ),
+                                              child: DataTable(
                                                 headingRowHeight: 32,
                                                 dataRowMinHeight: 36,
                                                 dataRowMaxHeight: 44,
                                                 horizontalMargin: 8,
                                                 columnSpacing: 10,
-                                                headingTextStyle: tt.labelSmall
-                                                    ?.copyWith(
+                                                headingTextStyle:
+                                                    tt.labelSmall?.copyWith(
                                                   fontWeight: FontWeight.w800,
-                                                  fontSize: 10,
+                                                  fontSize: 11,
                                                 ),
                                                 columns: const [
                                                   DataColumn(
@@ -2081,8 +2077,7 @@ class _SuppliersTabState extends ConsumerState<_SuppliersTab> {
                                                 ],
                                               ),
                                             ),
-                                          ),
-                                        );
+                                          );
                                         },
                                       ),
                                   ],
@@ -2163,8 +2158,8 @@ class _BrokersTabState extends ConsumerState<_BrokersTab> {
               child: TextField(
                 controller: _search,
                 onChanged: (_) => setState(() {}),
-                style: tt.bodyMedium?.copyWith(
-                    color: HexaColors.primaryNavy, fontSize: 14),
+                style: tt.bodyMedium
+                    ?.copyWith(color: HexaColors.primaryNavy, fontSize: 14),
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: 'Search brokers…',
@@ -2208,8 +2203,8 @@ class _BrokersTabState extends ConsumerState<_BrokersTab> {
                       selectedColor:
                           HexaColors.primaryLight.withValues(alpha: 0.95),
                       checkmarkColor: HexaColors.primaryDeep,
-                      labelStyle: tt.labelSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
+                      labelStyle:
+                          tt.labelSmall?.copyWith(fontWeight: FontWeight.w700),
                     ),
                 ],
               ),
@@ -2307,133 +2302,123 @@ class _BrokersTabState extends ConsumerState<_BrokersTab> {
                             child: Scrollbar(
                               thumbVisibility: true,
                               child: SizedBox(
-                                width: constraints.maxWidth,
-                                child: FittedBox(
-                                  fit: BoxFit.fitWidth,
-                                  alignment: Alignment.topLeft,
-                                  child: Theme(
-                                    data: Theme.of(context).copyWith(
-                                      dividerColor: const Color(0xFFE2E8F0),
-                                      dataTableTheme: DataTableThemeData(
-                                        headingRowHeight: 36,
-                                        dataRowMinHeight: 40,
-                                        dataRowMaxHeight: 48,
-                                        horizontalMargin: 10,
-                                        columnSpacing: 12,
-                                        headingTextStyle: tt.labelSmall
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 11,
-                                              color: HexaColors.textSecondary,
-                                            ),
+                                width: math.max(620, constraints.maxWidth),
+                                child: Theme(
+                                  data: Theme.of(context).copyWith(
+                                    dividerColor: const Color(0xFFE2E8F0),
+                                    dataTableTheme: DataTableThemeData(
+                                      headingRowHeight: 36,
+                                      dataRowMinHeight: 40,
+                                      dataRowMaxHeight: 48,
+                                      horizontalMargin: 10,
+                                      columnSpacing: 12,
+                                      headingTextStyle: tt.labelSmall?.copyWith(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 11,
+                                        color: HexaColors.textSecondary,
                                       ),
                                     ),
-                                    child: DataTable(
-                                      showCheckboxColumn: false,
-                                      border: const TableBorder(
-                                        horizontalInside: BorderSide(
-                                            color: Color(0xFFE2E8F0)),
-                                      ),
-                                      columns: const [
-                                        DataColumn(label: Text('Broker')),
-                                        DataColumn(
-                                            label: Text('Deals'),
-                                            numeric: true),
-                                        DataColumn(
-                                            label: Text('Commission'),
-                                            numeric: true),
-                                        DataColumn(
-                                            label: Text('Comm %'),
-                                            numeric: true),
-                                        DataColumn(
-                                            label: Text('Profit impact'),
-                                            numeric: true),
-                                      ],
-                                      rows: [
-                                        for (final r in filtered)
-                                          DataRow(
-                                            cells: [
-                                              DataCell(
-                                                Row(
-                                                  children: [
-                                                    const Icon(
-                                                      Icons
-                                                          .handshake_outlined,
-                                                      size: 18,
-                                                      color: HexaColors
-                                                          .primaryMid,
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Expanded(
-                                                      child: Text(
-                                                        r['broker_name']
-                                                                ?.toString() ??
-                                                            '—',
-                                                        style: tt.bodySmall
-                                                            ?.copyWith(
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          fontSize: 12,
-                                                        ),
+                                  ),
+                                  child: DataTable(
+                                    showCheckboxColumn: false,
+                                    border: const TableBorder(
+                                      horizontalInside:
+                                          BorderSide(color: Color(0xFFE2E8F0)),
+                                    ),
+                                    columns: const [
+                                      DataColumn(label: Text('Broker')),
+                                      DataColumn(
+                                          label: Text('Deals'), numeric: true),
+                                      DataColumn(
+                                          label: Text('Commission'),
+                                          numeric: true),
+                                      DataColumn(
+                                          label: Text('Comm %'), numeric: true),
+                                      DataColumn(
+                                          label: Text('Profit impact'),
+                                          numeric: true),
+                                    ],
+                                    rows: [
+                                      for (final r in filtered)
+                                        DataRow(
+                                          cells: [
+                                            DataCell(
+                                              Row(
+                                                children: [
+                                                  const Icon(
+                                                    Icons.handshake_outlined,
+                                                    size: 18,
+                                                    color:
+                                                        HexaColors.primaryMid,
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Expanded(
+                                                    child: Text(
+                                                      r['broker_name']
+                                                              ?.toString() ??
+                                                          '—',
+                                                      style: tt.bodySmall
+                                                          ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        fontSize: 12,
                                                       ),
                                                     ),
-                                                  ],
-                                                ),
-                                                onTap: () {
-                                                  final bid = r['broker_id']
-                                                      ?.toString();
-                                                  if (bid != null &&
-                                                      bid.isNotEmpty) {
-                                                    context.push(
-                                                        '/broker/$bid');
-                                                  }
-                                                },
+                                                  ),
+                                                ],
                                               ),
-                                              DataCell(Text(
-                                                '${(r['deals'] as num?) ?? 0}',
-                                                style: tt.bodySmall
-                                                    ?.copyWith(fontSize: 12),
-                                              )),
-                                              DataCell(Text(
-                                                widget.inr(
-                                                  ((r['total_commission']
-                                                              as num?) ??
-                                                          0)
-                                                      .toDouble(),
-                                                ),
-                                                style: tt.bodySmall?.copyWith(
-                                                  fontSize: 12,
-                                                  color:
-                                                      HexaColors.chartOrange,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                              )),
-                                              DataCell(Text(
-                                                '${((r['commission_pct_of_profit'] as num?) ?? 0).toStringAsFixed(1)}%',
-                                                style: tt.bodySmall
-                                                    ?.copyWith(fontSize: 12),
-                                              )),
-                                              DataCell(Text(
-                                                widget.inr(
-                                                  ((r['total_profit'] as num?) ??
-                                                          0)
-                                                      .toDouble(),
-                                                ),
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 12,
-                                                  color: ((r['total_profit']
-                                                                  as num?) ??
-                                                              0) >=
-                                                          0
-                                                      ? HexaColors.profit
-                                                      : HexaColors.loss,
-                                                ),
-                                              )),
-                                            ],
-                                          ),
-                                      ],
-                                    ),
+                                              onTap: () {
+                                                final bid =
+                                                    r['broker_id']?.toString();
+                                                if (bid != null &&
+                                                    bid.isNotEmpty) {
+                                                  context.push('/broker/$bid');
+                                                }
+                                              },
+                                            ),
+                                            DataCell(Text(
+                                              '${(r['deals'] as num?) ?? 0}',
+                                              style: tt.bodySmall
+                                                  ?.copyWith(fontSize: 12),
+                                            )),
+                                            DataCell(Text(
+                                              widget.inr(
+                                                ((r['total_commission']
+                                                            as num?) ??
+                                                        0)
+                                                    .toDouble(),
+                                              ),
+                                              style: tt.bodySmall?.copyWith(
+                                                fontSize: 12,
+                                                color: HexaColors.chartOrange,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            )),
+                                            DataCell(Text(
+                                              '${((r['commission_pct_of_profit'] as num?) ?? 0).toStringAsFixed(1)}%',
+                                              style: tt.bodySmall
+                                                  ?.copyWith(fontSize: 12),
+                                            )),
+                                            DataCell(Text(
+                                              widget.inr(
+                                                ((r['total_profit'] as num?) ??
+                                                        0)
+                                                    .toDouble(),
+                                              ),
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 12,
+                                                color: ((r['total_profit']
+                                                                as num?) ??
+                                                            0) >=
+                                                        0
+                                                    ? HexaColors.profit
+                                                    : HexaColors.loss,
+                                              ),
+                                            )),
+                                          ],
+                                        ),
+                                    ],
                                   ),
                                 ),
                               ),

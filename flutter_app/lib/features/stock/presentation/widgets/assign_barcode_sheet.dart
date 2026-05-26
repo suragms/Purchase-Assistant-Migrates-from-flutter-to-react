@@ -7,6 +7,7 @@ import '../../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../../core/providers/catalog_providers.dart';
 import '../../../../core/providers/stock_providers.dart';
 import '../../../../core/providers/trade_purchases_provider.dart';
+import '../../../../core/design_system/hexa_responsive.dart';
 
 Future<bool> showAssignBarcodeSheet({
   required BuildContext context,
@@ -20,13 +21,7 @@ Future<bool> showAssignBarcodeSheet({
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    builder: (ctx) => Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 16,
-        bottom: 16 + MediaQuery.viewInsetsOf(ctx).bottom,
-      ),
+    builder: (ctx) => HexaResponsiveSheetViewport(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -53,12 +48,11 @@ Future<bool> showAssignBarcodeSheet({
               final session = ref.read(sessionProvider);
               if (session == null) return;
               try {
-                final lookup = await ref
-                    .read(hexaApiProvider)
-                    .barcodeStockLookup(
-                      businessId: session.primaryBusiness.id,
-                      code: code,
-                    );
+                final lookup =
+                    await ref.read(hexaApiProvider).barcodeStockLookup(
+                          businessId: session.primaryBusiness.id,
+                          code: code,
+                        );
                 final otherId = lookup['item_id']?.toString() ??
                     lookup['catalog_item_id']?.toString() ??
                     '';

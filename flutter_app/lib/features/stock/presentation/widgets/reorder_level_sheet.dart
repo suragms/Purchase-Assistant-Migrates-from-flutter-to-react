@@ -8,6 +8,7 @@ import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../../core/providers/catalog_providers.dart';
 import '../../../../core/providers/stock_providers.dart';
+import '../../../../core/design_system/hexa_responsive.dart';
 
 /// Inline reorder-level editor shared by item detail and staff low-stock flows.
 Future<bool> showReorderLevelSheet({
@@ -28,13 +29,7 @@ Future<bool> showReorderLevelSheet({
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (ctx) => Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        8,
-        20,
-        20 + MediaQuery.viewInsetsOf(ctx).bottom,
-      ),
+    builder: (ctx) => HexaResponsiveSheetViewport(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -36,6 +36,7 @@ import '../reporting/reports_item_metrics.dart';
 import '../reports_bi_tab.dart';
 import '../../../core/providers/analytics_breakdown_providers.dart';
 import '../../../core/providers/reports_bi_providers.dart';
+import '../../../core/design_system/hexa_responsive.dart';
 import 'reports_fullscreen_page.dart';
 import 'widgets/reports_breakdown_tab.dart';
 import 'widgets/reports_insights_strip.dart';
@@ -1505,87 +1506,62 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                           _compactReportsTabs(),
                           if (_biTab == ReportsBiTab.items) ...[
                             const SizedBox(height: 6),
-                            SizedBox(
-                              height: 36,
-                              child: SingleChildScrollView(
-                                scrollDirection: Axis.horizontal,
-                                child: Row(
-                                  children: [
-                                    const Text(
-                                      'Group:',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
-                                        color: Color(0xFF333333),
-                                      ),
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: [
+                                  const Text(
+                                    'Group:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                      color: Color(0xFF333333),
                                     ),
-                                    const SizedBox(width: 6),
-                                    for (final f
-                                        in ReportsPackFilter.values) ...[
-                                      ChoiceChip(
-                                        label: Text(
-                                          switch (f) {
-                                            ReportsPackFilter.all => 'All',
-                                            ReportsPackFilter.bag => 'Bags',
-                                            ReportsPackFilter.box => 'Box',
-                                            ReportsPackFilter.tin => 'Tin',
-                                          },
-                                          style: const TextStyle(fontSize: 11),
-                                        ),
-                                        selected: _packFilter == f,
-                                        onSelected: (_) => setState(() {
-                                          _packFilter = f;
-                                          _visibleCap = 40;
-                                        }),
-                                        showCheckmark: false,
-                                        visualDensity: VisualDensity.compact,
-                                        materialTapTargetSize:
-                                            MaterialTapTargetSize.shrinkWrap,
-                                      ),
-                                      const SizedBox(width: 6),
-                                    ],
-                                    const SizedBox(width: 10),
-                                    const Text(
-                                      'Sort:',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12,
-                                        color: Color(0xFF333333),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    ChoiceChip(
-                                      label: const Text(
-                                        'Latest',
-                                        style: TextStyle(fontSize: 11),
-                                      ),
-                                      selected: _itemSort ==
-                                          TradeReportItemSort.latest,
+                                  ),
+                                  for (final f in ReportsPackFilter.values)
+                                    HexaAccessibleFilterChip(
+                                      label: switch (f) {
+                                        ReportsPackFilter.all => 'All',
+                                        ReportsPackFilter.bag => 'Bags',
+                                        ReportsPackFilter.box => 'Box',
+                                        ReportsPackFilter.tin => 'Tin',
+                                      },
+                                      selected: _packFilter == f,
                                       onSelected: (_) => setState(() {
-                                        _itemSort = TradeReportItemSort.latest;
+                                        _packFilter = f;
+                                        _visibleCap = 40;
                                       }),
-                                      showCheckmark: false,
-                                      visualDensity: VisualDensity.compact,
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
+                                      compact: true,
                                     ),
-                                    ChoiceChip(
-                                      label: const Text(
-                                        'High qty',
-                                        style: TextStyle(fontSize: 11),
-                                      ),
-                                      selected: _itemSort ==
-                                          TradeReportItemSort.highQty,
-                                      onSelected: (_) => setState(() {
-                                        _itemSort = TradeReportItemSort.highQty;
-                                      }),
-                                      showCheckmark: false,
-                                      visualDensity: VisualDensity.compact,
-                                      materialTapTargetSize:
-                                          MaterialTapTargetSize.shrinkWrap,
+                                  const Text(
+                                    'Sort:',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                      color: Color(0xFF333333),
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                  HexaAccessibleFilterChip(
+                                    label: 'Latest',
+                                    selected:
+                                        _itemSort == TradeReportItemSort.latest,
+                                    onSelected: (_) => setState(() {
+                                      _itemSort = TradeReportItemSort.latest;
+                                    }),
+                                    compact: true,
+                                  ),
+                                  HexaAccessibleFilterChip(
+                                    label: 'High qty',
+                                    selected: _itemSort ==
+                                        TradeReportItemSort.highQty,
+                                    onSelected: (_) => setState(() {
+                                      _itemSort = TradeReportItemSort.highQty;
+                                    }),
+                                    compact: true,
+                                  ),
+                                ],
                               ),
                             ),
                           ],

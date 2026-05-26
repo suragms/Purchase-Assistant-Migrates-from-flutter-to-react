@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/strict_decimal.dart';
 import '../../../../core/theme/hexa_colors.dart';
+import '../../../../core/design_system/hexa_responsive.dart';
 import '../../../../core/units/dynamic_unit_label_engine.dart' as unit_lbl;
 import '../../../../core/utils/trade_purchase_rate_display.dart';
 import '../../domain/purchase_draft.dart';
@@ -147,25 +148,42 @@ class PurchaseSummarySections extends ConsumerWidget {
             ),
           )
         else
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: ConstrainedBox(
-              constraints:
-                  BoxConstraints(minWidth: MediaQuery.sizeOf(context).width - 40),
-              child: Table(
-                border: TableBorder.all(color: Colors.grey.shade300),
-                columnWidths: const {
-                  0: FixedColumnWidth(28),
-                  1: FlexColumnWidth(2.4),
-                  2: FixedColumnWidth(52),
-                  3: FixedColumnWidth(40),
-                  4: FixedColumnWidth(58),
-                  5: FixedColumnWidth(58),
-                  6: FixedColumnWidth(68),
-                },
-                children: tableChildren,
-              ),
-            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth < HexaBreakpoints.phone) {
+                return Column(
+                  children: [
+                    for (var i = 0; i < draft.lines.length; i++)
+                      _SummaryLineCard(
+                        index: i + 1,
+                        line: draft.lines[i],
+                        rateContext: tradePreviewLineRateContext(preview, i),
+                      ),
+                  ],
+                );
+              }
+              return SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: MediaQuery.sizeOf(context).width - 40,
+                  ),
+                  child: Table(
+                    border: TableBorder.all(color: Colors.grey.shade300),
+                    columnWidths: const {
+                      0: FixedColumnWidth(28),
+                      1: FlexColumnWidth(2.4),
+                      2: FixedColumnWidth(52),
+                      3: FixedColumnWidth(40),
+                      4: FixedColumnWidth(58),
+                      5: FixedColumnWidth(58),
+                      6: FixedColumnWidth(68),
+                    },
+                    children: tableChildren,
+                  ),
+                ),
+              );
+            },
           ),
         const SizedBox(height: 14),
         Container(
@@ -275,6 +293,75 @@ class _TblCell extends StatelessWidget {
           fontSize: 11,
           fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
         ),
+      ),
+    );
+  }
+}
+
+class _SummaryLineCard extends StatelessWidget {
+  const _SummaryLineCard({
+    required this.index,
+    required this.line,
+    required this.rateContext,
+  });
+
+  final int index;
+  final PurchaseLineDraft line;
+  final Map<String, dynamic>? rateContext;
+
+  @override
+  Widget build(BuildContext context) {
+    final buy = _approxBuyLine(line);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              '$index. ${line.itemName}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _LinePill('Qty',
+                    StrictDecimal.fromObject(line.qty).format(3, trim: true)),
+                _LinePill('Unit', line.unit),
+                _LinePill('P-rate', _pRateDisplay(line, rateContext)),
+                _LinePill('S-rate', _sRateDisplay(line, rateContext)),
+                _LinePill('Total', '₹${buy.toStringAsFixed(2)}'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LinePill extends StatelessWidget {
+  const _LinePill(this.label, this.value);
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints:
+          const BoxConstraints(minHeight: HexaResponsive.minTouchTarget),
+      child: Chip(
+        label: Text(
+          '$label: $value',
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+        ),
+        materialTapTargetSize: MaterialTapTargetSize.padded,
       ),
     );
   }

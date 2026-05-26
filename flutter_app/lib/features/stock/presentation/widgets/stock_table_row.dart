@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
-import '../../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../../core/design_system/hexa_responsive.dart';
 import '../../../../core/json_coerce.dart';
 import '../../../../core/utils/unit_utils.dart';
 import '../../../../shared/widgets/stock_number_display.dart';
@@ -81,7 +81,9 @@ class StockTableRow extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: HexaOp.pageGutter),
+      padding: EdgeInsets.symmetric(
+        horizontal: HexaResponsive.pageGutter(context, operational: true),
+      ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -99,114 +101,126 @@ class StockTableRow extends StatelessWidget {
                     )
                   : null,
             ),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        StockTableLayout.cellHPadding,
-                        6,
-                        4,
-                        6,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF1A1A1A),
-                            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 330;
+                final stockCol = 92.0;
+                final statusCol =
+                    compact ? 52.0 : StockTableLayout.statusColWidth;
+                final showDesktopMetrics =
+                    desktop && constraints.maxWidth >= 760;
+                return IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.fromLTRB(
+                            compact ? 5 : StockTableLayout.cellHPadding,
+                            6,
+                            4,
+                            6,
                           ),
-                          if (sub.isNotEmpty &&
-                              sub.toLowerCase() != name.trim().toLowerCase())
-                            Text(
-                              sub,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: HexaDsType.label(10).copyWith(
-                                color: const Color(0xFF64748B),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFF1A1A1A),
+                                ),
                               ),
-                            ),
-                          if (metaParts.isNotEmpty)
-                            Text(
-                              metaParts.join(' • '),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: HexaDsType.label(9).copyWith(
-                                color: statusKind == StockRowStatusKind.recent
-                                    ? const Color(0xFF1565C0)
-                                    : const Color(0xFF94A3B8),
-                              ),
-                            ),
-                          if (ownerFooter != null)
-                            Text(
-                              ownerFooter,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: HexaDsType.label(9).copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: const Color(0xFF64748B),
-                              ),
-                            ),
-                        ],
+                              if (sub.isNotEmpty &&
+                                  sub.toLowerCase() !=
+                                      name.trim().toLowerCase())
+                                Text(
+                                  sub,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: HexaDsType.label(11).copyWith(
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                              if (metaParts.isNotEmpty)
+                                Text(
+                                  metaParts.join(' • '),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: HexaDsType.label(11).copyWith(
+                                    color:
+                                        statusKind == StockRowStatusKind.recent
+                                            ? const Color(0xFF1565C0)
+                                            : const Color(0xFF94A3B8),
+                                  ),
+                                ),
+                              if (ownerFooter != null)
+                                Text(
+                                  ownerFooter,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: HexaDsType.label(11).copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                      Container(
+                        width: stockCol,
+                        decoration: StockTableLayout.cellDecoration(),
+                        alignment: Alignment.center,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: StockNumberDisplay(
+                          qty: cur,
+                          unit: stockUnit,
+                          status: displayStatus,
+                          hasPendingOrder: hasPendingOrder,
+                          pendingDays: pendingDays,
+                          fontSize: compact ? 13 : 14,
+                        ),
+                      ),
+                      if (showDesktopMetrics) ...[
+                        _metricCell(
+                          item['physical_stock_qty'] == null
+                              ? '-'
+                              : formatStockQtyNumber(
+                                  coerceToDouble(item['physical_stock_qty']),
+                                ),
+                        ),
+                        _metricCell(
+                          item['period_purchased_qty'] == null
+                              ? '-'
+                              : formatStockQtyNumber(
+                                  coerceToDouble(item['period_purchased_qty']),
+                                ),
+                        ),
+                        _metricCell(
+                          item['physical_stock_difference_qty'] == null
+                              ? '-'
+                              : _signedQty(
+                                  coerceToDouble(
+                                    item['physical_stock_difference_qty'],
+                                  ),
+                                ),
+                        ),
+                      ],
+                      SizedBox(
+                        width: statusCol,
+                        child: Center(
+                          child: StockStatusBadge(kind: statusKind),
+                        ),
+                      ),
+                    ],
                   ),
-                  Container(
-                    width: StockTableLayout.stockColWidth,
-                    decoration: StockTableLayout.cellDecoration(),
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: StockNumberDisplay(
-                      qty: cur,
-                      unit: stockUnit,
-                      status: displayStatus,
-                      hasPendingOrder: hasPendingOrder,
-                      pendingDays: pendingDays,
-                      fontSize: 14,
-                    ),
-                  ),
-                  if (desktop) ...[
-                    _metricCell(
-                      item['physical_stock_qty'] == null
-                          ? '-'
-                          : formatStockQtyNumber(
-                              coerceToDouble(item['physical_stock_qty']),
-                            ),
-                    ),
-                    _metricCell(
-                      item['period_purchased_qty'] == null
-                          ? '-'
-                          : formatStockQtyNumber(
-                              coerceToDouble(item['period_purchased_qty']),
-                            ),
-                    ),
-                    _metricCell(
-                      item['physical_stock_difference_qty'] == null
-                          ? '-'
-                          : _signedQty(
-                              coerceToDouble(
-                                item['physical_stock_difference_qty'],
-                              ),
-                            ),
-                    ),
-                  ],
-                  SizedBox(
-                    width: StockTableLayout.statusColWidth,
-                    child: Center(
-                      child: StockStatusBadge(kind: statusKind),
-                    ),
-                  ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ),
@@ -224,7 +238,7 @@ class StockTableRow extends StatelessWidget {
         value,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: HexaDsType.label(10).copyWith(fontWeight: FontWeight.w800),
+        style: HexaDsType.label(11).copyWith(fontWeight: FontWeight.w800),
       ),
     );
   }

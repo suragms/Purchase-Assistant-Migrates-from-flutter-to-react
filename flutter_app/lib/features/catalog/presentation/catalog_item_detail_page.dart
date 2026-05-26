@@ -18,6 +18,7 @@ import '../../../core/utils/trade_purchase_rate_display.dart';
 import '../../../core/utils/line_display.dart';
 import '../../../core/utils/unit_utils.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
+import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/json_coerce.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/auth/auth_error_messages.dart';
@@ -1755,7 +1756,6 @@ class _CompactCatalogBarcodeRow extends ConsumerWidget {
   }
 }
 
-
 class _OperationalItemTabs extends ConsumerWidget {
   const _OperationalItemTabs({
     required this.itemId,
@@ -1787,11 +1787,13 @@ class _OperationalItemTabs extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final stock = ref.watch(stockItemDetailProvider(itemId)).valueOrNull ?? item;
+    final stock =
+        ref.watch(stockItemDetailProvider(itemId)).valueOrNull ?? item;
     final activity = ref.watch(stockItemActivityProvider(itemId));
-    final unit = (stock['stock_unit'] ?? stock['unit'] ?? item['default_unit'] ?? '')
-        .toString()
-        .toUpperCase();
+    final unit =
+        (stock['stock_unit'] ?? stock['unit'] ?? item['default_unit'] ?? '')
+            .toString()
+            .toUpperCase();
     final name = item['name']?.toString() ?? 'Item';
     final code = item['item_code']?.toString();
     final barcode = item['barcode']?.toString();
@@ -1854,11 +1856,13 @@ class _OperationalItemTabs extends ConsumerWidget {
                         ],
                       ),
                       activity.when(
-                        loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (_, __) => _empty('Could not load purchase activity.'),
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (_, __) =>
+                            _empty('Could not load purchase activity.'),
                         data: (data) {
-                          final rows =
-                              (data['purchases'] as List? ?? const []).whereType<Map>();
+                          final rows = (data['purchases'] as List? ?? const [])
+                              .whereType<Map>();
                           final list = rows.take(12).toList();
                           if (list.isEmpty) {
                             return _empty('No quick purchase entries yet.');
@@ -1867,7 +1871,8 @@ class _OperationalItemTabs extends ConsumerWidget {
                             padding: const EdgeInsets.only(top: 8),
                             itemCount: list.length,
                             itemBuilder: (context, index) {
-                              final row = Map<String, dynamic>.from(list[index]);
+                              final row =
+                                  Map<String, dynamic>.from(list[index]);
                               return ListTile(
                                 dense: true,
                                 contentPadding: EdgeInsets.zero,
@@ -1885,18 +1890,23 @@ class _OperationalItemTabs extends ConsumerWidget {
                         },
                       ),
                       activity.when(
-                        loading: () => const Center(child: CircularProgressIndicator()),
-                        error: (_, __) => _empty('Could not load stock ledger.'),
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (_, __) =>
+                            _empty('Could not load stock ledger.'),
                         data: (data) {
-                          final rows =
-                              (data['movements'] as List? ?? const []).whereType<Map>();
+                          final rows = (data['movements'] as List? ?? const [])
+                              .whereType<Map>();
                           final list = rows.take(16).toList();
-                          if (list.isEmpty) return _empty('No stock movement yet.');
+                          if (list.isEmpty) {
+                            return _empty('No stock movement yet.');
+                          }
                           return ListView.builder(
                             padding: const EdgeInsets.only(top: 8),
                             itemCount: list.length,
                             itemBuilder: (context, index) {
-                              final row = Map<String, dynamic>.from(list[index]);
+                              final row =
+                                  Map<String, dynamic>.from(list[index]);
                               final delta = coerceToDouble(row['delta_qty']);
                               final sign = delta >= 0 ? '+' : '';
                               return ListTile(
@@ -1917,22 +1927,25 @@ class _OperationalItemTabs extends ConsumerWidget {
                         },
                       ),
                       activity.when(
-                        loading: () => const Center(child: CircularProgressIndicator()),
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
                         error: (_, __) => _empty('Could not load activity.'),
                         data: (data) {
-                          final rows =
-                              (data['activity'] as List? ?? const []).whereType<Map>();
+                          final rows = (data['activity'] as List? ?? const [])
+                              .whereType<Map>();
                           final list = rows.take(16).toList();
                           if (list.isEmpty) return _empty('No activity yet.');
                           return ListView.builder(
                             padding: const EdgeInsets.only(top: 8),
                             itemCount: list.length,
                             itemBuilder: (context, index) {
-                              final row = Map<String, dynamic>.from(list[index]);
+                              final row =
+                                  Map<String, dynamic>.from(list[index]);
                               return ListTile(
                                 dense: true,
                                 contentPadding: EdgeInsets.zero,
-                                title: Text(row['title']?.toString() ?? 'Activity'),
+                                title: Text(
+                                    row['title']?.toString() ?? 'Activity'),
                                 subtitle: Text(
                                   '${row['actor_name'] ?? 'User'}'
                                   '${row['reason'] != null ? ' · ${row['reason']}' : ''}',
@@ -1952,7 +1965,9 @@ class _OperationalItemTabs extends ConsumerWidget {
                           ),
                           _OperationalMetricRow(
                             label: 'Barcode',
-                            value: barcode?.isNotEmpty == true ? barcode! : 'Missing',
+                            value: barcode?.isNotEmpty == true
+                                ? barcode!
+                                : 'Missing',
                           ),
                           OutlinedButton.icon(
                             onPressed: () => context.push(
@@ -2076,38 +2091,54 @@ class _CatalogItemBarcodeSection extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 8),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    children: [
-                      Center(
-                        child: SvgPicture.string(
-                          svg,
-                          width: 260,
-                          height: 68,
-                        ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact =
+                    constraints.maxWidth < HexaBreakpoints.compactPhone;
+                final barcode = Column(
+                  children: [
+                    Center(
+                      child: SvgPicture.string(
+                        svg,
+                        width: math.min(260, constraints.maxWidth).toDouble(),
+                        height: 68,
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        code,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      code,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
                       ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                QrImageView(
+                    ),
+                  ],
+                );
+                final qr = QrImageView(
                   data: code,
-                  size: 80,
+                  size: compact ? 72 : 80,
                   backgroundColor: Colors.white,
-                ),
-              ],
+                );
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      barcode,
+                      const SizedBox(height: 10),
+                      qr,
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(child: barcode),
+                    const SizedBox(width: 12),
+                    qr,
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -2156,30 +2187,36 @@ class _ItemQuickActionGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      crossAxisCount: 3,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      childAspectRatio: 1.35,
-      children: [
-        OutlinedButton.icon(
-          onPressed: onUpdateStock,
-          icon: const Icon(Icons.inventory_2_outlined, size: 18),
-          label: const Text('Stock'),
-        ),
-        OutlinedButton.icon(
-          onPressed: onHistory,
-          icon: const Icon(Icons.history_rounded, size: 18),
-          label: const Text('History'),
-        ),
-        OutlinedButton.icon(
-          onPressed: onReorderList,
-          icon: const Icon(Icons.playlist_add_rounded, size: 18),
-          label: const Text('Reorder'),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cols =
+            constraints.maxWidth < HexaBreakpoints.compactPhone ? 2 : 3;
+        return GridView.count(
+          crossAxisCount: cols,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: cols == 2 ? 1.8 : 1.35,
+          children: [
+            OutlinedButton.icon(
+              onPressed: onUpdateStock,
+              icon: const Icon(Icons.inventory_2_outlined, size: 18),
+              label: const Text('Stock'),
+            ),
+            OutlinedButton.icon(
+              onPressed: onHistory,
+              icon: const Icon(Icons.history_rounded, size: 18),
+              label: const Text('History'),
+            ),
+            OutlinedButton.icon(
+              onPressed: onReorderList,
+              icon: const Icon(Icons.playlist_add_rounded, size: 18),
+              label: const Text('Reorder'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

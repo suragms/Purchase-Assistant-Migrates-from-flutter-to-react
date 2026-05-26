@@ -10,6 +10,7 @@ import '../../../core/json_coerce.dart';
 import '../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/utils/unit_utils.dart';
+import '../../../core/design_system/hexa_responsive.dart';
 
 const _kReasons = <String, ({String type, String label})>{
   'Purchase': (type: 'purchase', label: 'Purchase'),
@@ -40,7 +41,8 @@ class _StockQuickEditBody extends ConsumerStatefulWidget {
   final Map<String, dynamic> item;
 
   @override
-  ConsumerState<_StockQuickEditBody> createState() => _StockQuickEditBodyState();
+  ConsumerState<_StockQuickEditBody> createState() =>
+      _StockQuickEditBodyState();
 }
 
 class _StockQuickEditBodyState extends ConsumerState<_StockQuickEditBody> {
@@ -124,18 +126,14 @@ class _StockQuickEditBodyState extends ConsumerState<_StockQuickEditBody> {
     final unit = widget.item['unit']?.toString() ?? '';
     final name = widget.item['name']?.toString() ?? 'Item';
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        top: 12,
-        bottom: 12 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
+    return HexaResponsiveSheetViewport(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          Text(name,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
           const SizedBox(height: 6),
           Text(
             'Current: ${stockDisplayPrimary(_current, unit)}',
@@ -172,12 +170,15 @@ class _StockQuickEditBodyState extends ConsumerState<_StockQuickEditBody> {
             runSpacing: 6,
             children: [
               for (final r in _kReasons.keys)
-                ChoiceChip(
-                  label: Text(r, style: const TextStyle(fontSize: 12)),
-                  selected: _reason == r,
-                  onSelected: _saving ? null : (_) => setState(() => _reason = r),
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 48),
+                  child: ChoiceChip(
+                    label: Text(r, style: const TextStyle(fontSize: 12)),
+                    selected: _reason == r,
+                    onSelected:
+                        _saving ? null : (_) => setState(() => _reason = r),
+                    materialTapTargetSize: MaterialTapTargetSize.padded,
+                  ),
                 ),
             ],
           ),
@@ -214,7 +215,8 @@ class _StockQuickEditBodyState extends ConsumerState<_StockQuickEditBody> {
               : const Color(0xFF3B6D11),
           padding: EdgeInsets.zero,
         ),
-        child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+        child: Text(label,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
       ),
     );
   }

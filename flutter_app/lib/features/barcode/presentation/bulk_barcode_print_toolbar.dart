@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/widgets/operational_async_button.dart';
 import '../services/bulk_pdf_chunks.dart';
 
@@ -72,29 +73,28 @@ class BulkBarcodePrintToolbar extends StatelessWidget {
                     ),
                   ),
               ],
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
                   children: [
                     _FmtChip(
                       label: denseA4 ? 'A4' : 'Thermal',
                       selected: denseA4,
                       onTap: busy ? null : () => onDenseA4Changed(!denseA4),
                     ),
-                    const SizedBox(width: 4),
                     _FmtChip(
                       label: useQr ? 'QR' : 'Code128',
                       selected: !useQr,
                       onTap: busy ? null : () => onQrChanged(!useQr),
                     ),
-                    const SizedBox(width: 4),
                     _CopiesChip(
                       value: copies,
                       enabled: !busy,
                       onChanged: onCopiesChanged,
                     ),
                     if (denseA4) ...[
-                      const SizedBox(width: 4),
                       _FmtChip(
                         label: '${labelsPerPdfFile.count}/pg',
                         selected: true,
@@ -116,30 +116,25 @@ class BulkBarcodePrintToolbar extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              Row(
-                children: [
-                  Expanded(
-                    child: OperationalAsyncButton(
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final narrow = constraints.maxWidth < 360;
+                  final buttons = [
+                    OperationalAsyncButton(
                       label: 'Preview',
                       icon: Icons.visibility_outlined,
                       busy: busy,
                       enabled: enabled,
                       onPressed: enabled ? onPreview : null,
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: OperationalAsyncButton(
+                    OperationalAsyncButton(
                       label: pdfButtonLabel,
                       icon: Icons.download_outlined,
                       busy: busy,
                       enabled: enabled,
                       onPressed: enabled ? onPdf : null,
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: OperationalAsyncButton(
+                    OperationalAsyncButton(
                       label: 'Print',
                       icon: Icons.print_outlined,
                       filled: true,
@@ -147,8 +142,28 @@ class BulkBarcodePrintToolbar extends StatelessWidget {
                       enabled: enabled,
                       onPressed: enabled ? onPrint : null,
                     ),
-                  ),
-                ],
+                  ];
+                  if (narrow) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < buttons.length; i++) ...[
+                          buttons[i],
+                          if (i != buttons.length - 1)
+                            const SizedBox(height: 6),
+                        ],
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      for (var i = 0; i < buttons.length; i++) ...[
+                        Expanded(child: buttons[i]),
+                        if (i != buttons.length - 1) const SizedBox(width: 6),
+                      ],
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -171,13 +186,11 @@ class _FmtChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return FilterChip(
-      label: Text(label, style: const TextStyle(fontSize: 11)),
+    return HexaAccessibleFilterChip(
+      label: label,
       selected: selected,
+      compact: true,
       onSelected: onTap == null ? null : (_) => onTap!(),
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 }
@@ -195,29 +208,33 @@ class _CopiesChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.black26),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _MiniIconBtn(
-            icon: Icons.remove,
-            enabled: enabled && value > 1,
-            onTap: () => onChanged(value - 1),
-          ),
-          Text(
-            '×$value',
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-          ),
-          _MiniIconBtn(
-            icon: Icons.add,
-            enabled: enabled && value < 5,
-            onTap: () => onChanged(value + 1),
-          ),
-        ],
+    return ConstrainedBox(
+      constraints:
+          const BoxConstraints(minHeight: HexaResponsive.minTouchTarget),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.black26),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _MiniIconBtn(
+              icon: Icons.remove,
+              enabled: enabled && value > 1,
+              onTap: () => onChanged(value - 1),
+            ),
+            Text(
+              '×$value',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+            ),
+            _MiniIconBtn(
+              icon: Icons.add,
+              enabled: enabled && value < 5,
+              onTap: () => onChanged(value + 1),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -237,8 +254,8 @@ class _MiniIconBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: 28,
-      height: 28,
+      width: 40,
+      height: 40,
       child: IconButton(
         padding: EdgeInsets.zero,
         iconSize: 16,

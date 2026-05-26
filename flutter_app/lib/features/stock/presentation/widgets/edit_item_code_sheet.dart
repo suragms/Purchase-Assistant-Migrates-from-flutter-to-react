@@ -7,6 +7,7 @@ import '../../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../../core/providers/catalog_providers.dart';
 import '../../../../core/providers/stock_providers.dart';
 import '../../../../core/utils/item_code_format.dart';
+import '../../../../core/design_system/hexa_responsive.dart';
 
 Future<bool> showEditItemCodeSheet({
   required BuildContext context,
@@ -20,13 +21,7 @@ Future<bool> showEditItemCodeSheet({
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    builder: (ctx) => Padding(
-      padding: EdgeInsets.only(
-        left: 20,
-        right: 20,
-        top: 16,
-        bottom: 16 + MediaQuery.viewInsetsOf(ctx).bottom,
-      ),
+    builder: (ctx) => HexaResponsiveSheetViewport(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

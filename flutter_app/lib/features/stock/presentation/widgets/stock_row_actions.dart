@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/design_system/hexa_responsive.dart';
 import '../stock_compact_update_sheet.dart';
 import '../stock_quick_purchase_sheet.dart';
 
@@ -17,54 +18,52 @@ Future<void> showStockRowActions({
     context: context,
     useSafeArea: true,
     showDragHandle: true,
-    builder: (ctx) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              name,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 10),
-            _StockActionTile(
-              icon: Icons.inventory_2_outlined,
-              label: 'Update Physical Stock',
-              onTap: () async {
-                Navigator.pop(ctx);
-                await showStockCompactUpdateSheet(
-                  context: context,
-                  ref: ref,
-                  item: item,
-                );
-              },
-            ),
-            _StockActionTile(
-              icon: Icons.add_shopping_cart_outlined,
-              label: 'Add Purchase Quantity',
-              onTap: () async {
-                Navigator.pop(ctx);
-                await showStockQuickPurchaseSheet(
-                  context: context,
-                  ref: ref,
-                  item: item,
-                );
-              },
-            ),
-            _StockActionTile(
-              icon: Icons.history_rounded,
-              label: 'View Item Activity',
-              onTap: () {
-                Navigator.pop(ctx);
-                context.push('/stock/$id/history?name=${Uri.encodeComponent(name)}');
-              },
-            ),
-          ],
-        ),
+    builder: (ctx) => HexaResponsiveSheetViewport(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            name,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 10),
+          _StockActionTile(
+            icon: Icons.inventory_2_outlined,
+            label: 'Update Physical Stock',
+            onTap: () async {
+              Navigator.pop(ctx);
+              await showStockCompactUpdateSheet(
+                context: context,
+                ref: ref,
+                item: item,
+              );
+            },
+          ),
+          _StockActionTile(
+            icon: Icons.add_shopping_cart_outlined,
+            label: 'Add Purchase Quantity',
+            onTap: () async {
+              Navigator.pop(ctx);
+              await showStockQuickPurchaseSheet(
+                context: context,
+                ref: ref,
+                item: item,
+              );
+            },
+          ),
+          _StockActionTile(
+            icon: Icons.history_rounded,
+            label: 'View Item Activity',
+            onTap: () {
+              Navigator.pop(ctx);
+              context
+                  .push('/stock/$id/history?name=${Uri.encodeComponent(name)}');
+            },
+          ),
+        ],
       ),
     ),
   );

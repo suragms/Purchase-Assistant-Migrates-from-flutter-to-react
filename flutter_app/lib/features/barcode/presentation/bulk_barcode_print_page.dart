@@ -10,6 +10,7 @@ import 'package:printing/printing.dart';
 
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/errors/barcode_operation_errors.dart';
 import '../../../core/json_coerce.dart';
 import '../../../core/services/pdf_actions.dart';
@@ -1034,7 +1035,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                 Expanded(child: listPane),
                 const VerticalDivider(width: 1),
                 SizedBox(
-                  width: 380,
+                  width: min(420, constraints.maxWidth * 0.34).toDouble(),
                   child: BulkBarcodePrintPreviewPanel(
                     denseA4: _denseA4,
                     useQr: _useQr,
@@ -1079,7 +1080,9 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: HexaOp.pageGutter),
+          padding: EdgeInsets.symmetric(
+            horizontal: HexaResponsive.pageGutter(context, operational: true),
+          ),
           child: Row(
             children: [
               Expanded(
@@ -1152,8 +1155,12 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(
-              HexaOp.pageGutter, 0, HexaOp.pageGutter, 2),
+          padding: EdgeInsets.fromLTRB(
+            HexaResponsive.pageGutter(context, operational: true),
+            0,
+            HexaResponsive.pageGutter(context, operational: true),
+            2,
+          ),
           child: Container(
             decoration: const BoxDecoration(
               color: StockTableLayout.headerFill,
@@ -1173,7 +1180,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                     child: Text(
                       'Item',
                       style:
-                          HexaDsType.label(10, color: HexaDsColors.textMuted),
+                          HexaDsType.label(11, color: HexaDsColors.textMuted),
                     ),
                   ),
                 ),
@@ -1182,7 +1189,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                   child: Text(
                     'Ordered',
                     textAlign: TextAlign.center,
-                    style: HexaDsType.label(10, color: HexaDsColors.textMuted),
+                    style: HexaDsType.label(11, color: HexaDsColors.textMuted),
                   ),
                 ),
                 SizedBox(
@@ -1190,7 +1197,7 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
                   child: Text(
                     'Stock',
                     textAlign: TextAlign.center,
-                    style: HexaDsType.label(10, color: HexaDsColors.textMuted),
+                    style: HexaDsType.label(11, color: HexaDsColors.textMuted),
                   ),
                 ),
                 const SizedBox(width: 40),
@@ -1309,7 +1316,9 @@ class _BulkPrintRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final displayStatus = stockDisplayStatusFromApi(stockStatus);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: HexaOp.pageGutter),
+      padding: EdgeInsets.symmetric(
+        horizontal: HexaResponsive.pageGutter(context, operational: true),
+      ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(

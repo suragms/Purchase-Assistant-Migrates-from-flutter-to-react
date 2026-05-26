@@ -8,6 +8,7 @@ import '../../../core/services/stock_list_pdf.dart';
 import '../../../core/json_coerce.dart';
 import '../../../core/providers/home_dashboard_provider.dart';
 import '../../../core/providers/stock_providers.dart';
+import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/router/post_auth_route.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/list_skeleton.dart';
@@ -475,24 +476,24 @@ class _StockStatusFilterChips extends ConsumerWidget {
         ];
 
         return Padding(
-          padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-          child: SizedBox(
-            height: 36,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: chips.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 6),
-              itemBuilder: (ctx, i) {
-                final c = chips[i];
-                return FilterChip(
-                  label: Text(c.label, style: const TextStyle(fontSize: 11)),
+          padding: EdgeInsets.fromLTRB(
+            HexaResponsive.pageGutter(context, operational: true),
+            4,
+            HexaResponsive.pageGutter(context, operational: true),
+            8,
+          ),
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final c in chips)
+                HexaAccessibleFilterChip(
+                  label: c.label,
                   selected: c.selected,
                   onSelected: (_) => c.onTap(),
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                );
-              },
-            ),
+                  compact: true,
+                ),
+            ],
           ),
         );
       },
