@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/session_notifier.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
+import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/router/post_auth_route.dart' show sessionIsStaff;
@@ -164,10 +165,10 @@ class _ActivityRow extends StatelessWidget {
       _ => const Color(0xFF64748B),
     };
     final actor = item.actor?.trim();
-    final subtitle = [
+    final subtitle = <String>[
       item.subtitle,
       if (actor != null && actor.isNotEmpty) 'By $actor',
-      homeRelativeTime(item.at),
+      homeTimeAgo(item.at),
     ].where((s) => s.isNotEmpty).join(' · ');
 
     return ListTile(
