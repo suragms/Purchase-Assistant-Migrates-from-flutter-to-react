@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/theme/hexa_colors.dart';
 
-/// Owner dashboard quick actions (max 7, no scan in primary row).
+/// Owner dashboard quick actions (2×4 grid, ~56dp tiles).
 class HomeOwnerQuickActions extends StatelessWidget {
   const HomeOwnerQuickActions({
     super.key,
@@ -13,6 +13,7 @@ class HomeOwnerQuickActions extends StatelessWidget {
     required this.onReports,
     required this.onUsers,
     required this.onBarcode,
+    required this.onReorder,
   });
 
   final VoidCallback onStock;
@@ -22,17 +23,19 @@ class HomeOwnerQuickActions extends StatelessWidget {
   final VoidCallback onReports;
   final VoidCallback onUsers;
   final VoidCallback onBarcode;
+  final VoidCallback onReorder;
 
   @override
   Widget build(BuildContext context) {
     final actions = [
       _Spec('Purchase', Icons.add_shopping_cart_rounded, HexaColors.brandPrimary, onPurchase),
       _Spec('Stock', Icons.inventory_2_rounded, const Color(0xFF1565C0), onStock),
-      _Spec('Low stock', Icons.warning_amber_rounded, const Color(0xFFB45309), onLowStock),
-      _Spec('Deliveries', Icons.local_shipping_outlined, const Color(0xFF3B6D11), onPendingDeliveries),
+      _Spec('Low stock', Icons.warning_amber_rounded, HexaColors.warning, onLowStock),
+      _Spec('Deliveries', Icons.local_shipping_outlined, HexaColors.profit, onPendingDeliveries),
       _Spec('Reports', Icons.bar_chart_rounded, const Color(0xFF0D9488), onReports),
       _Spec('Users', Icons.group_rounded, const Color(0xFF5D4037), onUsers),
       _Spec('Barcode', Icons.qr_code_2_rounded, const Color(0xFF455A64), onBarcode),
+      _Spec('Reorder', Icons.autorenew_rounded, const Color(0xFF7C3AED), onReorder),
     ];
 
     return GridView.count(
@@ -41,7 +44,7 @@ class HomeOwnerQuickActions extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 8,
       crossAxisSpacing: 8,
-      childAspectRatio: 0.95,
+      childAspectRatio: 1.35,
       children: [
         for (final a in actions) _Tile(spec: a),
       ],
@@ -69,23 +72,26 @@ class _Tile extends StatelessWidget {
       child: InkWell(
         onTap: spec.onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(spec.icon, color: spec.color, size: 26),
-            const SizedBox(height: 6),
-            Text(
-              spec.label,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                color: spec.color,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(spec.icon, color: spec.color, size: 22),
+              const SizedBox(height: 4),
+              Text(
+                spec.label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: spec.color,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

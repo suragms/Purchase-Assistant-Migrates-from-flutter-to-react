@@ -112,8 +112,8 @@ List<ItemTradeHistoryRow> itemTradeHistoryRows(
   return out;
 }
 
-/// Default window for item detail history; matches [catalogInsightsDefaultRange] (≈90d).
-const int kDefaultItemHistoryRangeDays = 90;
+/// Default window for item detail history (30d; aligns with stock audit spec).
+const int kDefaultItemHistoryRangeDays = 30;
 
 /// Keeps [rows] (newest first) that fall in `[today − days, end of today]` in local time.
 List<ItemTradeHistoryRow> itemTradeHistoryRowsInRange(

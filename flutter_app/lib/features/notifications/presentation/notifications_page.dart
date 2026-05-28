@@ -10,7 +10,8 @@ import '../../../core/providers/notifications_provider.dart'
         NotificationItem,
         mergedNotificationFeedProvider,
         notificationMatchesCategoryFilter,
-        notificationsProvider;
+        notificationsProvider,
+        warehouseAlertReadIdsProvider;
 import '../../../core/providers/realtime_notifications_provider.dart';
 import '../../../core/providers/server_notifications_provider.dart';
 import '../../../core/providers/business_aggregates_invalidation.dart';
@@ -30,7 +31,6 @@ class NotificationsPage extends ConsumerStatefulWidget {
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   NotificationCategoryFilter _filter = NotificationCategoryFilter.all;
   final _textSearch = TextEditingController();
-  var _primedFetch = false;
 
   @override
   void dispose() {
@@ -40,22 +40,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_primedFetch) {
-      _primedFetch = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ref.invalidate(appNotificationsListProvider);
-        ref.invalidate(appNotificationUnreadCountProvider);
-      });
-    }
     ref.watch(realtimeNotificationsBoostProvider);
     final tt = Theme.of(context).textTheme;
     final serverAsync = ref.watch(appNotificationsListProvider);
     final items = ref.watch(mergedNotificationFeedProvider);
-    final serverUnread =
-        ref.watch(appNotificationUnreadCountProvider).valueOrNull ?? 0;
-    final listEmptyButServerUnread =
-        items.isEmpty && serverUnread > 0 && !serverAsync.isLoading;
     final filtered =
         items.where((n) => notificationMatchesCategoryFilter(n, _filter)).toList();
     final q = _textSearch.text.trim().toLowerCase();
@@ -70,6 +58,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final hasUnread = visible.any((n) => !n.isRead);
     final filterEmptyButHasItems =
         items.isNotEmpty && filtered.isEmpty && q.isEmpty;
+    final showEmptyState =
+        visible.isEmpty && !(serverAsync.isLoading && items.isNotEmpty);
 
     final onSurf = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
@@ -99,46 +89,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 ? null
                 : () => _clearServerNotifications(),
           ),
-          IconButton(
-            tooltip: 'Notification settings',
-            icon: Icon(Icons.tune_rounded,
-                color: Theme.of(context).colorScheme.onSurfaceVariant),
-            onPressed: () {
-              showModalBottomSheet<void>(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: context.adaptiveCard,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-                builder: (ctx) => Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    20,
-                    20,
-                    20,
-                    20 + MediaQuery.viewInsetsOf(ctx).bottom,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Preferences',
-                          style: tt.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Price alerts, profit drop, daily summary, and WhatsApp status toggles will be available in a future update.',
-                        style: tt.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            height: 1.4),
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
         ],
       ),
       body: Column(
@@ -146,22 +96,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         children: [
           if (serverAsync.isLoading)
             const LinearProgressIndicator(minHeight: 2),
-          if (serverAsync.hasError || listEmptyButServerUnread)
+          if (serverAsync.hasError)
             Material(
               color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.35),
               child: ListTile(
                 dense: true,
                 leading: Icon(Icons.warning_amber_rounded,
                     color: Theme.of(context).colorScheme.error),
-                title: Text(
-                  listEmptyButServerUnread
-                      ? '$serverUnread alerts on server could not be loaded'
-                      : 'Could not refresh server notifications',
-                ),
+                title: const Text('Could not refresh server notifications'),
                 subtitle: Text(
-                  listEmptyButServerUnread
-                      ? 'Pull down to refresh. Warehouse alerts below are still shown.'
-                      : loadStateErrorSubtitle(serverAsync.error),
+                  loadStateErrorSubtitle(serverAsync.error),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall,
@@ -170,7 +114,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                   icon: const Icon(Icons.refresh_rounded),
                   onPressed: () {
                     ref.invalidate(appNotificationsListProvider);
-                    ref.invalidate(appNotificationUnreadCountProvider);
                   },
                 ),
               ),
@@ -224,19 +167,29 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               ),
             ),
           ),
+          if (_filter != NotificationCategoryFilter.all || q.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+              child: Text(
+                'Showing ${visible.length} of ${items.length} alerts',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async {
                 ref.invalidate(appNotificationsListProvider);
-                ref.invalidate(appNotificationUnreadCountProvider);
                 await ref.read(appNotificationsListProvider.future);
               },
-              child: visible.isEmpty
+              child: showEmptyState
                 ? ListView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     children: [
                       SizedBox(
-                        height: MediaQuery.sizeOf(context).height * 0.45,
+                        height: 160,
                         child: Center(
                           child: Padding(
                             padding:
@@ -244,58 +197,60 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                          Icon(
-                            Icons.notifications_none_outlined,
-                            size: 64,
-                            color: Colors.grey.shade300,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            q.isNotEmpty
-                                ? 'No matches'
-                                : filterEmptyButHasItems
-                                    ? _emptyTitleForFilter(_filter)
-                                    : _emptyTitleForFilter(_filter),
-                            textAlign: TextAlign.center,
-                            style: tt.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 16,
-                              color: onSurf,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            q.isNotEmpty
-                                ? 'Try a different search or clear the search box.'
-                                : filterEmptyButHasItems
-                                    ? 'Switch to All or another tab — alerts are hidden by the current filter.'
-                                    : _emptySubtitleForFilter(_filter),
-                            textAlign: TextAlign.center,
-                            style: tt.bodySmall?.copyWith(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant,
-                              height: 1.35,
-                            ),
-                          ),
-                          if (filterEmptyButHasItems) ...[
-                            const SizedBox(height: 20),
-                            FilledButton(
-                              onPressed: () => setState(
-                                () => _filter = NotificationCategoryFilter.all,
-                              ),
-                              child: const Text('Show all alerts'),
-                            ),
-                          ],
-                          if (items.isEmpty) ...[
-                            const SizedBox(height: 20),
-                            FilledButton.icon(
-                              onPressed: () => context.push('/purchase/new'),
-                              icon: const Icon(Icons.add_shopping_cart_rounded,
-                                  size: 20),
-                              label: const Text('Record a purchase'),
-                            ),
-                          ],
+                                Icon(
+                                  Icons.notifications_none_outlined,
+                                  size: 40,
+                                  color: Colors.grey.shade300,
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  q.isNotEmpty
+                                      ? 'No matches'
+                                      : _emptyTitleForFilter(_filter),
+                                  textAlign: TextAlign.center,
+                                  style: tt.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 16,
+                                    color: onSurf,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  q.isNotEmpty
+                                      ? 'Try a different search or clear the search box.'
+                                      : filterEmptyButHasItems
+                                          ? 'Switch to All or another tab — alerts are hidden by the current filter.'
+                                          : _emptySubtitleForFilter(_filter),
+                                  textAlign: TextAlign.center,
+                                  style: tt.bodySmall?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                    height: 1.35,
+                                  ),
+                                ),
+                                if (filterEmptyButHasItems) ...[
+                                  const SizedBox(height: 12),
+                                  FilledButton(
+                                    onPressed: () => setState(
+                                      () => _filter =
+                                          NotificationCategoryFilter.all,
+                                    ),
+                                    child: const Text('Show all alerts'),
+                                  ),
+                                ],
+                                if (items.isEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  FilledButton.icon(
+                                    onPressed: () =>
+                                        context.push('/purchase/new'),
+                                    icon: const Icon(
+                                      Icons.add_shopping_cart_rounded,
+                                      size: 20,
+                                    ),
+                                    label: const Text('Record a purchase'),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -332,14 +287,25 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       } catch (_) {}
     }
     final items = ref.read(mergedNotificationFeedProvider);
+    final whIds = <String>{
+      for (final n in items)
+        if (n.id.startsWith('wh_') && !n.isRead) n.id,
+    };
+    if (whIds.isNotEmpty) {
+      ref.read(warehouseAlertReadIdsProvider.notifier).state = {
+        ...ref.read(warehouseAlertReadIdsProvider),
+        ...whIds,
+      };
+    }
     for (final n in items) {
       if (n.isRead) continue;
-      if (n.serverNotificationId == null && !n.id.startsWith('pur_')) {
+      if (n.serverNotificationId == null &&
+          !n.id.startsWith('pur_') &&
+          !n.id.startsWith('wh_')) {
         ref.read(notificationsProvider.notifier).markRead(n.id);
       }
     }
     ref.invalidate(appNotificationsListProvider);
-    ref.invalidate(appNotificationUnreadCountProvider);
     if (mounted) setState(() {});
   }
 
@@ -371,7 +337,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           businessId: session.primaryBusiness.id,
         );
     ref.invalidate(appNotificationsListProvider);
-    ref.invalidate(appNotificationUnreadCountProvider);
     if (mounted) setState(() {});
   }
 
@@ -383,29 +348,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     required TextTheme tt,
   }) {
     if (visible.isEmpty) {
-      return [
-        const SizedBox(height: 80),
-        Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.notifications_none_rounded,
-                  size: 48, color: Color(0xFFB0BEC5)),
-              SizedBox(height: 12),
-              Text(
-                'No notifications yet',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-              ),
-              SizedBox(height: 4),
-              Text(
-                'Alerts will appear here when actions happen',
-                style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ];
+      return const [];
     }
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -471,6 +414,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             invalidateNotificationSurfaces(ref);
           } catch (_) {}
         }
+      } else if (n.id.startsWith('wh_')) {
+        ref.read(warehouseAlertReadIdsProvider.notifier).state = {
+          ...ref.read(warehouseAlertReadIdsProvider),
+          n.id,
+        };
       } else if (!n.id.startsWith('pur_')) {
         ref.read(notificationsProvider.notifier).markRead(n.id);
       }
@@ -533,7 +481,7 @@ String _emptySubtitleForFilter(NotificationCategoryFilter filter) {
     NotificationCategoryFilter.all =>
       'Stock, purchase, and system activity will appear here.',
     NotificationCategoryFilter.critical =>
-      'Mismatch, sync, and approval issues will show here when they occur.',
+      'Critical shows urgent server alerts. Low/out stock stays under Warehouse.',
     NotificationCategoryFilter.warehouse =>
       'Low stock, barcodes, and opening stock alerts appear here.',
     NotificationCategoryFilter.purchases =>

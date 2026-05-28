@@ -110,14 +110,14 @@ class _TradeLedgerPageState extends ConsumerState<TradeLedgerPage> {
 
   late DateTime _to;
   late DateTime _from;
-  String _dateChip = 'All';
+  String _dateChip = 'This Month';
 
   @override
   void initState() {
     super.initState();
     final n = _dOnly(DateTime.now());
     _to = n;
-    _from = _dOnly(DateTime(2020));
+    _from = DateTime(n.year, n.month, 1);
     _searchCtrl.addListener(() => setState(() {}));
     _ledgerSearchFocus.addListener(() => setState(() {}));
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());

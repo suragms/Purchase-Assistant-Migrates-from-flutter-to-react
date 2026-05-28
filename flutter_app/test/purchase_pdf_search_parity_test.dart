@@ -1,12 +1,17 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:harisree_warehouse/core/models/business_profile.dart';
 import 'package:harisree_warehouse/core/models/trade_purchase_models.dart';
+import 'package:harisree_warehouse/core/services/pdf_locale.dart';
 import 'package:harisree_warehouse/core/services/pdf_purchase_fonts.dart';
 import 'package:harisree_warehouse/core/services/purchase_invoice_pdf_layout.dart';
 import 'package:harisree_warehouse/core/utils/trade_purchase_rate_display.dart';
 import 'package:harisree_warehouse/shared/widgets/trade_intel_cards.dart';
 
 void main() {
+  setUpAll(() async {
+    await ensurePdfLocalesInitialized();
+  });
+
   test('kPurchaseOrderPdfTitle constant', () {
     expect(kPurchaseOrderPdfTitle, 'New Harisree Agency Purchase Order');
   });

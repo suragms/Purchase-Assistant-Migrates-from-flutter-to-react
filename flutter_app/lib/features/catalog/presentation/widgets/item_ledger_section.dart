@@ -9,6 +9,7 @@ import '../../../../core/providers/stock_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../../core/utils/unit_utils.dart';
 import '../../../../core/widgets/friendly_load_error.dart';
+import '../../../stock/presentation/update_stock_sheet.dart';
 
 enum ItemLedgerRange { d7, d30, d90, all }
 
@@ -72,12 +73,10 @@ class _ItemLedgerSectionState extends ConsumerState<ItemLedgerSection> {
                     : '—';
                 final filtered = _applyFilters(raw.whereType<Map>(), now: DateTime.now()).toList();
                 if (filtered.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.fromLTRB(12, 14, 12, 14),
-                    child: Text(
-                      'No ledger entries in this range.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                    ),
+                  return _LedgerEmptyState(
+                    itemId: widget.itemId,
+                    range: _range,
+                    onViewAllTime: () => setState(() => _range = ItemLedgerRange.all),
                   );
                 }
                 final take = filtered.take(25).toList();
@@ -229,6 +228,85 @@ class _ItemLedgerSectionState extends ConsumerState<ItemLedgerSection> {
             const Icon(Icons.expand_more_rounded, size: 18),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _LedgerEmptyState extends ConsumerWidget {
+  const _LedgerEmptyState({
+    required this.itemId,
+    required this.range,
+    required this.onViewAllTime,
+  });
+
+  final String itemId;
+  final ItemLedgerRange range;
+  final VoidCallback onViewAllTime;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (range == ItemLedgerRange.all) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(12, 14, 12, 14),
+        child: Text(
+          'No ledger entries in this range.',
+          style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+        ),
+      );
+    }
+
+    final detail = ref.watch(stockItemDetailProvider(itemId)).valueOrNull;
+    final systemStock = coerceToDouble(detail?['current_stock']);
+    final itemName = detail?['name']?.toString() ?? 'Item';
+
+    if (systemStock <= 0.001) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(12, 14, 12, 14),
+        child: Text(
+          'No ledger entries in this range.',
+          style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'System stock is positive but nothing moved in this range. '
+            'Try a wider range or update the physical count.',
+            style: TextStyle(fontSize: 12, color: Color(0xFF64748B), height: 1.35),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton(
+                onPressed: onViewAllTime,
+                child: const Text('View all time'),
+              ),
+              FilledButton.tonal(
+                onPressed: () async {
+                  final row =
+                      detail ?? await ref.read(stockItemDetailProvider(itemId).future);
+                  if (!context.mounted) return;
+                  await showUpdateStockSheet(
+                    context: context,
+                    ref: ref,
+                    itemId: itemId,
+                    itemName: itemName,
+                    stockRow: row == null || row.isEmpty ? null : row,
+                  );
+                },
+                child: const Text('Update physical count'),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

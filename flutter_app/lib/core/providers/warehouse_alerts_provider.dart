@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/session_notifier.dart';
-import 'home_owner_dashboard_providers.dart';
 
 /// Consolidated warehouse alert counts for home / stock LIVE chips.
 class WarehouseAlerts {
@@ -51,28 +50,21 @@ final warehouseAlertsProvider =
     FutureProvider.autoDispose<WarehouseAlerts>((ref) async {
   final session = ref.watch(sessionProvider);
   if (session == null) return const WarehouseAlerts();
-  final dash = ref.watch(homeOwnerPeriodDashboardProvider);
-  final alerts = await ref.watch(stockAlertCountsProvider.future);
-  final variances = ref.watch(stockVariancesTodayProvider).valueOrNull ?? [];
   final api = ref.read(hexaApiProvider);
   final bid = session.primaryBusiness.id;
   Map<String, dynamic> summary = {};
-  Map<String, dynamic> checklist = {};
   try {
-    summary = await api.getStockAlertsSummary(businessId: bid);
-  } catch (_) {}
-  try {
-    checklist = await api.getChecklistSummary(businessId: bid);
+    summary = await api.getWarehouseAlertsSummary(businessId: bid);
   } catch (_) {}
   return WarehouseAlerts(
-    pendingDeliveries: dash.pendingDeliveryCount,
-    lowStock: alerts.low,
-    criticalStock: alerts.critical,
-    pendingVerifications: variances.length,
+    pendingDeliveries: (summary['pending_deliveries'] as num?)?.toInt() ?? 0,
+    lowStock: (summary['low_stock'] as num?)?.toInt() ?? 0,
+    criticalStock: (summary['critical_stock'] as num?)?.toInt() ?? 0,
+    pendingVerifications: (summary['pending_verifications'] as num?)?.toInt() ?? 0,
     missingBarcode: (summary['missing_barcode'] as num?)?.toInt() ?? 0,
     missingUsageLogs: (summary['missing_usage_logs'] as num?)?.toInt() ?? 0,
     evictionCount: (summary['eviction_count'] as num?)?.toInt() ?? 0,
     checklistCompletionPct:
-        (checklist['completion_pct'] as num?)?.toDouble() ?? 100,
+        (summary['checklist_completion_pct'] as num?)?.toDouble() ?? 100,
   );
 });

@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
-import '../../../../core/widgets/friendly_load_error.dart';
+import '../../../../core/widgets/section_inline_error.dart';
 import '../../../../shared/widgets/operational_ui.dart';
 import '../../../stock/presentation/widgets/stock_today_feed.dart';
 import 'home_formatters.dart';
@@ -55,7 +55,7 @@ class HomeStockMovementSection extends ConsumerWidget {
     return audits.when(
       loading: () => wrap(child: const HomeSectionSkeleton(rows: 2)),
       error: (_, __) => wrap(
-        child: FriendlyLoadError(
+        child: SectionInlineError(
           message: 'Could not load stock movement',
           onRetry: () => ref.invalidate(stockAuditPeriodProvider),
         ),

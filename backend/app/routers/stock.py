@@ -20,6 +20,8 @@ from app.models import (
     ItemCategory,
     Membership,
     StaffActivityLog,
+    StaffChecklistCompletion,
+    StaffChecklistTemplate,
     Supplier,
     TradePurchase,
     TradePurchaseLine,
@@ -57,6 +59,7 @@ from app.schemas.stock import (
     PhysicalStockCountOut,
     StockTotalsOut,
     StockAlertsSummaryOut,
+    WarehouseAlertsSummaryOut,
     LowStockOpsSummaryOut,
     LowStockOpsItemOut,
     LowStockOpsOut,
@@ -196,6 +199,7 @@ def _item_to_list_row(
     last_purchase_delivered: bool | None = None,
     has_pending_order: bool = False,
     pending_order_days: int | None = None,
+    pending_delivery_qty: Decimal | None = None,
     physical_stock_qty: Decimal | None = None,
     physical_stock_difference_qty: Decimal | None = None,
     physical_stock_counted_at: datetime | None = None,
@@ -247,6 +251,7 @@ def _item_to_list_row(
         last_purchase_delivered=last_purchase_delivered,
         has_pending_order=has_pending_order,
         pending_order_days=pending_order_days,
+        pending_delivery_qty=pending_delivery_qty,
         physical_stock_qty=physical_stock_qty,
         physical_stock_difference_qty=physical_stock_difference_qty,
         physical_stock_counted_at=physical_stock_counted_at,
@@ -264,34 +269,44 @@ async def _pending_order_meta_map(
     db: AsyncSession,
     business_id: uuid.UUID,
     item_ids: list[uuid.UUID],
-) -> dict[uuid.UUID, tuple[bool, int | None]]:
-    """Undelivered purchase lines per catalog item (truck icon on stock UI)."""
+) -> dict[uuid.UUID, tuple[bool, int | None, Decimal | None]]:
+    """Undelivered purchase lines per catalog item (truck icon + pending qty on stock UI)."""
     if not item_ids:
         return {}
     r = await db.execute(
-        select(
-            TradePurchaseLine.catalog_item_id,
-            func.min(TradePurchase.purchase_date),
-        )
+        select(TradePurchaseLine, CatalogItem, TradePurchase.purchase_date)
         .join(TradePurchase, TradePurchase.id == TradePurchaseLine.trade_purchase_id)
+        .join(CatalogItem, TradePurchaseLine.catalog_item_id == CatalogItem.id)
         .where(
             TradePurchase.business_id == business_id,
             TradePurchase.is_delivered.is_(False),
             TradePurchase.status.notin_(("deleted", "cancelled")),
             TradePurchaseLine.catalog_item_id.in_(item_ids),
+            CatalogItem.business_id == business_id,
+            CatalogItem.deleted_at.is_(None),
         )
-        .group_by(TradePurchaseLine.catalog_item_id)
     )
     today = date.today()
-    out: dict[uuid.UUID, tuple[bool, int | None]] = {}
-    for cid, oldest in r.all():
+    qty_by_item: dict[uuid.UUID, Decimal] = defaultdict(lambda: Decimal(0))
+    oldest_by_item: dict[uuid.UUID, date] = {}
+    for line, item, purchase_date in r.all():
+        cid = line.catalog_item_id
         if cid is None:
             continue
+        qty_by_item[cid] += line_qty_in_stock_unit(line, item)
+        if purchase_date is not None:
+            pd = purchase_date.date() if isinstance(purchase_date, datetime) else purchase_date
+            prev = oldest_by_item.get(cid)
+            if prev is None or pd < prev:
+                oldest_by_item[cid] = pd
+    out: dict[uuid.UUID, tuple[bool, int | None, Decimal | None]] = {}
+    for cid, total_qty in qty_by_item.items():
         days: int | None = None
+        oldest = oldest_by_item.get(cid)
         if oldest is not None:
-            pd = oldest.date() if isinstance(oldest, datetime) else oldest
-            days = max(0, (today - pd).days)
-        out[cid] = (True, days)
+            days = max(0, (today - oldest).days)
+        qty_out = total_qty if total_qty > 0 else None
+        out[cid] = (True, days, qty_out)
     return out
 
 
@@ -1005,7 +1020,7 @@ async def list_stock(
     for item, cat_name, type_name in rows:
         sup = await _supplier_name(db, item)
         meta = trade_meta.get(item.id, (None, None))
-        pend = pending_meta.get(item.id, (False, None))
+        pend = pending_meta.get(item.id, (False, None, None))
         phys = physical_meta.get(item.id)
         purchased = period_map.get(item.id) if include_period else None
         usage = period_usage_map.get(item.id) if include_period else None
@@ -1036,6 +1051,7 @@ async def list_stock(
                 last_purchase_delivered=meta[1],
                 has_pending_order=pend[0],
                 pending_order_days=pend[1],
+                pending_delivery_qty=pend[2],
                 physical_stock_qty=phys.counted_qty if phys else None,
                 physical_stock_difference_qty=phys.difference_qty if phys else None,
                 physical_stock_counted_at=phys.counted_at if phys else None,
@@ -1224,15 +1240,16 @@ async def stock_alerts_summary(
 ):
     """Operational alert counts for owner home strip."""
     today = date.today()
-    low = crit = out = missing_barcode = missing_item_code = eviction = 0
+    low = crit = out = active_out = missing_barcode = missing_item_code = eviction = 0
+    catalog_total = 0
     ir = await db.execute(
         select(
-            CatalogItem.id,
             CatalogItem.current_stock,
             CatalogItem.reorder_level,
             CatalogItem.item_code,
             CatalogItem.barcode,
             CatalogItem.last_purchase_at,
+            CatalogItem.opening_stock_qty,
             CatalogItem.eviction_days,
             ItemCategory.is_perishable,
         )
@@ -1243,7 +1260,8 @@ async def stock_alerts_summary(
         )
     )
     for row in ir.all():
-        _iid, cur, ro, code, barcode, lpa, ev_days, perish = row
+        catalog_total += 1
+        cur, ro, code, barcode, lpa, opening_qty, ev_days, perish = row
         cur_d = Decimal(cur or 0)
         ro_d = Decimal(ro or 0)
         st = stock_status(cur_d, ro_d)
@@ -1253,6 +1271,9 @@ async def stock_alerts_summary(
             crit += 1
         elif st == "out":
             out += 1
+            opening_set = opening_qty is not None and Decimal(opening_qty) > 0
+            if opening_set or lpa is not None:
+                active_out += 1
         if not (barcode and str(barcode).strip()):
             missing_barcode += 1
         if not (code and str(code).strip()):
@@ -1268,23 +1289,79 @@ async def stock_alerts_summary(
         )
     )
     logged = int(lr.scalar_one() or 0)
-    ar = await db.execute(
-        select(func.count()).select_from(CatalogItem).where(
-            CatalogItem.business_id == business_id,
-            CatalogItem.deleted_at.is_(None),
-            CatalogItem.current_stock > 0,
-        )
-    )
-    active = int(ar.scalar_one() or 0)
     return StockAlertsSummaryOut(
         low_stock=low,
         critical_stock=crit,
         out_of_stock=out,
+        active_out_of_stock=active_out,
         missing_barcode=missing_barcode,
         missing_item_code=missing_item_code,
-        missing_usage_logs=max(0, active - logged),
+        missing_usage_logs=max(0, catalog_total - logged),
         eviction_count=eviction,
-        total_items=active,
+        total_items=catalog_total,
+    )
+
+
+@router.get("/warehouse/alerts-summary", response_model=WarehouseAlertsSummaryOut)
+async def warehouse_alerts_summary(
+    business_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _m: Annotated[Membership, Depends(require_membership)],
+):
+    """Collapsed owner-home alert summary to avoid Flutter provider waterfalls."""
+    stock = await stock_alerts_summary(business_id=business_id, db=db, _m=_m)
+    today = date.today()
+
+    pending_deliveries_q = await db.execute(
+        select(func.count(TradePurchase.id)).where(
+            TradePurchase.business_id == business_id,
+            TradePurchase.status.notin_(("cancelled", "deleted")),
+            TradePurchase.is_delivered.is_(False),
+        )
+    )
+    pending_deliveries = int(pending_deliveries_q.scalar_one() or 0)
+
+    variances_q = await db.execute(
+        select(func.count(StockAdjustmentLog.id)).where(
+            StockAdjustmentLog.business_id == business_id,
+            StockAdjustmentLog.adjustment_type.in_(("verification", "correction", "manual")),
+            func.date(StockAdjustmentLog.updated_at) == today,
+        )
+    )
+    pending_verifications = int(variances_q.scalar_one() or 0)
+
+    templates_q = await db.execute(
+        select(func.count())
+        .select_from(StaffChecklistTemplate)
+        .where(
+            or_(
+                StaffChecklistTemplate.business_id == business_id,
+                StaffChecklistTemplate.business_id.is_(None),
+            )
+        )
+    )
+    checklist_total = int(templates_q.scalar_one() or 0)
+    completed_q = await db.execute(
+        select(func.count(func.distinct(StaffChecklistCompletion.task_key))).where(
+            StaffChecklistCompletion.business_id == business_id,
+            StaffChecklistCompletion.checklist_date == today,
+        )
+    )
+    checklist_done = int(completed_q.scalar_one() or 0)
+    checklist_completion_pct = (
+        round((checklist_done / checklist_total) * 100, 1) if checklist_total > 0 else 100.0
+    )
+
+    return WarehouseAlertsSummaryOut(
+        pending_deliveries=pending_deliveries,
+        low_stock=stock.low_stock,
+        critical_stock=stock.critical_stock,
+        pending_verifications=pending_verifications,
+        missing_barcode=stock.missing_barcode,
+        missing_usage_logs=stock.missing_usage_logs,
+        eviction_count=stock.eviction_count,
+        checklist_completion_pct=checklist_completion_pct,
+        total_items=stock.total_items,
     )
 
 
@@ -2579,11 +2656,17 @@ async def get_stock_item(
     item, cat_name, type_name = row
     sup = await _supplier_name(db, item)
     phys = (await _latest_physical_count_map(db, business_id, [item_id])).get(item_id)
+    pend = (await _pending_order_meta_map(db, business_id, [item_id])).get(
+        item_id, (False, None, None)
+    )
     base = _item_to_list_row(
         item,
         cat_name,
         type_name,
         sup,
+        has_pending_order=pend[0],
+        pending_order_days=pend[1],
+        pending_delivery_qty=pend[2],
         physical_stock_qty=phys.counted_qty if phys else None,
         physical_stock_difference_qty=phys.difference_qty if phys else None,
         physical_stock_counted_at=phys.counted_at if phys else None,

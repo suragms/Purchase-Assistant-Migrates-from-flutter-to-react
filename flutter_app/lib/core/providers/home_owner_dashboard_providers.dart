@@ -5,8 +5,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/shell/shell_branch_provider.dart';
 import '../auth/session_notifier.dart';
 import '../json_coerce.dart';
+import 'stock_providers.dart' show stockStatusCountsProvider;
 import 'home_breakdown_tab_providers.dart';
 import 'home_dashboard_provider.dart';
+
+void _providerKeepAlive(Ref ref, Duration ttl) {
+  final keepAlive = ref.keepAlive();
+  final timer = Timer(ttl, keepAlive.close);
+  ref.onDispose(timer.cancel);
+}
 
 List<Map<String, dynamic>> _filterAuditsToHomePeriod(
   Ref ref,
@@ -71,6 +78,7 @@ class HomeInventorySummary {
 
 final homeInventorySummaryProvider =
     FutureProvider.autoDispose<HomeInventorySummary>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 3));
   if (!shellBranchIsVisible(ref, ShellBranch.home)) {
     return HomeInventorySummary.empty;
   }
@@ -85,6 +93,7 @@ final homeInventorySummaryProvider =
 /// Today-only dashboard row for the owner home stats strip (not tied to [homePeriodProvider]).
 final homeTodayDashboardDataProvider =
     FutureProvider.autoDispose<HomeDashboardData>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   if (!shellBranchIsVisible(ref, ShellBranch.home)) {
     return HomeDashboardData.empty;
   }
@@ -107,17 +116,11 @@ final homeTodayDashboardDataProvider =
 /// Single parallel fetch for low + critical counts (avoids duplicate sequential home polls).
 final stockAlertCountsProvider =
     FutureProvider.autoDispose<({int low, int critical})>((ref) async {
-  final session = ref.watch(sessionProvider);
-  if (session == null) return (low: 0, critical: 0);
-  final api = ref.read(hexaApiProvider);
-  final bid = session.primaryBusiness.id;
-  final results = await Future.wait([
-    api.listStock(businessId: bid, page: 1, perPage: 1, status: 'low'),
-    api.listStock(businessId: bid, page: 1, perPage: 1, status: 'critical'),
-  ]);
+  _providerKeepAlive(ref, const Duration(minutes: 2));
+  final counts = await ref.watch(stockStatusCountsProvider.future);
   return (
-    low: coerceToInt(results[0]['total']),
-    critical: coerceToInt(results[1]['total']),
+    low: coerceToInt(counts['low']),
+    critical: coerceToInt(counts['critical']),
   );
 });
 
@@ -134,6 +137,7 @@ final stockCriticalCountProvider = FutureProvider.autoDispose<int>((ref) async {
 /// Top low-stock rows (server sorts by stock vs reorder).
 final stockLowTopHomeProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   if (!shellBranchIsVisible(ref, ShellBranch.home)) return [];
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
@@ -176,6 +180,7 @@ final stockAuditDayProvider = FutureProvider.autoDispose
 /// Stock adjustments for the global [homePeriodProvider] window (client-filtered).
 final stockAuditPeriodProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   if (!shellBranchIsVisible(ref, ShellBranch.home)) return [];
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
@@ -201,6 +206,7 @@ final homeOwnerPeriodDashboardProvider =
 
 final stockVariancesTodayProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   if (!shellBranchIsVisible(ref, ShellBranch.home)) return [];
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
@@ -211,6 +217,7 @@ final stockVariancesTodayProvider =
 
 final activeStaffSessionsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   if (!shellBranchIsVisible(ref, ShellBranch.home)) return [];
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
@@ -227,6 +234,7 @@ final activeSessionsCountProvider = FutureProvider.autoDispose<int>((ref) async 
 /// Rolling calendar month (1st → today) for owner home quick stats.
 final homeMonthDashboardDataProvider =
     FutureProvider.autoDispose<HomeDashboardData>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   if (!shellBranchIsVisible(ref, ShellBranch.home)) {
     return HomeDashboardData.empty;
   }
@@ -317,8 +325,31 @@ List<HomeActivityGroup> groupHomeActivityByDay(List<HomeActivityItem> items) {
   return out;
 }
 
+String _activityKindFromAdjustment(String? adjustmentType) {
+  final t = (adjustmentType ?? '').toLowerCase();
+  if (t.contains('physical') || t.contains('count')) return 'physical_count';
+  if (t.contains('opening')) return 'opening_stock_set';
+  if (t.contains('correct')) return 'stock_correction';
+  if (t.contains('damage')) return 'damage';
+  if (t.contains('reorder')) return 'reorder_created';
+  return 'stock';
+}
+
+String _activityTitleFromAdjustment(String? adjustmentType, String itemName) {
+  final t = (adjustmentType ?? '').toLowerCase();
+  if (t.contains('physical') || t.contains('count')) {
+    return 'Physical stock updated';
+  }
+  if (t.contains('opening')) return 'Opening stock set';
+  if (t.contains('correct')) return 'Stock corrected';
+  if (t.contains('damage')) return 'Damage recorded';
+  if (t.contains('reorder')) return 'Reorder logged';
+  return itemName;
+}
+
 final homeRecentActivityFeedProvider =
     FutureProvider.autoDispose<List<HomeActivityItem>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 3));
   if (!shellBranchIsVisible(ref, ShellBranch.home)) return [];
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
@@ -376,10 +407,11 @@ final homeRecentActivityFeedProvider =
     if (at == null) continue;
     final local = at.toLocal();
     if (local.isBefore(range.start) || !local.isBefore(range.end)) continue;
+    final delivered = p['is_delivered'] == true;
     items.add(
       HomeActivityItem(
-        kind: 'purchase',
-        title: 'Purchase added',
+        kind: delivered ? 'delivery_verified' : 'purchase',
+        title: delivered ? 'Delivery received' : 'Purchase added',
         subtitle: p['supplier_name']?.toString() ??
             p['human_id']?.toString() ??
             p['invoice_number']?.toString() ??
@@ -399,17 +431,23 @@ final homeRecentActivityFeedProvider =
   }
 
   for (final a in audits) {
-    final atRaw = a['created_at']?.toString() ?? a['at']?.toString();
+    final atRaw = a['created_at']?.toString() ?? a['at']?.toString() ?? a['updated_at']?.toString();
     final at = atRaw != null ? DateTime.tryParse(atRaw) : null;
     if (at == null) continue;
+    final local = at.toLocal();
+    if (local.isBefore(range.start) || !local.isBefore(range.end)) continue;
     final itemName = a['item_name']?.toString() ?? 'Item';
-    final delta = a['delta_qty'] ?? a['qty_change'] ?? a['change'];
+    final adjType = a['adjustment_type']?.toString();
+    final kind = _activityKindFromAdjustment(adjType);
+    final oldQ = coerceToDouble(a['old_qty']);
+    final newQ = coerceToDouble(a['new_qty']);
+    final delta = a['delta_qty'] ?? a['qty_change'] ?? a['change'] ?? (newQ - oldQ);
     items.add(
       HomeActivityItem(
-        kind: 'stock',
-        title: itemName,
-        subtitle: 'Stock changed',
-        at: at.toLocal(),
+        kind: kind,
+        title: _activityTitleFromAdjustment(adjType, itemName),
+        subtitle: itemName,
+        at: local,
         routeId: a['item_id']?.toString(),
         actor: a['updated_by']?.toString() ??
             a['updated_by_name']?.toString() ??

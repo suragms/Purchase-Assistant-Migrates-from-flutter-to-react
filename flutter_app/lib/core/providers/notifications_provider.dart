@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
 import '../models/trade_purchase_models.dart';
 
 import '../auth/session_notifier.dart';
+import '../models/session.dart';
 import 'server_notifications_provider.dart';
 import 'staff_home_providers.dart';
 import 'stock_providers.dart';
@@ -89,6 +92,10 @@ NotificationCategoryFilter notificationCategoryForItem(NotificationItem n) {
       kind == 'staff_action' ||
       kind == 'stock_correction') {
     return NotificationCategoryFilter.staff;
+  }
+  if ((kind == 'low_stock' || kind == 'missing_barcode') &&
+      (n.priority == 'high' || n.priority == 'critical')) {
+    return NotificationCategoryFilter.critical;
   }
   if (n.type == NotificationType.priceAlert ||
       n.type == NotificationType.profitLow ||
@@ -211,20 +218,71 @@ final notificationsProvider =
   return NotificationsNotifier();
 });
 
+/// Client-dismissed synthetic warehouse alerts (`wh_*` ids).
+final warehouseAlertReadIdsProvider = StateProvider<Set<String>>((ref) => {});
+
+DateTime warehouseAlertStableCreatedAt(String alertId) {
+  final day = DateTime.now();
+  final base = DateTime(day.year, day.month, day.day);
+  return base.add(Duration(minutes: alertId.hashCode.abs() % 720));
+}
+
+/// Role-based visibility for notification feed (see NOTIFICATIONS_SYSTEM_AUDIT.md).
+bool notificationVisibleForRole(NotificationItem n, Session session) {
+  final role = session.primaryBusiness.role.toLowerCase();
+  if (role != 'staff') return true;
+
+  if (n.id.startsWith('pur_')) return false;
+  if (n.type == NotificationType.purchaseDue ||
+      n.type == NotificationType.purchaseOverdue) {
+    return false;
+  }
+
+  final kind = n.serverKind ?? '';
+  if (kind == 'stock_variance' || kind == 'stock_mismatch') return false;
+  if (kind == 'payment_due' ||
+      kind == 'purchase_overdue' ||
+      kind == 'approval_required') {
+    return false;
+  }
+  if (n.actionRoute?.startsWith('/purchase') == true &&
+      kind != 'delivery_pending' &&
+      kind != 'delivery_received') {
+    return false;
+  }
+  return true;
+}
+
 /// Single feed for bell badge + notifications page (avoids count/list mismatch).
 final mergedNotificationFeedProvider =
     Provider.autoDispose<List<NotificationItem>>((ref) {
+  final link = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 2), link.close);
+  ref.onDispose(timer.cancel);
   final manual = ref.watch(notificationsProvider);
   final dismissed = ref.watch(dismissedPurchaseAlertIdsProvider);
+  final session = ref.watch(sessionProvider);
+  final isStaff =
+      session != null && session.primaryBusiness.role.toLowerCase() == 'staff';
   final serverRows = ref.watch(appNotificationsListProvider).maybeWhen(
-        data: (rows) =>
-            rows.map((e) => notificationItemFromServerRow(e)).toList(),
+        data: (rows) {
+          final list = <NotificationItem>[];
+          for (final e in rows) {
+            final n = notificationItemFromServerRow(e);
+            if (session == null || notificationVisibleForRole(n, session)) {
+              list.add(n);
+            }
+          }
+          return list;
+        },
         orElse: () => const <NotificationItem>[],
       );
-  final tradeAlerts = ref
-      .watch(purchaseDueAlertItemsProvider)
-      .where((n) => !dismissed.contains(n.id))
-      .toList();
+  final tradeAlerts = isStaff
+      ? const <NotificationItem>[]
+      : ref
+          .watch(purchaseDueAlertItemsProvider)
+          .where((n) => !dismissed.contains(n.id))
+          .toList();
   final warehouse = ref.watch(warehouseAlertNotificationItemsProvider);
   final serverKinds =
       serverRows.map((e) => e.serverKind).whereType<String>().toSet();
@@ -240,6 +298,10 @@ final mergedNotificationFeedProvider =
         return false;
       }
       if (w.id == 'wh_missing_code' && serverKinds.contains('missing_code')) {
+        return false;
+      }
+      if (w.id == 'wh_opening_stock' &&
+          serverKinds.contains('opening_stock_pending')) {
         return false;
       }
       return true;
@@ -265,10 +327,14 @@ final notificationsUnreadCountProvider = Provider<int>((ref) {
 /// Stock / delivery rows shown in Alerts (matches staff home attention cards).
 final warehouseAlertNotificationItemsProvider =
     Provider.autoDispose<List<NotificationItem>>((ref) {
+  final link = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 2), link.close);
+  ref.onDispose(timer.cancel);
   final session = ref.watch(sessionProvider);
   if (session == null) return const [];
   final isStaff =
       session.primaryBusiness.role.toLowerCase() == 'staff';
+  final readIds = ref.watch(warehouseAlertReadIdsProvider);
   final out = <NotificationItem>[];
   final counts = ref.watch(stockStatusCountsProvider).valueOrNull;
   if (counts != null) {
@@ -277,41 +343,59 @@ final warehouseAlertNotificationItemsProvider =
     final missingBc = (counts['missing_barcode'] as num?)?.toInt() ?? 0;
     final missingCode = (counts['missing_item_code'] as num?)?.toInt() ?? 0;
     if (low + outN > 0) {
+      const id = 'wh_low_stock';
       out.add(NotificationItem(
-        id: 'wh_low_stock',
+        id: id,
         type: NotificationType.serverInApp,
         title: 'Low / out of stock',
         subtitle: '$low low · $outN out — open stock list to update',
-        createdAt: DateTime.now(),
-        isRead: false,
+        createdAt: warehouseAlertStableCreatedAt(id),
+        isRead: readIds.contains(id),
         actionRoute: isStaff ? '/staff/low-stock' : '/stock/low-stock',
         serverKind: 'low_stock',
       ));
     }
     if (missingBc > 0) {
+      const id = 'wh_missing_barcode';
       out.add(NotificationItem(
-        id: 'wh_missing_barcode',
+        id: id,
         type: NotificationType.serverInApp,
         title: 'Missing barcodes',
         subtitle: '$missingBc items need labels before bulk print',
-        createdAt: DateTime.now(),
-        isRead: false,
+        createdAt: warehouseAlertStableCreatedAt(id),
+        isRead: readIds.contains(id),
         actionRoute: '/stock/missing-barcodes',
         serverKind: 'missing_barcode',
       ));
     }
     if (missingCode > 0) {
+      const id = 'wh_missing_code';
       out.add(NotificationItem(
-        id: 'wh_missing_code',
+        id: id,
         type: NotificationType.serverInApp,
         title: 'Missing item codes',
         subtitle: '$missingCode catalog rows without item code',
-        createdAt: DateTime.now(),
-        isRead: false,
+        createdAt: warehouseAlertStableCreatedAt(id),
+        isRead: readIds.contains(id),
         actionRoute: isStaff ? '/staff/stock' : '/stock',
         serverKind: 'missing_code',
       ));
     }
+  }
+  final opening = ref.watch(openingStockMissingProvider).valueOrNull;
+  final openingN = (opening?['missing_count'] as num?)?.toInt() ?? 0;
+  if (openingN > 0) {
+    const id = 'wh_opening_stock';
+    out.add(NotificationItem(
+      id: id,
+      type: NotificationType.serverInApp,
+      title: 'Opening stock',
+      subtitle: '$openingN items need initial stock setup',
+      createdAt: warehouseAlertStableCreatedAt(id),
+      isRead: readIds.contains(id),
+      actionRoute: '/stock/opening-setup',
+      serverKind: 'opening_stock_pending',
+    ));
   }
   if (isStaff) {
     final pending = ref.watch(staffPendingDeliveriesProvider).valueOrNull ?? [];
@@ -322,13 +406,14 @@ final warehouseAlertNotificationItemsProvider =
               ? 'From $first — receive at warehouse'
               : 'From $first + ${pending.length - 1} more')
           : '${pending.length} trucks waiting';
+      const id = 'wh_pending_delivery';
       out.add(NotificationItem(
-        id: 'wh_pending_delivery',
+        id: id,
         type: NotificationType.reminder,
         title: 'Pending deliveries',
         subtitle: sub,
         createdAt: pending.first.purchaseDate,
-        isRead: false,
+        isRead: readIds.contains(id),
         actionRoute: '/staff/receive',
       ));
     }

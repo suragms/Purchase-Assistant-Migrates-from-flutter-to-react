@@ -3382,6 +3382,15 @@ class HexaApi {
     return res.data ?? {};
   }
 
+  Future<Map<String, dynamic>> getWarehouseAlertsSummary({
+    required String businessId,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/stock/warehouse/alerts-summary',
+    );
+    return res.data ?? {};
+  }
+
   Future<List<Map<String, dynamic>>> listStockAuditFeed({
     required String businessId,
     int limit = 50,

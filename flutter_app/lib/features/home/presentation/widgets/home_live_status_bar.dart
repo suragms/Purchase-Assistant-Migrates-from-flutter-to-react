@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/providers/warehouse_alerts_provider.dart';
+import '../../../../core/theme/hexa_colors.dart';
 import 'home_formatters.dart';
 
 /// Single-row operational status: sync, refresh time, alerts, staff, variances.
@@ -59,7 +60,7 @@ class HomeLiveStatusBar extends ConsumerWidget {
               Icon(
                 offline ? Icons.cloud_off_outlined : Icons.cloud_done_outlined,
                 size: 16,
-                color: offline ? const Color(0xFFC62828) : const Color(0xFF2E7D32),
+                color: offline ? const Color(0xFFC62828) : HexaColors.profit,
               ),
               const SizedBox(width: 6),
               Expanded(
@@ -96,7 +97,7 @@ class HomeLiveStatusBar extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Warehouse health',
+                  'Stock status',
                   style: HexaDsType.heading(18),
                 ),
                 const SizedBox(height: 8),

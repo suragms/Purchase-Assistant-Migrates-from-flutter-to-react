@@ -1,6 +1,45 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-05-27 (Low stock operations rebuild)
+**Last updated:** 2026-05-28 (Warehouse home + notifications sprint docs)
+
+---
+
+## UIUX-AUDIT closure (2026-05-28)
+
+- [x] Design token pass: warning/profit color normalization on owner/staff/catalog alert surfaces
+- [x] Stock + shell polish: `BOUGHT` header, low/critical border-only rows, Purchases nav label, contextual FAB hiding
+- [x] Owner-home clarity: Stock status wording, period scope hint, low stock moved above activity, card-gap spacing
+- [x] Staff-home polish: recent scans strip, equal-weight secondary actions, section subtitle readability
+- [x] Notifications polish: “Showing X of Y”, critical-tab copy clarity, filter-category regression test update
+- [x] Item-detail polish: physical warning cell, compact ledger action, section anchor chips
+- [x] Inline errors: `SectionInlineError` + owner home low-stock/movement migration + warehouse async support
+
+---
+
+## PERFORMANCE-AUDIT rollout (2026-05-28)
+
+- [x] Core invalidation refactor: tiered home polling + reduced dashboard fan-out refresh bursts
+- [x] Provider cache pass: keepAlive TTL for high-cost home/stock autoDispose providers
+- [x] Widget/rebuild efficiency pass: shell/home const + canonical stock-count invalidation path
+- [x] Backend summary collapse: `/stock/warehouse/alerts-summary` endpoint + API client wiring
+- [x] Route-family deep audit: owner/staff/stock/shared-route hotspots reviewed and patched
+- [x] Full router coverage log: auth + owner + staff + stock + catalog + purchase + reports + settings route families reviewed with tab/subtab interaction pass
+- [x] Validation + docs: targeted analyze/tests + `plando/PERFORMANCE_AUDIT.md` implemented map
+
+---
+
+## Warehouse home + notifications sprint (2026-05-28)
+
+**Canonical docs:** [`plando/README.md`](plando/README.md)  
+Checklist: [`plando/TODO_IMPLEMENTATION.md`](plando/TODO_IMPLEMENTATION.md)  
+Patches: [`plando/IMPLEMENTATION_PATCHES.md`](plando/IMPLEMENTATION_PATCHES.md)
+
+- [x] `plando/` audit pack (7 files + README + code-verified TODO corrections)
+- [x] Cross-links from `docs/harisree/README.md` and `TASKS.md`
+- [x] P0–P3 code (TODO-01…20) — home, notifications, stock summary API, performance
+- [x] Staff home rebuild ([`plando/STAFF_HOME_REBUILD.md`](plando/STAFF_HOME_REBUILD.md)) — compact header, shift strip, tools grid, focus picker
+- [x] Notifications gap closure ([`plando/NOTIFICATIONS_SYSTEM_AUDIT.md`](plando/NOTIFICATIONS_SYSTEM_AUDIT.md)) — role filter, compact empty, critical priority, no open flash
+- [x] Phase B — stock table / item detail epic ([`plando/STOCK_SYSTEM_AUDIT.md`](plando/STOCK_SYSTEM_AUDIT.md)) — 30d history, ledger hint, PURCHASE null/0, list padding, pending delivery qty, opening-stock CTA
 
 ---
 

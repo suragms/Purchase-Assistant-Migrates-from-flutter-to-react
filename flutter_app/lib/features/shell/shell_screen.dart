@@ -12,7 +12,6 @@ import '../../core/providers/home_owner_dashboard_providers.dart'
     show
         homeInventorySummaryProvider,
         homeRecentActivityFeedProvider,
-        stockAlertCountsProvider,
         stockAuditPeriodProvider;
 import '../../core/providers/notifications_provider.dart'
     show notificationsUnreadCountProvider;
@@ -81,7 +80,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         break;
       case ShellBranch.stock:
         ref.invalidate(stockListProvider);
-        ref.invalidate(stockAlertCountsProvider);
+        ref.invalidate(stockStatusCountsProvider);
         break;
       default:
         break;
@@ -113,6 +112,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         loc == '/purchase' ||
         idx == ShellBranch.stock ||
         loc.startsWith('/stock');
+    final hideFab = loc == '/notifications' ||
+        loc.startsWith('/notifications/') ||
+        loc.startsWith('/catalog/item/');
 
     // Do not use a shell [Scaffold] with [bottomNavigationBar]: on web, nested
     // GoRouter [Navigator]s can interact badly with scaffold body layout so the
@@ -193,6 +195,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
                 selectedIndex: idx,
                 stockBadgeCount: stockAlertN,
                 onDestinationSelected: go,
+                showFab: !hideFab,
               );
             },
           ),
@@ -225,7 +228,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         NavigationRailDestination(
           icon: Icon(Icons.receipt_long_outlined),
           selectedIcon: Icon(Icons.receipt_long_rounded),
-          label: Text('History'),
+          label: Text('Purchases'),
         ),
         NavigationRailDestination(
           icon: Icon(Icons.search_rounded),
@@ -253,11 +256,13 @@ class _ShellBottomBar extends StatelessWidget {
     required this.selectedIndex,
     required this.stockBadgeCount,
     required this.onDestinationSelected,
+    required this.showFab,
   });
 
   final int selectedIndex;
   final int stockBadgeCount;
   final ValueChanged<int> onDestinationSelected;
+  final bool showFab;
 
   static const _fabOuter = 48.0;
 
@@ -334,7 +339,7 @@ class _ShellBottomBar extends StatelessWidget {
                                     selected: selectedIndex == 3,
                                     icon: Icons.receipt_long_outlined,
                                     selectedIcon: Icons.receipt_long_rounded,
-                                    label: 'History',
+                                    label: 'Purchases',
                                     onTap: () => onDestinationSelected(3),
                                   ),
                                 ),
@@ -353,13 +358,15 @@ class _ShellBottomBar extends StatelessWidget {
                           },
                         ),
                       ),
-                      const SizedBox(width: 4),
-                      SizedBox(
-                        width: _fabOuter,
-                        child: const Center(
-                          child: _FabButton(),
+                      if (showFab) ...[
+                        const SizedBox(width: 4),
+                        SizedBox(
+                          width: _fabOuter,
+                          child: const Center(
+                            child: _FabButton(),
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

@@ -21,6 +21,7 @@ Canonical product documentation for the Harisree Purchase Assistant (warehouse +
 | `MASTER_REFERENCE.md` | Single source for Harisree decisions, costs, pages, todos |
 | `FEATURES_DEEP_PLAN.md` | Detailed feature specs (feed, variance, health score, etc.) |
 | `IMPLEMENTATION_PHASES.md` | Ordered phase plan for cleanup, stock correctness, notifications, scan, PDFs, stock workflows, responsive UI, performance, help, backup, sales comparison |
+| **[`../../plando/README.md`](../../plando/README.md)** | **Canonical sprint hub** — TODO P0–P3, audits, patches (2026-05-28) |
 
 ## Section prompt files
 

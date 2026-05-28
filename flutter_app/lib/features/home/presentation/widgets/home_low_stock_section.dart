@@ -4,7 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
-import '../../../../core/widgets/friendly_load_error.dart';
+import '../../../../core/widgets/section_inline_error.dart';
 import '../../../../shared/widgets/operational_ui.dart';
 
 /// Dense low-stock table with status colors and reorder CTA.
@@ -50,7 +50,7 @@ class _HomeLowStockSectionState extends ConsumerState<HomeLowStockSection> {
           padding: EdgeInsets.all(16),
           child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
         ),
-        error: (_, __) => FriendlyLoadError(
+        error: (_, __) => SectionInlineError(
           message: 'Could not load low stock',
           onRetry: () => ref.invalidate(stockLowTopHomeProvider),
         ),

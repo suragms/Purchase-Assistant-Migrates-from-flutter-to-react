@@ -8,7 +8,7 @@ void main() {
     await ensurePdfLocalesInitialized();
   });
 
-  TradePurchase _purchase({String? supplier}) {
+  TradePurchase purchase({String? supplier}) {
     return TradePurchase(
       id: 'id',
       humanId: 'PO-99',
@@ -36,13 +36,13 @@ void main() {
 
   test('filename uses PO_SUPPLIER_DD_MMM_YYYY pattern', () {
     final name = buildPurchaseSharePdfFileName(
-      _purchase(supplier: 'Ambal Modern Rice Mill'),
+      purchase(supplier: 'Ambal Modern Rice Mill'),
     );
     expect(name, 'PO_AMBAL_MODERN_RICE_MILL_25_MAY_2026.pdf');
   });
 
   test('filename fallback when supplier missing', () {
-    final name = buildPurchaseSharePdfFileName(_purchase(supplier: null));
+    final name = buildPurchaseSharePdfFileName(purchase(supplier: null));
     expect(name, startsWith('PO_PO-99_'));
     expect(name, endsWith('.pdf'));
   });

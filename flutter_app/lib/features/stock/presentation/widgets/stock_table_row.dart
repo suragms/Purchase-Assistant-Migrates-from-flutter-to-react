@@ -49,8 +49,7 @@ class StockTableRow extends StatelessWidget {
       updatedAtIso: updatedAt,
     );
     final displayStatus = stockDisplayStatusFromApi(status);
-    final isLowOrOut = displayStatus == StockDisplayStatus.low ||
-        displayStatus == StockDisplayStatus.out;
+    final isLowOrCritical = displayStatus == StockDisplayStatus.low;
 
     final metaParts = <String>[
       if (codeRaw.isNotEmpty) '#$codeRaw',
@@ -95,7 +94,7 @@ class StockTableRow extends StatelessWidget {
             ),
             decoration:
                 StockTableLayout.rowDecoration(isFirst: isFirstRow).copyWith(
-              border: isLowOrOut
+              border: isLowOrCritical
                   ? const Border(
                       left: BorderSide(color: Color(0xFFDC2626), width: 3),
                     )

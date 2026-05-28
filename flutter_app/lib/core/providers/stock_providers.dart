@@ -10,6 +10,12 @@ import 'analytics_kpi_provider.dart' show analyticsDateRangeProvider;
 import 'app_period_provider.dart';
 import 'home_dashboard_provider.dart';
 
+void _providerKeepAlive(Ref ref, Duration ttl) {
+  final link = ref.keepAlive();
+  final timer = Timer(ttl, link.close);
+  ref.onDispose(timer.cancel);
+}
+
 /// Query for GET `/v1/businesses/{id}/stock/list`.
 class StockListQuery {
   const StockListQuery({
@@ -185,6 +191,7 @@ int countOperationalActiveFilters(
 /// On-hand warehouse totals (bags/kg/boxes/tins). Never pass period — that returns purchases.
 final stockOnHandTotalsProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 3));
   final session = ref.watch(sessionProvider);
   if (session == null) return {};
   return ref.read(hexaApiProvider).getStockTotals(
@@ -196,6 +203,7 @@ final stockOnHandTotalsProvider =
 final stockTotalsProvider =
     FutureProvider.autoDispose.family<Map<String, dynamic>, AppPeriod>(
   (ref, period) async {
+    _providerKeepAlive(ref, const Duration(minutes: 3));
     final session = ref.watch(sessionProvider);
     if (session == null) return {};
     return ref.read(hexaApiProvider).getStockTotals(
@@ -209,6 +217,7 @@ final stockTotalsProvider =
 /// Stock audit events for the stock page **Changes** tab (newest first).
 final stockChangesFeedProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   ref.watch(stockPagePeriodProvider);
@@ -373,6 +382,9 @@ final stockItemAuditProvider =
 /// Status bucket counts for stock filter chips (authoritative server summary).
 final stockStatusCountsProvider =
     FutureProvider.autoDispose<Map<String, int>>((ref) async {
+  final keepAlive = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 2), keepAlive.close);
+  ref.onDispose(timer.cancel);
   final session = ref.watch(sessionProvider);
   if (session == null) return {};
   final api = ref.read(hexaApiProvider);
@@ -380,11 +392,15 @@ final stockStatusCountsProvider =
 
   final summary = await api.getStockAlertsSummary(businessId: bid);
   final allTotal = (summary['total_items'] as num?)?.toInt();
+  final outCount = (summary['active_out_of_stock'] as num?)?.toInt() ??
+      (summary['out_of_stock'] as num?)?.toInt() ??
+      0;
   if (allTotal != null && allTotal > 0) {
     return {
       'all': allTotal,
       'low': (summary['low_stock'] as num?)?.toInt() ?? 0,
-      'out': (summary['out_of_stock'] as num?)?.toInt() ?? 0,
+      'critical': (summary['critical_stock'] as num?)?.toInt() ?? 0,
+      'out': outCount,
       'missing_code': (summary['missing_item_code'] as num?)?.toInt() ?? 0,
       'missing_barcode': (summary['missing_barcode'] as num?)?.toInt() ?? 0,
     };
@@ -400,7 +416,8 @@ final stockStatusCountsProvider =
   return {
     'all': (res['total'] as num?)?.toInt() ?? 0,
     'low': (summary['low_stock'] as num?)?.toInt() ?? 0,
-    'out': (summary['out_of_stock'] as num?)?.toInt() ?? 0,
+    'critical': (summary['critical_stock'] as num?)?.toInt() ?? 0,
+    'out': outCount,
     'missing_code': (summary['missing_item_code'] as num?)?.toInt() ?? 0,
     'missing_barcode': (summary['missing_barcode'] as num?)?.toInt() ?? 0,
   };
@@ -446,6 +463,7 @@ Future<List<Map<String, dynamic>>> _fetchStockListAllPages({
 
 final lowStockByCategoryProvider =
     FutureProvider.autoDispose<LowStockByCategoryMap>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   final session = ref.watch(sessionProvider);
   if (session == null) return {};
   final api = ref.read(hexaApiProvider);
@@ -562,7 +580,7 @@ class OpeningStockSetupQuery {
       missingItemCode: missingItemCode ?? this.missingItemCode,
       category: category ?? this.category,
       subcategory: subcategory ?? this.subcategory,
-      supplierId: supplierId == null ? this.supplierId : supplierId,
+      supplierId: supplierId ?? this.supplierId,
       unit: unit ?? this.unit,
       updatedToday: updatedToday ?? this.updatedToday,
       updatedBy: updatedBy ?? this.updatedBy,
@@ -578,6 +596,7 @@ final openingStockSetupQueryProvider =
 /// Server-backed list: summary + rows.
 final openingStockSetupProvider = FutureProvider.autoDispose<Map<String, dynamic>>(
   (ref) async {
+    _providerKeepAlive(ref, const Duration(minutes: 2));
     final session = ref.watch(sessionProvider);
     if (session == null) {
       return {
@@ -616,6 +635,7 @@ final openingStockBulkSelectionProvider = StateProvider<Set<String>>(
 /// Items missing opening stock (home banners + critical alerts).
 final openingStockMissingProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   final session = ref.watch(sessionProvider);
   if (session == null) {
     return {'items': <Map<String, dynamic>>[], 'missing_count': 0};

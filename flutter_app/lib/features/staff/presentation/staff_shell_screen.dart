@@ -68,6 +68,7 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
   Widget build(BuildContext context) {
     final navigationShell = widget.navigationShell;
     final idx = navigationShell.currentIndex;
+    final routePath = GoRouterState.of(context).uri.path;
 
     final conn = ref.watch(connectivityResultsProvider);
     final offline =
@@ -115,7 +116,7 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
                       NavigationRailDestination(
                         icon: Icon(Icons.receipt_long_outlined),
                         selectedIcon: Icon(Icons.receipt_long_rounded),
-                        label: Text('History'),
+                        label: Text('Purchases'),
                       ),
                       NavigationRailDestination(
                         icon: Icon(Icons.search_outlined),
@@ -206,7 +207,10 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
                 ),
               ],
             ),
-            if (idx != StaffShellBranch.scan && idx != StaffShellBranch.stock)
+            if (idx != StaffShellBranch.scan &&
+                idx != StaffShellBranch.stock &&
+                routePath != '/notifications' &&
+                !routePath.startsWith('/catalog/item/'))
               Positioned(
                 right: 16,
                 bottom: 68 + MediaQuery.viewPaddingOf(context).bottom,
@@ -292,7 +296,7 @@ class _StaffShellBottomBar extends StatelessWidget {
                         selected: selectedIndex == StaffShellBranch.history,
                         icon: Icons.receipt_long_outlined,
                         selectedIcon: Icons.receipt_long_rounded,
-                        label: 'History',
+                        label: 'Purchases',
                         onTap: () =>
                             onDestinationSelected(StaffShellBranch.history),
                       ),

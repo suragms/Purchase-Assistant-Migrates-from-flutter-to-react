@@ -30,7 +30,7 @@ class ItemPurchaseHistorySection extends ConsumerStatefulWidget {
 
 class _ItemPurchaseHistorySectionState
     extends ConsumerState<ItemPurchaseHistorySection> {
-  ItemPurchaseRange _range = ItemPurchaseRange.d90;
+  ItemPurchaseRange _range = ItemPurchaseRange.d30;
 
   @override
   Widget build(BuildContext context) {

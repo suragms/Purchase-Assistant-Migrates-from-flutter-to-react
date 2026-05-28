@@ -9,6 +9,7 @@ import '../../../../core/providers/stock_providers.dart'
     show openingStockMissingProvider;
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/providers/warehouse_alerts_provider.dart';
+import '../../../../core/theme/hexa_colors.dart';
 
 /// Priority alert cards (2-column grid); hidden when all counts are zero.
 class HomeCriticalAlertsGrid extends ConsumerWidget {
@@ -39,24 +40,34 @@ class HomeCriticalAlertsGrid extends ConsumerWidget {
             : (warehouse?.pendingDeliveries ?? 0);
 
     final cards = <_AlertCardSpec>[];
-    if (lowTotal > 0) {
-      cards.add(_AlertCardSpec(
-        title: 'Low stock',
-        count: lowTotal,
-        subtitle: 'Items below reorder level',
-        color: const Color(0xFFBA7517),
-        onTap: () => context.push('/stock/low-stock'),
-        actionLabel: 'Open stock',
-      ));
-    }
     if (pendingDel > 0) {
       cards.add(_AlertCardSpec(
         title: 'Pending delivery',
         count: pendingDel,
         subtitle: 'Purchases awaiting receipt',
-        color: const Color(0xFF3B6D11),
+        color: HexaColors.profit,
         onTap: () => context.go('/purchase'),
         actionLabel: 'View bills',
+      ));
+    }
+    if (lowTotal > 0) {
+      cards.add(_AlertCardSpec(
+        title: 'Low stock',
+        count: lowTotal,
+        subtitle: 'Items below reorder level',
+        color: HexaColors.warning,
+        onTap: () => context.push('/stock/low-stock'),
+        actionLabel: 'Open stock',
+      ));
+    }
+    if (openingN > 0) {
+      cards.add(_AlertCardSpec(
+        title: 'Opening stock',
+        count: openingN,
+        subtitle: 'Items need initial stock',
+        color: HexaColors.warning,
+        onTap: () => context.push('/stock/opening-setup'),
+        actionLabel: 'Set up',
       ));
     }
     if (variances > 0) {
@@ -67,16 +78,6 @@ class HomeCriticalAlertsGrid extends ConsumerWidget {
         color: const Color(0xFFA32D2D),
         onTap: () => context.go('/reports'),
         actionLabel: 'Review',
-      ));
-    }
-    if (openingN > 0) {
-      cards.add(_AlertCardSpec(
-        title: 'Opening stock',
-        count: openingN,
-        subtitle: 'Items need initial stock',
-        color: const Color(0xFFB45309),
-        onTap: () => context.push('/stock/opening-setup'),
-        actionLabel: 'Set up',
       ));
     }
     if (exportFail > 0) {
@@ -102,6 +103,8 @@ class HomeCriticalAlertsGrid extends ConsumerWidget {
 
     if (cards.isEmpty) return const SizedBox.shrink();
 
+    final visible = cards.take(4).toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -114,7 +117,7 @@ class HomeCriticalAlertsGrid extends ConsumerWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                for (final card in cards)
+                for (final card in visible)
                   SizedBox(
                     width: w.clamp(140, double.infinity),
                     child: _AlertCard(spec: card),

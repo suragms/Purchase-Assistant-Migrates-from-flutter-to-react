@@ -6,8 +6,8 @@ import '../../../../shared/widgets/stock_number_display.dart';
 
 /// Warehouse table metric formatting (PURCHASE | STOCK | DIFF).
 abstract final class StockRowMetrics {
-  static double purchasedQty(Map<String, dynamic> item) =>
-      coerceToDouble(item['period_purchased_qty']);
+  static double? purchasedQty(Map<String, dynamic> item) =>
+      coerceToDoubleNullable(item['period_purchased_qty']);
 
   static double stockQty(Map<String, dynamic> item) {
     final physical = item['physical_stock_qty'];
@@ -19,9 +19,7 @@ abstract final class StockRowMetrics {
     final api = item['warehouse_diff_qty'];
     if (api != null) return coerceToDouble(api);
     final purchased = purchasedQty(item);
-    if (purchased <= 0 && item['period_purchased_qty'] == null) {
-      return double.nan;
-    }
+    if (purchased == null) return double.nan;
     return purchased - stockQty(item);
   }
 
@@ -29,8 +27,8 @@ abstract final class StockRowMetrics {
       (item['stock_unit']?.toString() ?? item['unit']?.toString() ?? 'piece')
           .toUpperCase();
 
-  static String qtyLine(double qty, String unit) {
-    if (!qty.isFinite) return '—';
+  static String qtyLine(double? qty, String unit) {
+    if (qty == null || !qty.isFinite) return '—';
     return '${formatStockQtyNumber(qty)}\n$unit';
   }
 

@@ -4,7 +4,7 @@ import 'package:harisree_warehouse/core/models/trade_purchase_models.dart';
 import 'package:harisree_warehouse/features/purchase/presentation/widgets/purchase_detail_action_bar.dart';
 
 void main() {
-  TradePurchase _purchase() {
+  TradePurchase purchase() {
     return TradePurchase(
       id: 'id',
       humanId: 'PO-1',
@@ -36,7 +36,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: PurchaseDetailActionBar(
-            purchase: _purchase(),
+            purchase: purchase(),
             hideFinancials: false,
             onMarkPaid: () {},
             onEdit: () {},
@@ -68,7 +68,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: PurchaseDetailActionBar(
-            purchase: _purchase(),
+            purchase: purchase(),
             hideFinancials: true,
             onMarkPaid: () {},
             onEdit: () {},

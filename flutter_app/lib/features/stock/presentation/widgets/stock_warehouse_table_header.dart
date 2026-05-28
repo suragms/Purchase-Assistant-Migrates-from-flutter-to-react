@@ -39,7 +39,7 @@ class StockWarehouseTableHeader extends StatelessWidget {
                   child: Text('ITEM', style: hdr),
                 ),
               ),
-              _metricHeader('PURCHASE', hdr),
+              _metricHeader('BOUGHT', hdr),
               _metricHeader('STOCK', hdr),
               _metricHeader('Δ', hdr),
               SizedBox(

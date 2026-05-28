@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/stock_providers.dart';
+import '../../../../core/theme/hexa_colors.dart';
 import '../../../../core/utils/unit_utils.dart';
 import '../../domain/item_stock_snapshot.dart';
 
@@ -35,6 +37,10 @@ class ItemStockSnapshotCard extends ConsumerWidget {
     final needsVerification = stock['needs_verification'] == true || intel['needs_verification'] == true;
     final hasPending = stock['has_pending_order'] == true;
     final pendingDays = stock['pending_order_days'] is num ? (stock['pending_order_days'] as num).toInt() : null;
+    final pendingDeliveryQty = coerceToDouble(stock['pending_delivery_qty']);
+    final openingSetAt = stock['opening_stock_set_at'];
+    final openingLocked = stock['opening_stock_locked'] == true;
+    final showOpeningCta = openingSetAt == null && !openingLocked;
 
     final diff =
         (stock['physical_stock_difference_qty'] as num?)?.toDouble() ??
@@ -90,6 +96,59 @@ class ItemStockSnapshotCard extends ConsumerWidget {
                 ),
               ],
             ),
+            if (showOpeningCta) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFCD34D)),
+                ),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Opening stock not set',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: HexaColors.warning,
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => context.push('/stock/opening-setup'),
+                      child: const Text('Set opening stock'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (systemQty > 0.001 &&
+                (needsVerification ||
+                    (stock['physical_stock_counted_at'] == null &&
+                        physicalQty <= 0.001))) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFBEB),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFCD34D)),
+                ),
+                child: const Text(
+                  'Physical count not done yet — verify warehouse qty before trusting system stock.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: HexaColors.warning,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             _row(
               leftLabel: 'System stock',
@@ -98,6 +157,7 @@ class ItemStockSnapshotCard extends ConsumerWidget {
               rightValue: _qty(physicalQty),
               unitLabel: unitLabel,
               emphasisRight: true,
+              warningRight: systemQty > 0.001 && physicalQty <= 0.001,
             ),
             const SizedBox(height: 8),
             _row(
@@ -107,6 +167,54 @@ class ItemStockSnapshotCard extends ConsumerWidget {
               rightValue: _qty(purchasedQty),
               unitLabel: unitLabel,
             ),
+            if (pendingDeliveryQty > 0.001) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE2E8F0)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Pending delivery',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade600,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '${_qty(pendingDeliveryQty)} $unitLabel',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      hasPending && pendingDays != null && pendingDays > 0
+                          ? 'Not in warehouse until bill is received · $pendingDays d on order'
+                          : 'Not in warehouse until bill is received',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF64748B),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Wrap(
               spacing: 10,
@@ -154,15 +262,25 @@ class ItemStockSnapshotCard extends ConsumerWidget {
     required String rightValue,
     required String unitLabel,
     bool emphasisRight = false,
+    bool warningRight = false,
   }) {
-    Widget cell(String label, String value, {bool emphasis = false}) {
+    Widget cell(
+      String label,
+      String value, {
+      bool emphasis = false,
+      bool warning = false,
+    }) {
       return Expanded(
         child: Container(
           padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
           decoration: BoxDecoration(
-            color: const Color(0xFFF8FAFC),
+            color: warning
+                ? const Color(0xFFFFFBEB)
+                : const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
+            border: Border.all(
+              color: warning ? HexaColors.warning : const Color(0xFFE2E8F0),
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,7 +314,12 @@ class ItemStockSnapshotCard extends ConsumerWidget {
       children: [
         cell(leftLabel, leftValue),
         const SizedBox(width: 8),
-        cell(rightLabel, rightValue, emphasis: emphasisRight),
+        cell(
+          rightLabel,
+          rightValue,
+          emphasis: emphasisRight,
+          warning: warningRight,
+        ),
       ],
     );
   }

@@ -45,7 +45,10 @@ class StockDesktopDetailPane extends ConsumerWidget {
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 12),
-          _metricRow('Purchase', '${formatStockQtyNumber(purchased)} $unit'),
+          _metricRow(
+            'Purchase',
+            purchased == null ? '—' : '${formatStockQtyNumber(purchased)} $unit',
+          ),
           _metricRow('Stock', '${formatStockQtyNumber(stock)} $unit'),
           _metricRow(
             'Difference',

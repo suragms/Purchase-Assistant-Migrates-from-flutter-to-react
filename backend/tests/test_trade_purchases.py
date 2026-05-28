@@ -909,3 +909,4 @@ def test_stock_period_purchased_counts_only_delivered_purchase_lines():
     assert len(rows) == 1
     assert abs(float(rows[0]["period_purchased_qty"]) - 10.0) < 0.001
     assert rows[0]["has_pending_order"] is True
+    assert abs(float(rows[0]["pending_delivery_qty"]) - 10.0) < 0.001

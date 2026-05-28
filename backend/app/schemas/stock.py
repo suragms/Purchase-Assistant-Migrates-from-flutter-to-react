@@ -135,6 +135,7 @@ class StockListItemOut(BaseModel):
     last_purchase_delivered: bool | None = None
     has_pending_order: bool = False
     pending_order_days: int | None = None
+    pending_delivery_qty: Decimal | None = None
     physical_stock_qty: Decimal | None = None
     physical_stock_difference_qty: Decimal | None = None
     physical_stock_counted_at: datetime | None = None
@@ -158,10 +159,23 @@ class StockAlertsSummaryOut(BaseModel):
     low_stock: int = 0
     critical_stock: int = 0
     out_of_stock: int = 0
+    active_out_of_stock: int = 0
     missing_barcode: int = 0
     missing_item_code: int = 0
     missing_usage_logs: int = 0
     eviction_count: int = 0
+    total_items: int = 0
+
+
+class WarehouseAlertsSummaryOut(BaseModel):
+    pending_deliveries: int = 0
+    low_stock: int = 0
+    critical_stock: int = 0
+    pending_verifications: int = 0
+    missing_barcode: int = 0
+    missing_usage_logs: int = 0
+    eviction_count: int = 0
+    checklist_completion_pct: float = 100.0
     total_items: int = 0
 
 

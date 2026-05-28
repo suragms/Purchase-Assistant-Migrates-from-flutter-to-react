@@ -269,7 +269,7 @@ class _StockPageState extends ConsumerState<StockPage> {
     final listQ = ref.watch(stockListQueryProvider);
     final total = coerceToInt(data['total']);
     final maxPage = stockListMaxPage(total, listQ.perPage);
-    final bottomPad = MediaQuery.paddingOf(context).bottom + 8;
+    final bottomPad = 24.0;
     final op = ref.watch(stockOperationalFiltersProvider);
     final filterCount = countWarehouseActiveFilters(listQ, op);
 

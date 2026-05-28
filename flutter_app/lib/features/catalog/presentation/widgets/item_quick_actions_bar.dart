@@ -49,7 +49,7 @@ class ItemQuickActionsBar extends ConsumerWidget {
       _ActionSpec(
         label: 'Add qty',
         icon: Icons.add_shopping_cart_rounded,
-        color: const Color(0xFF3B6D11),
+        color: HexaColors.profit,
         onTap: () async {
           final item = await ref.read(stockItemDetailProvider(itemId).future);
           if (!context.mounted) return;

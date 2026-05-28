@@ -29,14 +29,15 @@ import '../../../core/providers/notifications_provider.dart'
 import '../../../core/providers/prefs_provider.dart';
 import '../../../core/providers/realtime_events_provider.dart';
 import '../../../core/providers/realtime_notifications_provider.dart';
-import '../../../core/providers/server_notifications_provider.dart';
+import '../../../core/providers/server_notifications_provider.dart'
+    show appNotificationsListProvider;
 import '../../../core/providers/stock_providers.dart'
     show
         lowStockByCategoryProvider,
-        openingStockMissingProvider,
         stockStatusCountsProvider;
 import '../../../core/providers/warehouse_alerts_provider.dart'
     show warehouseAlertsProvider;
+import '../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../purchase/presentation/widgets/purchase_saved_sheet.dart';
@@ -48,9 +49,8 @@ import 'widgets/home_purchase_control_center.dart';
 import 'widgets/home_session_data_banner.dart';
 import 'widgets/home_quick_actions_grid.dart';
 import 'widgets/home_live_status_bar.dart';
-import 'widgets/home_warehouse_health_card.dart';
+import 'widgets/home_warehouse_snapshot_card.dart';
 import 'widgets/home_warehouse_activity_feed.dart';
-import 'widgets/home_staff_operations_panel.dart';
 import 'widgets/home_owner_quick_actions.dart';
 import 'widgets/home_sticky_period_header.dart';
 
@@ -64,7 +64,8 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage>
     with WidgetsBindingObserver {
-  Timer? _rtPoll;
+  Timer? _rtPollAlerts;
+  Timer? _rtPollFull;
   Timer? _resumeRefreshDebounce;
   bool _homeTimersActive = false;
   bool _handlingPurchasePostSave = false;
@@ -90,37 +91,54 @@ class _HomePageState extends ConsumerState<HomePage>
     return false;
   }
 
+  void _invalidateAlertProviders() {
+    ref.invalidate(warehouseAlertsProvider);
+    ref.invalidate(stockStatusCountsProvider);
+  }
+
   void _invalidateHomeDataProviders() {
     _homeLastRefreshedAt = DateTime.now();
     bustHomeDashboardVolatileCaches();
     ref.invalidate(homeDashboardDataProvider);
-    ref.invalidate(homeInventorySummaryProvider);
-    ref.invalidate(stockAlertCountsProvider);
-    ref.invalidate(stockLowTopHomeProvider);
-    ref.invalidate(stockAuditPeriodProvider);
-    ref.invalidate(stockVariancesTodayProvider);
-    ref.invalidate(homeRecentActivityFeedProvider);
-    ref.invalidate(warehouseAlertsProvider);
-    ref.invalidate(appNotificationUnreadCountProvider);
-    ref.invalidate(lowStockByCategoryProvider);
-    ref.invalidate(stockStatusCountsProvider);
+    _invalidateAlertProviders();
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      ref.invalidate(homeInventorySummaryProvider);
+      ref.invalidate(stockLowTopHomeProvider);
+      ref.invalidate(lowStockByCategoryProvider);
+    });
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (!mounted) return;
+      ref.invalidate(homeRecentActivityFeedProvider);
+      ref.invalidate(stockVariancesTodayProvider);
+      ref.invalidate(stockAuditPeriodProvider);
+      ref.invalidate(appNotificationsListProvider);
+    });
   }
 
   void _setHomePollingActive(bool active) {
     if (active == _homeTimersActive) return;
     _homeTimersActive = active;
     if (!active) {
-      _rtPoll?.cancel();
-      _rtPoll = null;
+      _rtPollAlerts?.cancel();
+      _rtPollFull?.cancel();
+      _rtPollAlerts = null;
+      _rtPollFull = null;
       return;
     }
-    _rtPoll?.cancel();
-    _rtPoll = Timer.periodic(const Duration(seconds: 30), (_) {
+    _rtPollAlerts?.cancel();
+    _rtPollFull?.cancel();
+    _rtPollAlerts = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (!mounted) return;
+      if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) return;
+      _invalidateAlertProviders();
+      _maybePushBackgroundAlert();
+      _maybeNotifyStaffPurchases();
+    });
+    _rtPollFull = Timer.periodic(const Duration(seconds: 75), (_) {
       if (!mounted) return;
       if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) return;
       _invalidateHomeDataProviders();
-      _maybePushBackgroundAlert();
-      _maybeNotifyStaffPurchases();
     });
   }
 
@@ -182,7 +200,8 @@ class _HomePageState extends ConsumerState<HomePage>
 
   @override
   void dispose() {
-    _rtPoll?.cancel();
+    _rtPollAlerts?.cancel();
+    _rtPollFull?.cancel();
     _resumeRefreshDebounce?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -360,19 +379,17 @@ class _HomePageState extends ConsumerState<HomePage>
                           onSettingsLongPress: _showAccountMenu,
                         ),
                         if (hasDashboard) ...[
-                          const SizedBox(height: 8),
+                          const SizedBox(height: HexaOp.cardGap),
                           HomeLiveStatusBar(
                             offline: offline,
                             lastRefreshedAt: _homeLastRefreshedAt,
                             isOwner: true,
                           ),
                         ],
-                        const SizedBox(height: 8),
+                        const SizedBox(height: HexaOp.cardGap),
                         const ResumePurchaseDraftBanner(),
                         if (hasDashboard) ...[
                           const HomeSessionDataBanner(),
-                          const _OpeningStockSetupBanner(),
-                          const SizedBox(height: 8),
                           const HomeCriticalAlertsGrid(),
                         ],
                       ],
@@ -395,14 +412,10 @@ class _HomePageState extends ConsumerState<HomePage>
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         if (hasDashboard) ...[
+                          const HomeWarehouseSnapshotCard(),
+                          const SizedBox(height: HexaOp.cardGap),
                           const HomePurchaseControlCenter(),
-                          const SizedBox(height: 8),
-                          const HomeWarehouseHealthCard(),
-                          const SizedBox(height: 8),
-                          const HomeWarehouseActivityFeed(),
-                          const SizedBox(height: 8),
-                          const HomeStaffOperationsPanel(),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: HexaOp.cardGap),
                           HomeOwnerQuickActions(
                             onPurchase: () => context.push('/purchase/new'),
                             onStock: () => context.go('/stock'),
@@ -411,7 +424,13 @@ class _HomePageState extends ConsumerState<HomePage>
                             onReports: () => context.go('/reports'),
                             onUsers: () => context.push('/settings/users'),
                             onBarcode: () => context.push('/barcode/bulk-print'),
+                            onReorder: () =>
+                                context.push('/stock/reorder-suggestions'),
                           ),
+                          const SizedBox(height: HexaOp.cardGap),
+                          const HomeLowStockSection(),
+                          const SizedBox(height: HexaOp.cardGap),
+                          const HomeWarehouseActivityFeed(),
                         ] else
                           HomeQuickActionsGrid(
                             isOwner: false,
@@ -423,7 +442,6 @@ class _HomePageState extends ConsumerState<HomePage>
                             onUsers: () => context.push('/settings/users'),
                           ),
                         const SizedBox(height: 12),
-                        const HomeLowStockSection(),
                       ],
                     ),
                   ),
@@ -474,35 +492,12 @@ class _HomePageState extends ConsumerState<HomePage>
   void _invalidateOwnerCachesFromContainer(ProviderContainer c) {
     bustHomeDashboardVolatileCaches();
     c.invalidate(homeInventorySummaryProvider);
-    c.invalidate(stockAlertCountsProvider);
+    c.invalidate(stockStatusCountsProvider);
     c.invalidate(stockLowTopHomeProvider);
     c.invalidate(stockAuditPeriodProvider);
     c.invalidate(stockVariancesTodayProvider);
     c.invalidate(homeRecentActivityFeedProvider);
     c.invalidate(homeDashboardDataProvider);
     c.invalidate(warehouseAlertsProvider);
-  }
-}
-
-class _OpeningStockSetupBanner extends ConsumerWidget {
-  const _OpeningStockSetupBanner();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final async = ref.watch(openingStockMissingProvider);
-    final missing = async.valueOrNull?['missing_count'];
-    final count = missing is num ? missing.toInt() : 0;
-    if (count <= 0) return const SizedBox.shrink();
-    return Card(
-      color: const Color(0xFFFFFBEB),
-      child: ListTile(
-        leading: const Icon(Icons.inventory_rounded, color: Color(0xFFB45309)),
-        title: const Text('Opening stock setup pending'),
-        subtitle:
-            Text('$count items need initial stock before daily operations.'),
-        trailing: const Icon(Icons.chevron_right_rounded),
-        onTap: () => context.push('/stock/opening-setup'),
-      ),
-    );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/session_notifier.dart';
@@ -5,6 +7,9 @@ import '../auth/session_notifier.dart';
 /// Server-backed in-app notifications (GET …/notifications).
 final appNotificationsListProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final keepAlive = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 2), keepAlive.close);
+  ref.onDispose(timer.cancel);
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   return ref.read(hexaApiProvider).listAppNotifications(

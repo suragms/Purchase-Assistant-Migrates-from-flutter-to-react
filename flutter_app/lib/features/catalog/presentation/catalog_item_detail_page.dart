@@ -62,6 +62,10 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
   final _histSearchCtrl = TextEditingController();
   bool _inlineEditing = false;
   late final TextEditingController _inlineNameCtrl = TextEditingController();
+  final ScrollController _detailScrollCtrl = ScrollController();
+  final GlobalKey _stockSectionKey = GlobalKey();
+  final GlobalKey _timelineSectionKey = GlobalKey();
+  final GlobalKey _activityTabsSectionKey = GlobalKey();
 
   String _inr(num? n) {
     if (n == null) return '—';
@@ -452,7 +456,19 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
   void dispose() {
     _histSearchCtrl.dispose();
     _inlineNameCtrl.dispose();
+    _detailScrollCtrl.dispose();
     super.dispose();
+  }
+
+  void _scrollToSection(GlobalKey key) {
+    final context = key.currentContext;
+    if (context == null) return;
+    Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+      alignment: 0.06,
+    );
   }
 
   Future<void> _saveInlineEdit(Map<String, dynamic> item) async {
@@ -605,6 +621,7 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ListView(
+              controller: _detailScrollCtrl,
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
@@ -754,18 +771,33 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
                     );
                   },
                 ),
-                _CatalogItemStockSection(
-                  itemId: widget.itemId,
-                  item: item,
+                const SizedBox(height: 8),
+                _ItemDetailAnchors(
+                  onSnapshot: () => _scrollToSection(_stockSectionKey),
+                  onTimeline: () => _scrollToSection(_timelineSectionKey),
+                  onLedger: () => _scrollToSection(_activityTabsSectionKey),
                 ),
-                _CatalogItemChangeTimelineSection(
-                  itemId: widget.itemId,
-                  itemName: item['name']?.toString() ?? 'Item',
-                  purchases: purchasesAsync.valueOrNull ?? const [],
+                KeyedSubtree(
+                  key: _stockSectionKey,
+                  child: _CatalogItemStockSection(
+                    itemId: widget.itemId,
+                    item: item,
+                  ),
                 ),
-                _OperationalItemTabs(
-                  itemId: widget.itemId,
-                  item: item,
+                KeyedSubtree(
+                  key: _timelineSectionKey,
+                  child: _CatalogItemChangeTimelineSection(
+                    itemId: widget.itemId,
+                    itemName: item['name']?.toString() ?? 'Item',
+                    purchases: purchasesAsync.valueOrNull ?? const [],
+                  ),
+                ),
+                KeyedSubtree(
+                  key: _activityTabsSectionKey,
+                  child: _OperationalItemTabs(
+                    itemId: widget.itemId,
+                    item: item,
+                  ),
                 ),
                 _CollapsibleDetailSection(
                   title: 'Last purchase',
@@ -2191,6 +2223,7 @@ class _ItemQuickActionGrid extends StatelessWidget {
       builder: (context, constraints) {
         final cols =
             constraints.maxWidth < HexaBreakpoints.compactPhone ? 2 : 3;
+        final compact = constraints.maxWidth < 380;
         return GridView.count(
           crossAxisCount: cols,
           shrinkWrap: true,
@@ -2207,7 +2240,13 @@ class _ItemQuickActionGrid extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onHistory,
               icon: const Icon(Icons.history_rounded, size: 18),
-              label: const Text('History'),
+              label: Text(compact ? 'Ledger' : 'History'),
+              style: compact
+                  ? OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    )
+                  : null,
             ),
             OutlinedButton.icon(
               onPressed: onReorderList,
@@ -2217,6 +2256,46 @@ class _ItemQuickActionGrid extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _ItemDetailAnchors extends StatelessWidget {
+  const _ItemDetailAnchors({
+    required this.onSnapshot,
+    required this.onTimeline,
+    required this.onLedger,
+  });
+
+  final VoidCallback onSnapshot;
+  final VoidCallback onTimeline;
+  final VoidCallback onLedger;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          ActionChip(
+            onPressed: onSnapshot,
+            label: const Text('Snapshot'),
+            avatar: const Icon(Icons.inventory_2_outlined, size: 16),
+          ),
+          ActionChip(
+            onPressed: onTimeline,
+            label: const Text('Timeline'),
+            avatar: const Icon(Icons.timeline_rounded, size: 16),
+          ),
+          ActionChip(
+            onPressed: onLedger,
+            label: const Text('Ledger'),
+            avatar: const Icon(Icons.receipt_long_outlined, size: 16),
+          ),
+        ],
+      ),
     );
   }
 }

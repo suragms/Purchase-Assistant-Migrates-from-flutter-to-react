@@ -45,7 +45,7 @@ class StockWarehouseRow extends StatelessWidget {
     final updatedAt = item['last_stock_updated_at']?.toString();
     final updatedBy = item['last_stock_updated_by']?.toString();
     final relative = formatStockRelativeTime(updatedAt);
-    final isLowOrOut = status == 'low' || status == 'critical' || status == 'out';
+    final isLowOrCritical = status == 'low' || status == 'critical';
 
     final metaParts = <String>[
       if (codeRaw.isNotEmpty) '#$codeRaw',
@@ -70,7 +70,7 @@ class StockWarehouseRow extends StatelessWidget {
             decoration: StockTableLayout.rowDecoration(isFirst: isFirstRow)
                 .copyWith(
               color: isSelected ? const Color(0xFFEFF6FF) : StockTableLayout.rowFill,
-              border: isLowOrOut
+              border: isLowOrCritical
                   ? const Border(
                       left: BorderSide(color: Color(0xFFDC2626), width: 3),
                     )
@@ -206,7 +206,7 @@ class StockWarehouseRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w900,
               color: statusColor,
             ),
           ),
@@ -248,7 +248,7 @@ class StockWarehouseRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: bold ? FontWeight.w800 : FontWeight.w700,
+              fontWeight: FontWeight.w900,
               color: color,
             ),
           ),

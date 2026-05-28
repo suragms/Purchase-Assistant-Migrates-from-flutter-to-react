@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'friendly_load_error.dart';
 import 'list_skeleton.dart';
+import 'section_inline_error.dart';
 
 /// Standard loading / error / data wrapper for warehouse sections.
 class WarehouseAsyncSection<T> extends StatelessWidget {
@@ -15,6 +16,7 @@ class WarehouseAsyncSection<T> extends StatelessWidget {
     this.errorMessage = 'Unable to load data',
     this.offline = false,
     this.showCachedHint = false,
+    this.denseError = false,
   });
 
   final AsyncValue<T> asyncValue;
@@ -24,18 +26,24 @@ class WarehouseAsyncSection<T> extends StatelessWidget {
   final String errorMessage;
   final bool offline;
   final bool showCachedHint;
+  final bool denseError;
 
   @override
   Widget build(BuildContext context) {
     return asyncValue.when(
       loading: () => loading ?? const ListSkeleton(rowCount: 3, rowHeight: 72),
-      error: (_, __) => FriendlyLoadError(
-        message: errorMessage,
-        subtitle: offline
-            ? 'You are offline. Showing cached data where available.'
-            : kFriendlyLoadNetworkSubtitle,
-        onRetry: onRetry ?? () {},
-      ),
+      error: (_, __) => denseError
+          ? SectionInlineError(
+              message: errorMessage,
+              onRetry: onRetry ?? () {},
+            )
+          : FriendlyLoadError(
+              message: errorMessage,
+              subtitle: offline
+                  ? 'You are offline. Showing cached data where available.'
+                  : kFriendlyLoadNetworkSubtitle,
+              onRetry: onRetry ?? () {},
+            ),
       data: (data) {
         if (showCachedHint && offline) {
           return Column(

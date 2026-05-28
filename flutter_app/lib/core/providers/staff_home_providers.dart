@@ -1,10 +1,20 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/session_notifier.dart';
 import '../models/session.dart';
 import '../models/trade_purchase_models.dart';
 import 'barcode_recent_scans.dart';
+import 'prefs_provider.dart';
+import 'stock_providers.dart';
 import 'trade_purchases_provider.dart';
+
+void _providerKeepAlive(Ref ref, Duration ttl) {
+  final link = ref.keepAlive();
+  final timer = Timer(ttl, link.close);
+  ref.onDispose(timer.cancel);
+}
 
 /// Clears staff home caches after login/logout so a prior `session == null`
 /// fetch never sticks as an empty list for the next user.
@@ -14,9 +24,51 @@ void invalidateStaffHomeCaches(Ref ref) {
   ref.invalidate(staffTodayStockWorkProvider);
   ref.invalidate(staffLowStockAlertsProvider);
   ref.invalidate(staffRecentScansProvider);
+  ref.invalidate(staffRecentActivityProvider);
+  ref.invalidate(staffStockMismatchCountProvider);
   ref.invalidate(missingCodeItemsProvider);
   ref.invalidate(tradePurchasesListProvider);
+  ref.invalidate(openingStockMissingProvider);
 }
+
+/// Floor role hint for staff home layout (client preference until API has staff_focus).
+enum StaffHomeFocus { all, barcode, stock, purchase }
+
+StaffHomeFocus staffHomeFocusFromStorage(String? raw) {
+  return StaffHomeFocus.values.firstWhere(
+    (e) => e.name == raw,
+    orElse: () => StaffHomeFocus.all,
+  );
+}
+
+bool staffHomeShowsWarehouse(StaffHomeFocus f) =>
+    f == StaffHomeFocus.all || f == StaffHomeFocus.stock;
+
+bool staffHomeShowsBarcodeTools(StaffHomeFocus f) =>
+    f == StaffHomeFocus.all || f == StaffHomeFocus.barcode;
+
+bool staffHomeShowsPurchaseTools(StaffHomeFocus f) =>
+    f == StaffHomeFocus.all || f == StaffHomeFocus.purchase;
+
+class StaffHomeFocusNotifier extends Notifier<StaffHomeFocus> {
+  static const _k = 'staff_home_focus';
+
+  @override
+  StaffHomeFocus build() {
+    final raw = ref.watch(sharedPreferencesProvider).getString(_k);
+    return staffHomeFocusFromStorage(raw);
+  }
+
+  Future<void> setFocus(StaffHomeFocus focus) async {
+    await ref.read(sharedPreferencesProvider).setString(_k, focus.name);
+    state = focus;
+  }
+}
+
+final staffHomeFocusProvider =
+    NotifierProvider<StaffHomeFocusNotifier, StaffHomeFocus>(
+  StaffHomeFocusNotifier.new,
+);
 
 String _todayApiDate() {
   final n = DateTime.now();
@@ -26,6 +78,7 @@ String _todayApiDate() {
 }
 
 final staffDisplayNameProvider = FutureProvider.autoDispose<String>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 5));
   final session = await _waitForSession(ref);
   if (session == null) return 'Staff';
   try {
@@ -51,6 +104,7 @@ Future<Session?> _waitForSession(Ref ref, {int attempts = 40}) async {
 
 final staffTodayActivityProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   final session = await _waitForSession(ref);
   if (session == null) return [];
   return ref.read(hexaApiProvider).listActivityLog(
@@ -64,6 +118,7 @@ final staffTodayActivityProvider =
 /// Today's stock adjustments from audit feed (authoritative for stock work counts).
 final staffTodayStockWorkProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   final session = await _waitForSession(ref);
   if (session == null) return [];
   return ref.read(hexaApiProvider).listStockAuditFeed(
@@ -75,6 +130,7 @@ final staffTodayStockWorkProvider =
 
 final staffLowStockAlertsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   final session = await _waitForSession(ref);
   if (session == null) return [];
   final m = await ref.read(hexaApiProvider).listStock(
@@ -111,6 +167,7 @@ final staffPendingDeliveriesProvider =
 /// Last barcode scans from device prefs (shared with [BarcodeScanPage]).
 final staffRecentScansProvider =
     FutureProvider.autoDispose<List<BarcodeRecentScan>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 5));
   return loadBarcodeRecentScans(max: 8);
 });
 
@@ -192,6 +249,7 @@ final staffTodaySummaryProvider =
 });
 
 final staffTodayPurchasesProvider = FutureProvider.autoDispose<List<TradePurchase>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   final session = await _waitForSession(ref);
   if (session == null) return [];
   final today = _todayApiDate();
@@ -212,6 +270,7 @@ final staffTodayPurchasesProvider = FutureProvider.autoDispose<List<TradePurchas
 /// All catalog stock rows with empty item_code (paged load).
 final missingCodeItemsProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
   final session = await _waitForSession(ref);
   if (session == null) return [];
   final api = ref.read(hexaApiProvider);
@@ -243,4 +302,96 @@ final missingCodeItemsProvider =
 
 final staffMissingCodeCountProvider = Provider.autoDispose<int>((ref) {
   return ref.watch(missingCodeItemsProvider).valueOrNull?.length ?? 0;
+});
+
+final staffOpeningStockCountProvider = Provider.autoDispose<int>((ref) {
+  final m = ref.watch(openingStockMissingProvider).valueOrNull;
+  return (m?['missing_count'] as num?)?.toInt() ?? 0;
+});
+
+final staffStockMismatchCountProvider =
+    FutureProvider.autoDispose<int>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
+  final session = await _waitForSession(ref);
+  if (session == null) return 0;
+  final rows = await ref.read(hexaApiProvider).listStockVariancesToday(
+        businessId: session.primaryBusiness.id,
+      );
+  return rows.length;
+});
+
+/// Unified recent actions for staff home (activity log + device scans).
+class StaffRecentActivityItem {
+  const StaffRecentActivityItem({
+    required this.label,
+    required this.when,
+    this.subtitle,
+    this.itemId,
+    this.isScan = false,
+  });
+
+  final String label;
+  final String? subtitle;
+  final DateTime when;
+  final String? itemId;
+  final bool isScan;
+}
+
+String staffActivityLabel(String actionType) {
+  switch (actionType.toUpperCase()) {
+    case 'STAFF_LOGIN':
+      return 'Signed in';
+    case 'STAFF_LOGOUT':
+      return 'Signed out';
+    case 'PURCHASE_CREATE':
+      return 'Purchase saved';
+    case 'SCAN':
+    case 'BARCODE_SCAN':
+      return 'Barcode scan';
+    default:
+      return actionType.replaceAll('_', ' ');
+  }
+}
+
+final staffRecentActivityProvider =
+    FutureProvider.autoDispose<List<StaffRecentActivityItem>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
+  final activityRows = await ref.watch(staffTodayActivityProvider.future);
+  final scans = await ref.watch(staffRecentScansProvider.future);
+  final now = DateTime.now();
+  final items = <StaffRecentActivityItem>[];
+
+  for (final r in activityRows) {
+    final actionRaw = (r['action_type'] ?? r['action'] ?? '').toString();
+    DateTime when;
+    try {
+      when = DateTime.parse(r['created_at']?.toString() ?? '').toLocal();
+    } catch (_) {
+      when = now;
+    }
+    final itemName = r['item_name']?.toString();
+    items.add(
+      StaffRecentActivityItem(
+        label: staffActivityLabel(actionRaw),
+        subtitle: itemName?.trim().isNotEmpty == true ? itemName : null,
+        when: when,
+        itemId: r['item_id']?.toString(),
+      ),
+    );
+  }
+
+  for (final s in scans) {
+    items.add(
+      StaffRecentActivityItem(
+        label: 'Barcode scan',
+        subtitle: s.name.isNotEmpty ? s.name : s.code,
+        when: now,
+        itemId: s.id.isNotEmpty ? s.id : null,
+        isScan: true,
+      ),
+    );
+  }
+
+  items.sort((a, b) => b.when.compareTo(a.when));
+  return items.take(8).toList();
 });
