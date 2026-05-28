@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/design_system/hexa_responsive.dart';
 import '../stock_compact_update_sheet.dart';
 import '../stock_quick_purchase_sheet.dart';
 
@@ -18,11 +17,15 @@ Future<void> showStockRowActions({
     context: context,
     useSafeArea: true,
     showDragHandle: true,
-    builder: (ctx) => HexaResponsiveSheetViewport(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    builder: (ctx) => SafeArea(
+      top: false,
+      child: Padding(
+        padding:
+            EdgeInsets.fromLTRB(16, 8, 16, 16 + MediaQuery.paddingOf(ctx).bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
           Text(
             name,
             maxLines: 2,
@@ -62,7 +65,8 @@ Future<void> showStockRowActions({
               context.push('/catalog/item/$id');
             },
           ),
-        ],
+          ],
+        ),
       ),
     ),
   );

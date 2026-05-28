@@ -106,7 +106,7 @@ class _OperationalFilterBodyState
     final q = ref.read(stockListQueryProvider);
     final op = ref.read(stockOperationalFiltersProvider);
     _sort = q.sort;
-    _category = q.category;
+    _category = '';
     _supplier = q.supplier;
     _missingBarcode = op.missingBarcodeOnly;
     _missingItemCode = op.missingItemCodeOnly;
@@ -128,7 +128,7 @@ class _OperationalFilterBodyState
     ref.read(stockListQueryProvider.notifier).state =
         ref.read(stockListQueryProvider).copyWith(
               sort: _sort,
-              category: _category,
+              category: '',
               supplier: _supplier,
               subcategory: _subcatField.text.trim(),
               purchasedInPeriod: _purchasedInPeriodOnly,
@@ -173,13 +173,10 @@ class _OperationalFilterBodyState
   }
 
   List<String> _subcategoryOptions(List<Map<String, dynamic>> types) {
-    final cat = _category.trim().toLowerCase();
     final out = <String>[];
     for (final t in types) {
       final name = (t['name'] ?? '').toString().trim();
       if (name.isEmpty) continue;
-      final cname = (t['category_name'] ?? '').toString().trim().toLowerCase();
-      if (cat.isNotEmpty && cname != cat) continue;
       out.add(name);
     }
     out.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
@@ -208,7 +205,6 @@ class _OperationalFilterBodyState
 
   @override
   Widget build(BuildContext context) {
-    final catsAsync = ref.watch(itemCategoriesListProvider);
     final suppliersAsync = ref.watch(suppliersListProvider);
     final typesAsync = ref.watch(categoryTypesIndexProvider);
 
@@ -296,40 +292,6 @@ class _OperationalFilterBodyState
           onChanged: (v) => setState(() => _missingItemCode = v),
         ),
         const SizedBox(height: 8),
-        catsAsync.when(
-          loading: () => const SizedBox.shrink(),
-          error: (_, __) => const SizedBox.shrink(),
-          data: (cats) {
-            final names = [
-              for (final c in cats)
-                if ((c['name'] ?? '').toString().trim().isNotEmpty)
-                  c['name'].toString().trim(),
-            ];
-            if (names.isEmpty) return const SizedBox.shrink();
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text('Category', style: Theme.of(context).textTheme.labelLarge),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: _category.isEmpty ? '' : _category,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                  items: [
-                    const DropdownMenuItem(
-                        value: '', child: Text('All categories')),
-                    for (final n in names)
-                      DropdownMenuItem(value: n, child: Text(n)),
-                  ],
-                  onChanged: (v) => setState(() => _category = v ?? ''),
-                ),
-                const SizedBox(height: 12),
-              ],
-            );
-          },
-        ),
         typesAsync.when(
           loading: () => TextField(
             controller: _subcatField,

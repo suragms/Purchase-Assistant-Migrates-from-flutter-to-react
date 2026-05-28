@@ -119,6 +119,7 @@ bool _isStaffAllowedRoute(String loc) {
     return true;
   }
   if (loc.startsWith('/operations/')) return true;
+  if (loc == '/stock/opening-setup') return true;
   if (loc.startsWith('/stock/intelligence/') ||
       loc.startsWith('/stock/') && loc.endsWith('/history')) {
     return true;

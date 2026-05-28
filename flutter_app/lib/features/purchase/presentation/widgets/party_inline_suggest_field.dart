@@ -1067,6 +1067,7 @@ class _PartyInlineSuggestFieldState extends State<PartyInlineSuggestField> {
     if (widget.suggestionsAsOverlay) {
       fieldWrapped = KeyboardAwareSuggestionOverlay(
         controller: _overlayController,
+        tapRegionGroupId: _suggestionTapGroup,
         overlayChild: _buildOverlaySuggestions(context),
         child: SizedBox(
           width: double.infinity,

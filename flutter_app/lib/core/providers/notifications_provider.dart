@@ -382,6 +382,7 @@ final warehouseAlertNotificationItemsProvider =
         isRead: readIds.contains(id),
         actionRoute: isStaff ? '/staff/low-stock' : '/stock/low-stock',
         serverKind: 'low_stock',
+        priority: outN > 0 ? 'high' : null,
       ));
     }
     if (missingBc > 0) {
@@ -424,6 +425,7 @@ final warehouseAlertNotificationItemsProvider =
       isRead: readIds.contains(id),
       actionRoute: '/stock/opening-setup',
       serverKind: 'opening_stock_pending',
+      priority: 'high',
     ));
   }
   if (isStaff) {

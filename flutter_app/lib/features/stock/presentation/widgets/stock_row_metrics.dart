@@ -35,10 +35,11 @@ abstract final class StockRowMetrics {
   static String signedDiffLine(double diff, String unit) {
     if (!diff.isFinite) return '—';
     if (diff.abs() < 0.001) {
-      return '0\n$unit';
+      return '0\nBalanced';
     }
     final sign = diff > 0 ? '+' : '';
-    return '$sign${formatStockQtyNumber(diff)}\n$unit';
+    final intent = diff > 0 ? 'Excess' : 'Deficit';
+    return '$sign${formatStockQtyNumber(diff)} $unit\n$intent';
   }
 
   static Color diffColor(double diff) {

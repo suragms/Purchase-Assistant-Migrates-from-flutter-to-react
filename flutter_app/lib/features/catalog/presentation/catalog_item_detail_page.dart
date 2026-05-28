@@ -560,9 +560,13 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
             TextButton(
               onPressed: itemAsync.valueOrNull == null
                   ? null
-                  : () {
-                      final it = itemAsync.valueOrNull!;
-                      _inlineNameCtrl.text = it['name']?.toString() ?? '';
+                  : () async {
+                      ref.invalidate(catalogItemDetailProvider(widget.itemId));
+                      final fresh = await ref.read(
+                        catalogItemDetailProvider(widget.itemId).future,
+                      );
+                      if (!mounted) return;
+                      _inlineNameCtrl.text = fresh['name']?.toString() ?? '';
                       setState(() => _inlineEditing = true);
                     },
               child: const Text('Edit'),

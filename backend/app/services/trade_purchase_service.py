@@ -1166,6 +1166,8 @@ async def patch_trade_purchase_delivery(
     if st == "cancelled":
         raise ValueError("Delivery changes are not allowed for cancelled purchases")
     was_delivered = bool(getattr(tp, "is_delivered", False))
+    if was_delivered == bool(body.is_delivered) and body.delivery_notes is None:
+        return trade_purchase_to_out(tp, stock_updates=[])
     lines_snapshot = list(tp.lines)
     stock_updates: list[dict] = []
     tp.is_delivered = body.is_delivered

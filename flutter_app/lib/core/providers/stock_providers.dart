@@ -431,7 +431,7 @@ Future<List<Map<String, dynamic>>> _fetchStockListAllPages({
   required HexaApi api,
   required String businessId,
   required String status,
-  int maxPages = 15,
+  int maxPages = 10,
   bool includePeriod = false,
   String? periodStart,
   String? periodEnd,
@@ -484,21 +484,15 @@ final lowStockByCategoryProvider =
   final lowRows = await _fetchStockListAllPages(
     api: api,
     businessId: bid,
-    status: 'low',
-    includePeriod: true,
-    periodStart: periodStart,
-    periodEnd: periodEnd,
-  );
-  final outRows = await _fetchStockListAllPages(
-    api: api,
-    businessId: bid,
-    status: 'out',
+    status: 'all',
     includePeriod: true,
     periodStart: periodStart,
     periodEnd: periodEnd,
   );
   final byId = <String, Map<String, dynamic>>{};
-  for (final item in [...lowRows, ...outRows]) {
+  for (final item in lowRows) {
+    final status = (item['stock_status']?.toString() ?? '').toLowerCase();
+    if (status != 'low' && status != 'out') continue;
     final id = item['id']?.toString();
     if (id != null && id.isNotEmpty) {
       byId[id] = item;

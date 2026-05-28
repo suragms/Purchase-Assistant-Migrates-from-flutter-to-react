@@ -41,7 +41,7 @@ class StockWarehouseTableHeader extends StatelessWidget {
               ),
               _metricHeader('BOUGHT', hdr),
               _metricHeader('STOCK', hdr),
-              _metricHeader('Δ', hdr),
+              _metricHeader('DELTA', hdr),
               SizedBox(
                 width: MediaQuery.sizeOf(context).width >= 340
                     ? StockTableLayout.actionsWidth

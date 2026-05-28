@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 
 import '../../../../core/auth/dashboard_role.dart';
 import '../../../../core/auth/session_notifier.dart';
@@ -175,10 +176,17 @@ class ItemStockSnapshotCard extends ConsumerWidget {
                           const SnackBar(content: Text('System stock recomputed')),
                         );
                       }
-                    } catch (_) {
+                    } on DioException catch (e) {
                       if (context.mounted) {
+                        final isConflict = e.response?.statusCode == 409;
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Could not recompute stock')),
+                          SnackBar(
+                            content: Text(
+                              isConflict
+                                  ? 'Recompute already in progress. Please wait and refresh.'
+                                  : 'Could not recompute stock',
+                            ),
+                          ),
                         );
                       }
                     }

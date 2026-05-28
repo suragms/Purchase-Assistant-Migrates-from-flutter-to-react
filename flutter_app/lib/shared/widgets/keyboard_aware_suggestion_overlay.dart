@@ -8,11 +8,13 @@ class KeyboardAwareSuggestionOverlay extends StatefulWidget {
     required this.controller,
     required this.child,
     required this.overlayChild,
+    this.tapRegionGroupId,
   });
 
   final OverlayPortalController controller;
   final Widget child;
   final Widget overlayChild;
+  final Object? tapRegionGroupId;
 
   @override
   State<KeyboardAwareSuggestionOverlay> createState() =>
@@ -52,9 +54,9 @@ class _KeyboardAwareSuggestionOverlayState
         return Stack(
           children: [
             Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: () {
+              child: TapRegion(
+                groupId: widget.tapRegionGroupId,
+                onTapOutside: (_) {
                   if (!widget.controller.isShowing) return;
                   widget.controller.hide();
                 },
@@ -80,7 +82,10 @@ class _KeyboardAwareSuggestionOverlayState
                     maxWidth: size.width,
                     maxHeight: overlayHeight,
                   ),
-                  child: widget.overlayChild,
+                  child: TapRegion(
+                    groupId: widget.tapRegionGroupId,
+                    child: widget.overlayChild,
+                  ),
                 ),
               ),
             ),
