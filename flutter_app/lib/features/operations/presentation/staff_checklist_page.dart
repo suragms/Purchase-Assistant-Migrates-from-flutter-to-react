@@ -72,7 +72,12 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
         );
       }
     } finally {
-      if (mounted) setState(() => _busy.remove(busyId));
+      if (mounted) {
+        setState(() {
+          _busy.remove(busyId);
+          _optimisticDone.remove(busyId);
+        });
+      }
     }
   }
 

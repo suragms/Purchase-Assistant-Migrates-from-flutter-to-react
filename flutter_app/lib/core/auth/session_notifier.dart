@@ -103,27 +103,34 @@ final hexaApiProvider = Provider<HexaApi>((ref) {
             } on DioException catch (e) {
               final sc = e.response?.statusCode;
               final invalidRefresh = sc == 401 || sc == 403;
-              if (!disposed) {
+              if (!disposed && invalidRefresh) {
                 try {
                   await ref.read(sessionProvider.notifier).logout();
                 } catch (_) {/* container disposed */}
-                if (invalidRefresh) {
-                  SchedulerBinding.instance.addPostFrameCallback((_) {
-                    if (disposed) return;
-                    try {
-                      ref.read(apiDegradedProvider.notifier).notifyDegraded(
-                            'Session expired — open Settings and sign in again.',
-                          );
-                    } catch (_) {}
-                  });
-                }
+              }
+              if (!disposed) {
+                SchedulerBinding.instance.addPostFrameCallback((_) {
+                  if (disposed) return;
+                  try {
+                    ref.read(apiDegradedProvider.notifier).notifyDegraded(
+                          invalidRefresh
+                              ? 'Session expired — open Settings and sign in again.'
+                              : 'Connection issue while refreshing session. Retrying on next request.',
+                        );
+                  } catch (_) {}
+                });
               }
               return false;
             } catch (_) {
               if (!disposed) {
-                try {
-                  await ref.read(sessionProvider.notifier).logout();
-                } catch (_) {}
+                SchedulerBinding.instance.addPostFrameCallback((_) {
+                  if (disposed) return;
+                  try {
+                    ref.read(apiDegradedProvider.notifier).notifyDegraded(
+                          'Temporary auth recovery issue. Session kept; retrying shortly.',
+                        );
+                  } catch (_) {}
+                });
               }
               return false;
             }
@@ -392,14 +399,28 @@ class SessionNotifier extends Notifier<Session?> {
           final rsc = re.response?.statusCode;
           // Once /me/businesses has already returned 401, any refresh failure
           // means this session cannot be trusted. Clear to prevent 401 loops.
-          if (rsc == null || rsc == 401 || rsc == 403) {
+          if (rsc == 401 || rsc == 403) {
             await store.clear();
             await cache.clear();
+            api.setAuthToken(null);
+            state = null;
+            authRefresh.value++;
+            _notifySessionExpiredBanner();
+            return;
           }
-          api.setAuthToken(null);
+          final cached = cache.loadBusinesses();
+          if (cached != null && cached.isNotEmpty) {
+            state = Session(
+                accessToken: t.access!,
+                refreshToken: t.refresh!,
+                businesses: cached,
+                isSuperAdmin: cache.loadIsSuperAdmin());
+            authRefresh.value++;
+            _notifyOfflineCachedWorkspaceBanner();
+            return;
+          }
           state = null;
           authRefresh.value++;
-          _notifySessionExpiredBanner();
           return;
         } catch (_) {
           await store.clear();

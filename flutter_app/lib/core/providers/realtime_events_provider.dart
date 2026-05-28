@@ -33,20 +33,28 @@ final realtimeInvalidationProvider = StreamProvider.autoDispose<int>((ref) async
   Future<void> poll({required bool initial}) async {
     final rows = await api.listRealtimeEvents(
       businessId: session.primaryBusiness.id,
-      limit: 50,
+      limit: 40,
     );
+    var shouldInvalidateNotifications = false;
+    var shouldInvalidateWarehouse = false;
     for (final row in rows) {
       final key =
           '${row['type']}:${row['created_at']}:${row['payload']?.toString() ?? ''}';
       if (!seen.add(key) || initial) continue;
       final type = row['type']?.toString() ?? '';
       if (type == 'notification.changed') {
-        invalidateNotificationSurfaces(ref);
+        shouldInvalidateNotifications = true;
       } else if (type == 'stock.changed' ||
           type == 'stock.activity_changed' ||
           type == 'purchase.changed') {
-        invalidateWarehouseSurfaces(ref);
+        shouldInvalidateWarehouse = true;
       }
+    }
+    if (shouldInvalidateNotifications) {
+      invalidateNotificationSurfaces(ref);
+    }
+    if (shouldInvalidateWarehouse) {
+      invalidateWarehouseSurfaces(ref);
     }
   }
 

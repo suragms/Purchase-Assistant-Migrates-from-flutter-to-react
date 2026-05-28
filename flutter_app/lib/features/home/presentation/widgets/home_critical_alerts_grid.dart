@@ -3,12 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../../core/auth/session_notifier.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
-import '../../../../core/providers/server_notifications_provider.dart';
+import '../../../../core/providers/notifications_provider.dart'
+    show mergedNotificationFeedProvider;
 import '../../../../core/providers/stock_providers.dart'
     show openingStockMissingProvider;
-import '../../../../core/providers/home_owner_dashboard_providers.dart';
-import '../../../../core/providers/warehouse_alerts_provider.dart';
+import '../../../../core/router/post_auth_route.dart' show sessionIsStaff;
 import '../../../../core/theme/hexa_colors.dart';
 
 /// Priority alert cards (2-column grid); hidden when all counts are zero.
@@ -17,27 +18,55 @@ class HomeCriticalAlertsGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final alerts = ref.watch(stockAlertCountsProvider).valueOrNull;
-    final warehouse = ref.watch(warehouseAlertsProvider).valueOrNull;
+    final session = ref.watch(sessionProvider);
+    final isStaff = session != null && sessionIsStaff(session);
     final dash = ref.watch(homeDashboardDataProvider).snapshot.data;
-    final variances = ref.watch(stockVariancesTodayProvider).valueOrNull?.length ?? 0;
-    final opening = ref.watch(openingStockMissingProvider).valueOrNull;
-    final openingN = (opening?['missing_count'] as num?)?.toInt() ?? 0;
-    final serverRows = ref.watch(appNotificationsListProvider).valueOrNull ?? [];
+    final feed = ref.watch(mergedNotificationFeedProvider);
+    final unread = feed.where((n) => !n.isRead).toList();
+
+    var pendingDel = 0;
+    var lowTotal = 0;
+    var openingN = 0;
+    var variances = 0;
     var exportFail = 0;
     var syncFail = 0;
-    for (final row in serverRows) {
-      final k = row['kind']?.toString() ?? '';
-      if (row['read_at'] != null) continue;
-      if (k == 'export_failed') exportFail++;
-      if (k == 'sync_failed') syncFail++;
+
+    for (final n in unread) {
+      final kind = n.serverKind ?? '';
+      if (n.id == 'wh_pending_delivery' ||
+          kind == 'delivery_pending' ||
+          n.title.toLowerCase().contains('pending deliver')) {
+        pendingDel++;
+        continue;
+      }
+      if (n.id == 'wh_low_stock' || kind == 'low_stock') {
+        lowTotal++;
+        continue;
+      }
+      if (n.id == 'wh_opening_stock' || kind == 'opening_stock_pending') {
+        openingN++;
+        continue;
+      }
+      if (kind == 'stock_variance' || kind == 'stock_mismatch') {
+        variances++;
+        continue;
+      }
+      if (kind == 'export_failed') {
+        exportFail++;
+        continue;
+      }
+      if (kind == 'sync_failed') {
+        syncFail++;
+      }
     }
 
-    final lowTotal = (alerts?.low ?? 0) + (alerts?.critical ?? 0);
-    final pendingDel =
-        dash.pendingDeliveryCount > 0
-            ? dash.pendingDeliveryCount
-            : (warehouse?.pendingDeliveries ?? 0);
+    if (pendingDel == 0 && dash.pendingDeliveryCount > 0) {
+      pendingDel = dash.pendingDeliveryCount;
+    }
+    if (openingN == 0) {
+      final opening = ref.watch(openingStockMissingProvider).valueOrNull;
+      openingN = (opening?['missing_count'] as num?)?.toInt() ?? 0;
+    }
 
     final cards = <_AlertCardSpec>[];
     if (pendingDel > 0) {
@@ -46,8 +75,10 @@ class HomeCriticalAlertsGrid extends ConsumerWidget {
         count: pendingDel,
         subtitle: 'Purchases awaiting receipt',
         color: HexaColors.profit,
-        onTap: () => context.go('/purchase'),
-        actionLabel: 'View bills',
+        onTap: () => context.push(
+          isStaff ? '/staff/receive' : '/purchase',
+        ),
+        actionLabel: isStaff ? 'Receive' : 'View bills',
       ));
     }
     if (lowTotal > 0) {

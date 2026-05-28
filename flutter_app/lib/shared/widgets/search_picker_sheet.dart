@@ -276,14 +276,14 @@ class _SearchPickerBodyState<T> extends State<_SearchPickerBody<T>> {
             .clamp(100.0, HexaDesignTokens.suggestionsMaxHeight.toDouble());
     final naturalSheetH = _kSearchPickerHeaderBlockH + listContentH;
     final sheetH =
-        math.min(maxByFraction, naturalSheetH).clamp(200.0, mq.size.height * 0.95);
-    final initialSize = (sheetH / mq.size.height).clamp(0.38, 0.9);
+        math.min(maxByFraction, naturalSheetH).clamp(200.0, mq.size.height * 0.55);
+    final initialSize = (sheetH / mq.size.height).clamp(0.38, 0.55);
 
     return DraggableScrollableSheet(
       expand: false,
       initialChildSize: initialSize,
       minChildSize: 0.32,
-      maxChildSize: 0.95,
+      maxChildSize: 0.55,
       builder: (ctx, scrollController) {
         final inset = MediaQuery.viewInsetsOf(ctx).bottom;
         return SafeArea(

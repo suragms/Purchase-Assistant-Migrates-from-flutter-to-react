@@ -108,7 +108,6 @@ class _LowStockCategoryGroupState extends State<LowStockCategoryGroup> {
     }
 
     final affectedCount = flatItems.length;
-    final subCount = subMap.keys.length;
     final expanded = _expandedCats.contains(cat);
     final usagePerDay = sumUsage / (widget.periodDays > 0 ? widget.periodDays : 1);
     final impactLabel =
@@ -156,7 +155,7 @@ class _LowStockCategoryGroupState extends State<LowStockCategoryGroup> {
                       ),
                     ),
                     child: Text(
-                      '$subCount',
+                      '$affectedCount',
                       style: const TextStyle(
                         color: Color(0xFFDC2626),
                         fontWeight: FontWeight.w900,

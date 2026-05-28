@@ -4,16 +4,17 @@ import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
 import 'stock_table_layout.dart';
 
-/// Warehouse table header: ITEM | PURCHASE | STOCK | DIFF.
+/// Warehouse table header: item + system / purchased / physical / diff / pending.
 class StockWarehouseTableHeader extends StatelessWidget {
   const StockWarehouseTableHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final hdr = HexaDsType.label(10).copyWith(
+    final hdr = HexaDsType.label(9).copyWith(
       fontWeight: FontWeight.w800,
       color: const Color(0xFF475569),
-      letterSpacing: 0.3,
+      letterSpacing: 0.2,
+      height: 1.15,
     );
 
     return Padding(
@@ -39,14 +40,11 @@ class StockWarehouseTableHeader extends StatelessWidget {
                   child: Text('ITEM', style: hdr),
                 ),
               ),
-              _metricHeader('BOUGHT', hdr),
-              _metricHeader('STOCK', hdr),
-              _metricHeader('DELTA', hdr),
-              SizedBox(
-                width: MediaQuery.sizeOf(context).width >= 340
-                    ? StockTableLayout.actionsWidth
-                    : 8,
-              ),
+              _metricHeader('SYSTEM', hdr),
+              _metricHeader('BUY', hdr),
+              _metricHeader('PHYS', hdr),
+              _metricHeader('DIFF', hdr),
+              _metricHeader('PEND', hdr),
             ],
           ),
         ),

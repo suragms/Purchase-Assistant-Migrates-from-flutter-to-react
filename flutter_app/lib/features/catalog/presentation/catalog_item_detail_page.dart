@@ -45,6 +45,8 @@ import '../../../shared/widgets/search_picker_sheet.dart';
 import '../../../core/providers/trade_purchases_provider.dart';
 import '../../stock/presentation/update_stock_sheet.dart';
 import '../../stock/presentation/widgets/stock_today_feed.dart';
+import 'widgets/item_physical_verification_card.dart';
+import 'widgets/item_stock_snapshot_card.dart';
 
 class CatalogItemDetailPage extends ConsumerStatefulWidget {
   const CatalogItemDetailPage({
@@ -560,15 +562,7 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
             TextButton(
               onPressed: itemAsync.valueOrNull == null
                   ? null
-                  : () async {
-                      ref.invalidate(catalogItemDetailProvider(widget.itemId));
-                      final fresh = await ref.read(
-                        catalogItemDetailProvider(widget.itemId).future,
-                      );
-                      if (!mounted) return;
-                      _inlineNameCtrl.text = fresh['name']?.toString() ?? '';
-                      setState(() => _inlineEditing = true);
-                    },
+                  : () => context.push('/catalog/item/${widget.itemId}/edit'),
               child: const Text('Edit'),
             ),
             PopupMenuButton<String>(
@@ -641,6 +635,17 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
               ),
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
               children: [
+                if (widget.startInEditMode)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      'Edit core item setup and save. Stock/ledger actions are hidden in edit mode for clarity.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
                 if (fromScan)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
@@ -730,73 +735,76 @@ class _CatalogItemDetailPageState extends ConsumerState<CatalogItemDetailPage> {
                     autofocus: true,
                   ),
                 ],
-                const SizedBox(height: 12),
-                Builder(
-                  builder: (context) {
-                    final st = ref
-                            .watch(stockItemDetailProvider(widget.itemId))
-                            .valueOrNull ??
-                        const <String, dynamic>{};
-                    final stockStatus =
-                        st['stock_status']?.toString() ?? 'healthy';
-                    final showNotifyOwner = isStaff &&
-                        (stockStatus == 'low' || stockStatus == 'critical');
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _ItemQuickActionGrid(
-                          onUpdateStock: () async {
-                            final row = await ref.read(
-                              stockItemDetailProvider(widget.itemId).future,
-                            );
-                            if (!context.mounted) return;
-                            await showUpdateStockSheet(
-                              context: context,
-                              ref: ref,
-                              itemId: widget.itemId,
-                              itemName: item['name']?.toString() ?? 'Item',
-                              stockRow: row.isEmpty ? null : row,
-                            );
-                          },
-                          onHistory: () {
-                            final name = item['name']?.toString() ?? 'Item';
-                            final q = '?name=${Uri.encodeComponent(name)}';
-                            context.push('/stock/${widget.itemId}/history$q');
-                          },
-                          onReorderList: () => _addToReorderList(
-                            widget.itemId,
-                            item['name']?.toString() ?? 'Item',
-                          ),
-                        ),
-                        if (showNotifyOwner) ...[
-                          const SizedBox(height: 8),
-                          OutlinedButton.icon(
-                            onPressed: () => _notifyOwner(
+                if (!widget.startInEditMode) ...[
+                  const SizedBox(height: 12),
+                  Builder(
+                    builder: (context) {
+                      final st = ref
+                              .watch(stockItemDetailProvider(widget.itemId))
+                              .valueOrNull ??
+                          const <String, dynamic>{};
+                      final stockStatus =
+                          st['stock_status']?.toString() ?? 'healthy';
+                      final showNotifyOwner = isStaff &&
+                          (stockStatus == 'low' || stockStatus == 'critical');
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _ItemQuickActionGrid(
+                            onUpdateStock: () async {
+                              final row = await ref.read(
+                                stockItemDetailProvider(widget.itemId).future,
+                              );
+                              if (!context.mounted) return;
+                              await showUpdateStockSheet(
+                                context: context,
+                                ref: ref,
+                                itemId: widget.itemId,
+                                itemName: item['name']?.toString() ?? 'Item',
+                                stockRow: row.isEmpty ? null : row,
+                              );
+                            },
+                            onHistory: () {
+                              final name = item['name']?.toString() ?? 'Item';
+                              final q = '?name=${Uri.encodeComponent(name)}';
+                              context.push('/stock/${widget.itemId}/history$q');
+                            },
+                            onReorderList: () => _addToReorderList(
                               widget.itemId,
                               item['name']?.toString() ?? 'Item',
                             ),
-                            icon:
-                                const Icon(Icons.notifications_active_outlined),
-                            label: const Text('Notify owner'),
                           ),
+                          if (showNotifyOwner) ...[
+                            const SizedBox(height: 8),
+                            OutlinedButton.icon(
+                              onPressed: () => _notifyOwner(
+                                widget.itemId,
+                                item['name']?.toString() ?? 'Item',
+                              ),
+                              icon:
+                                  const Icon(Icons.notifications_active_outlined),
+                              label: const Text('Notify owner'),
+                            ),
+                          ],
                         ],
-                      ],
-                    );
-                  },
-                ),
+                      );
+                    },
+                  ),
+                ],
                 const SizedBox(height: 8),
                 _ItemDetailAnchors(
                   onSnapshot: () => _scrollToSection(_stockSectionKey),
                   onTimeline: () => _scrollToSection(_timelineSectionKey),
                   onLedger: () => _scrollToSection(_activityTabsSectionKey),
                 ),
-                KeyedSubtree(
-                  key: _stockSectionKey,
-                  child: _CatalogItemStockSection(
-                    itemId: widget.itemId,
-                    item: item,
+                if (!widget.startInEditMode)
+                  KeyedSubtree(
+                    key: _stockSectionKey,
+                    child: _CatalogItemStockSection(
+                      itemId: widget.itemId,
+                      item: item,
+                    ),
                   ),
-                ),
                 KeyedSubtree(
                   key: _timelineSectionKey,
                   child: _CatalogItemChangeTimelineSection(
@@ -1196,62 +1204,19 @@ class _CatalogItemStockSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final stockAsync = ref.watch(stockItemDetailProvider(itemId));
-    final intelAsync = ref.watch(stockItemIntelligenceProvider(itemId));
-    return stockAsync.when(
-      loading: () => const _CatalogItemDetailPanel(
-        title: 'Stock',
-        rows: [('Current', '…'), ('Purchased', '…'), ('Moved', '…')],
-      ),
-      error: (_, __) => const SizedBox.shrink(),
-      data: (st) {
-        if (st.isEmpty) return const SizedBox.shrink();
-        String qtyNum(dynamic v) {
-          if (v == null) return '—';
-          if (v is num) return formatStockQtyNumber(v.toDouble());
-          final p = double.tryParse(v.toString());
-          return p == null ? v.toString() : formatStockQtyNumber(p);
-        }
-
-        final intel = intelAsync.valueOrNull ?? const <String, dynamic>{};
-        final purchased =
-            intel['period_purchased_qty'] ?? st['period_purchased_qty'];
-        final usage = intel['period_usage_qty'];
-        final moved = intel['ledger_variance_qty'] ??
-            intel['period_variance_qty'] ??
-            st['period_variance_qty'];
-        final stockUnit =
-            (intel['stock_unit'] ?? st['stock_unit'] ?? st['unit'] ?? 'piece')
-                .toString();
-        final purchasedN = coerceToDouble(purchased);
-        final purchasedLabel =
-            purchasedN > 0 ? stockDisplayPrimary(purchasedN, stockUnit) : '—';
-        final movedN = coerceToDouble(moved);
-        final movedLabel =
-            movedN.abs() > 0.0001 ? formatStockQtyNumber(movedN) : '—';
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            UnitEngineSummaryCard(
-              item: item,
-              stock: st,
-              intel: intel,
-            ),
-            const SizedBox(height: 8),
-            _CatalogItemDetailPanel(
-              title: 'Period activity',
-              rows: [
-                ('Purchased (period)', purchasedLabel),
-                if (usage != null && coerceToDouble(usage) > 0)
-                  ('Used (period)', qtyNum(usage)),
-                ('Variance', movedLabel),
-                ('Low threshold', qtyNum(st['reorder_level'])),
-              ],
-            ),
-          ],
-        );
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ItemStockSnapshotCard(itemId: itemId),
+        const SizedBox(height: 8),
+        ItemPhysicalVerificationCard(itemId: itemId),
+        const SizedBox(height: 8),
+        UnitEngineSummaryCard(
+          item: item,
+          stock: ref.watch(stockItemDetailProvider(itemId)).valueOrNull,
+          intel: ref.watch(stockItemIntelligenceProvider(itemId)).valueOrNull,
+        ),
+      ],
     );
   }
 }

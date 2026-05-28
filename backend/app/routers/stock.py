@@ -95,6 +95,7 @@ from app.services.stock_movement_service import (
     apply_stock_movement,
 )
 from app.services.realtime_events import publish_business_event
+from app.services.notification_emitter import publish_notification_changed
 from app.services.stock_variance_notifications import (
     _last_purchase_expected_qty,
     maybe_notify_stock_variance,
@@ -208,8 +209,10 @@ def _item_to_list_row(
     cur = catalog_stock_qty(item)
     warehouse_diff: Decimal | None = None
     if period_purchased_qty is not None:
-        physical_base = physical_stock_qty if physical_stock_qty is not None else cur
-        warehouse_diff = period_purchased_qty - physical_base
+        # Canonical warehouse diff semantics:
+        # positive => system stock exceeds period purchased quantity (excess),
+        # negative => system stock below period purchased quantity (deficit).
+        warehouse_diff = cur - period_purchased_qty
     ro = catalog_reorder(item)
     unit = stock_unit or item.stock_unit or item.default_unit or item.selling_unit
     kg_equiv = (
@@ -1738,11 +1741,6 @@ async def low_stock_operations(
     period_end: str | None = Query(None),
 ):
     """Paginated low-stock operations list (priority-sorted v1)."""
-    if supplier_id is not None:
-        # v1: supplier_id filtering is approximated via supplier_name search only.
-        # The operations list already includes `supplier_name` in stock rows.
-        q = f"{q} {str(supplier_id)}".strip()
-
     ps, pe = _parse_period_dates(period_start, period_end)
     period_days = _days_between(ps, pe)
 
@@ -1766,6 +1764,22 @@ async def low_stock_operations(
         merged.update(chunk)
 
     items = list(merged.values())
+    if supplier_id is not None and items:
+        item_ids = [it.id for it in items]
+        supplier_rows = await db.execute(
+            select(CatalogItem.id, CatalogItem.last_supplier_id).where(
+                CatalogItem.business_id == business_id,
+                CatalogItem.id.in_(item_ids),
+                CatalogItem.deleted_at.is_(None),
+            )
+        )
+        supplier_by_item = {iid: sid for iid, sid in supplier_rows.all()}
+        items = [
+            it
+            for it in items
+            if supplier_by_item.get(it.id) is not None
+            and supplier_by_item.get(it.id) == supplier_id
+        ]
 
     # High-impact threshold (v1): usage quantile across fetched items.
     usage_vals = [float(it.period_usage_qty or 0) for it in items]
@@ -2789,6 +2803,8 @@ async def get_stock_item(
     item_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
     _m: Annotated[Membership, Depends(require_membership)],
+    period_start: str | None = Query(None),
+    period_end: str | None = Query(None),
 ):
     r = await db.execute(
         select(CatalogItem, ItemCategory.name, CategoryType.name)
@@ -2809,11 +2825,33 @@ async def get_stock_item(
     pend = (await _pending_order_meta_map(db, business_id, [item_id])).get(
         item_id, (False, None, None)
     )
+    ps, pe = _parse_period_dates(period_start, period_end)
+    purchased = None
+    usage = None
+    ledger_var = None
+    verify = False
+    if ps and pe:
+        period_map = await _period_purchased_map(db, business_id, [item_id], ps, pe)
+        purchased = period_map.get(item_id)
+        usage_map = await _period_usage_map(db, business_id, [item_id], ps, pe)
+        usage = usage_map.get(item_id)
+        ledger_map = await _ledger_variance_map(db, business_id, [item])
+        ledger_var = ledger_map.get(item_id)
+        cur = catalog_stock_qty(item)
+        if ledger_var is not None and purchased is not None and purchased > 0:
+            verify = abs(ledger_var) / purchased > Decimal("0.1")
+        elif purchased is not None and purchased > 0:
+            verify = _needs_verification(cur, purchased)
     base = _item_to_list_row(
         item,
         cat_name,
         type_name,
         sup,
+        period_purchased_qty=purchased,
+        period_usage_qty=usage,
+        ledger_variance_qty=ledger_var,
+        stock_unit=catalog_stock_unit(item),
+        needs_verification=verify,
         has_pending_order=pend[0],
         pending_order_days=pend[1],
         pending_delivery_qty=pend[2],
@@ -3332,6 +3370,7 @@ async def notify_owner_about_item(
         inserted += 1
     if inserted:
         await db.commit()
+        publish_notification_changed(business_id)
     return {"ok": True, "notifications_created": inserted}
 
 

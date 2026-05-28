@@ -15,6 +15,7 @@ import '../../../core/providers/suppliers_list_provider.dart';
 import '../../../core/utils/unit_utils.dart';
 import '../../../core/design_system/hexa_responsive.dart';
 import '../../../shared/widgets/inline_search_field.dart';
+import '../../purchase/presentation/widgets/party_inline_suggest_field.dart';
 
 Future<bool> showStockQuickPurchaseSheet({
   required BuildContext context,
@@ -121,12 +122,6 @@ class _StockQuickPurchaseBodyState
       if (_qtyCtrl.text.trim().isEmpty && suggested is num && suggested > 0) {
         _qtyCtrl.text = suggested.toStringAsFixed(0);
       }
-      final sup = intel['default_supplier'];
-      if (sup is Map && _supplier == null) {
-        final it = _partyItem(Map<String, dynamic>.from(sup));
-        _supplier = it;
-        _supplierCtrl.text = it.label;
-      }
       setState(() => _intelLoaded = true);
     } catch (_) {
       if (mounted) setState(() => _intelLoaded = true);
@@ -212,7 +207,7 @@ class _StockQuickPurchaseBodyState
         curve: Curves.easeOut,
         padding: EdgeInsets.only(bottom: keyboardHeight),
         child: SingleChildScrollView(
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.manual,
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -281,16 +276,22 @@ class _StockQuickPurchaseBodyState
             ),
           ),
           const SizedBox(height: 6),
-          _SupplierField(
-            items: supplierItems,
+          PartyInlineSuggestField(
             controller: _supplierCtrl,
             focusNode: _supplierFocus,
-            placeholder: suppliers.isLoading
+            hintText: suppliers.isLoading
                 ? 'Loading suppliers...'
-                : 'Search supplier...',
+                : 'Search supplier…',
+            prefixIcon: const Icon(Icons.store_outlined, size: 18),
+            minQueryLength: 0,
+            maxMatches: 8,
+            dense: true,
+            suggestionsAsOverlay: true,
+            textInputAction: TextInputAction.next,
+            focusAfterSelection: _brokerFocus,
+            items: supplierItems,
             onSelected: (it) {
               setState(() => _supplier = it);
-              _brokerFocus.requestFocus();
             },
           ),
           const SizedBox(height: 14),
@@ -308,15 +309,21 @@ class _StockQuickPurchaseBodyState
             ),
           ),
           const SizedBox(height: 6),
-          _BrokerField(
-            items: brokerItems,
+          PartyInlineSuggestField(
             controller: _brokerCtrl,
             focusNode: _brokerFocus,
-            placeholder:
-                brokers.isLoading ? 'Loading brokers...' : 'Search broker...',
+            hintText:
+                brokers.isLoading ? 'Loading brokers...' : 'Search broker…',
+            prefixIcon: const Icon(Icons.person_search_outlined, size: 18),
+            minQueryLength: 0,
+            maxMatches: 8,
+            dense: true,
+            suggestionsAsOverlay: true,
+            textInputAction: TextInputAction.next,
+            focusAfterSelection: _notesFocus,
+            items: brokerItems,
             onSelected: (it) {
               setState(() => _broker = it);
-              _notesFocus.requestFocus();
             },
           ),
           const SizedBox(height: 14),
@@ -361,62 +368,3 @@ class _StockQuickPurchaseBodyState
   }
 }
 
-class _SupplierField extends StatelessWidget {
-  const _SupplierField({
-    required this.controller,
-    required this.focusNode,
-    required this.items,
-    required this.placeholder,
-    required this.onSelected,
-  });
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final List<InlineSearchItem> items;
-  final String placeholder;
-  final void Function(InlineSearchItem) onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return InlineSearchField(
-      controller: controller,
-      focusNode: focusNode,
-      items: items,
-      placeholder: placeholder,
-      prefixIcon: const Icon(Icons.store_outlined, size: 18),
-      textInputAction: TextInputAction.next,
-      minQueryLength: 0,
-      onSelected: onSelected,
-    );
-  }
-}
-
-class _BrokerField extends StatelessWidget {
-  const _BrokerField({
-    required this.controller,
-    required this.focusNode,
-    required this.items,
-    required this.placeholder,
-    required this.onSelected,
-  });
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final List<InlineSearchItem> items;
-  final String placeholder;
-  final void Function(InlineSearchItem) onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    return InlineSearchField(
-      controller: controller,
-      focusNode: focusNode,
-      items: items,
-      placeholder: placeholder,
-      prefixIcon: const Icon(Icons.person_search_outlined, size: 18),
-      textInputAction: TextInputAction.next,
-      minQueryLength: 0,
-      onSelected: onSelected,
-    );
-  }
-}

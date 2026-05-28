@@ -50,4 +50,6 @@ def recent_business_events(
     *,
     limit: int = 50,
 ) -> list[dict[str, Any]]:
-    return list(_recent.get(business_id, ()))[: max(1, min(limit, 100))]
+    n = max(1, min(limit, 100))
+    rows = list(_recent.get(business_id, ()))
+    return rows[-n:]

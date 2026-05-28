@@ -13,6 +13,7 @@ class NotificationOut(BaseModel):
     category: str = "system"
     action_route: str | None = None
     triggered_by_user_id: uuid.UUID | None = None
+    triggered_by_name: str | None = None
     related_item_id: uuid.UUID | None = None
     related_purchase_id: uuid.UUID | None = None
     related_supplier_id: uuid.UUID | None = None

@@ -28,6 +28,18 @@
 
 ---
 
+## Warehouse UX overhaul (2026-05-28)
+
+- [x] Notifications: `NotificationAlertCard`, staff delivery routes, `pur_*` dismiss, dedupe/cap low_stock, `triggered_by_name` API, home alerts from merged feed
+- [x] Stock table: SYSTEM / BUY / PHYS / DIFF / PEND columns; row tap actions; removed icon column
+- [x] Owner home: purchases card first + bold; warehouse snapshot second
+- [x] Reports: 5 primary tabs + More sheet; AppBar subtitle
+- [x] Receive: pending list 1/N, bags/qty summary; collapsible home activity feed
+- [x] Item detail: stock snapshot cards; hide stock when edit mode; `GET stock/item` period fields
+- [x] Low-stock category badge shows item count
+
+---
+
 ## Warehouse home + notifications sprint (2026-05-28)
 
 **Canonical docs:** [`plando/README.md`](plando/README.md)  

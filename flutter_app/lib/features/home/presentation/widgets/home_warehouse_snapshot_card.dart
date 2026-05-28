@@ -66,7 +66,14 @@ class HomeWarehouseSnapshotCard extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('Warehouse snapshot', style: HexaOp.cardTitle(context)),
+                  Text(
+                    'Warehouse snapshot',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF0F172A),
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   Text(
                     'On-hand snapshot · live warehouse totals',

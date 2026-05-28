@@ -304,6 +304,10 @@ class _LowStockOperationsPageState extends ConsumerState<LowStockOperationsPage>
                     grouped[catKey]!.putIfAbsent(subKey, () => []);
                     grouped[catKey]![subKey]!.add(item);
                   }
+                  final effectiveSelectedCategory =
+                      (_selectedCategory != null && grouped.containsKey(_selectedCategory))
+                          ? _selectedCategory
+                          : null;
 
                   return CustomScrollView(
                     slivers: [
@@ -356,7 +360,7 @@ class _LowStockOperationsPageState extends ConsumerState<LowStockOperationsPage>
                               grouped: grouped,
                               staffMode: widget.staffMode,
                               periodDays: periodDays,
-                              selectedCategory: _selectedCategory,
+                              selectedCategory: effectiveSelectedCategory,
                               searchController: _searchCtrl,
                               bulkMode: _bulkMode,
                               selectedIds: _selectedIds,
@@ -590,10 +594,10 @@ class _LowStockHeaderDelegate extends SliverPersistentHeaderDelegate {
   final ValueChanged<bool> onBulkModeChanged;
 
   @override
-  double get minExtent => 112;
+  double get minExtent => 164;
 
   @override
-  double get maxExtent => 112;
+  double get maxExtent => 164;
 
   @override
   Widget build(

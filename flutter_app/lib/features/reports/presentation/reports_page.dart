@@ -1266,7 +1266,21 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             if (s != null) context.go(authenticatedHomePath(s));
           },
         ),
-        title: const Text('Reports'),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Reports'),
+            Text(
+              'Period totals · drill down by category or item',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ],
+        ),
         backgroundColor: HexaColors.brandBackground,
         foregroundColor: HexaColors.brandPrimary,
         actions: [

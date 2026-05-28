@@ -6,6 +6,8 @@ import '../../../../core/auth/dashboard_role.dart';
 import '../../../../core/auth/session_notifier.dart';
 import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
+import '../../../../core/theme/hexa_colors.dart';
+import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/utils/unit_utils.dart';
 import 'home_formatters.dart';
 import 'home_recent_changes_section.dart' show HomeSectionSkeleton;
@@ -55,31 +57,46 @@ class HomePurchaseControlCenter extends ConsumerWidget {
         final brokers = dash.brokerCount;
 
         return Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 0,
+          color: HexaColors.brandPrimary.withValues(alpha: 0.06),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: HexaColors.brandPrimary.withValues(alpha: 0.25),
+            ),
+          ),
           child: Padding(
             padding: const EdgeInsets.all(HexaOp.cardPadding),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Purchase center (${period.label})',
-                    style: HexaOp.cardTitle(context)),
+                Text(
+                  'Purchases (${period.label})',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: HexaColors.brandPrimary,
+                    letterSpacing: 0,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 if (unitParts.isNotEmpty)
                   Text(
                     unitParts.join(' · '),
                     style: const TextStyle(
                       fontWeight: FontWeight.w900,
-                      fontSize: 17,
-                      height: 1.25,
+                      fontSize: 18,
+                      height: 1.2,
+                      color: Color(0xFF0F172A),
                     ),
                   ),
                 const SizedBox(height: 6),
                 Text(
-                  '${homeInr(dash.totalPurchase)} · ${dash.purchaseCount} bills',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: const Color(0xFF64748B),
+                  '${formatRupee(dash.totalPurchase)} · ${dash.purchaseCount} bills',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF64748B),
                   ),
                 ),
                 const SizedBox(height: 6),

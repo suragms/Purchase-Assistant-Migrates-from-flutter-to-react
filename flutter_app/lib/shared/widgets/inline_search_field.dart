@@ -169,8 +169,14 @@ class _InlineSearchFieldState extends State<InlineSearchField> {
 
   Iterable<InlineSearchItem> _optionsForQuery(String raw) {
     final q = raw.trim().toLowerCase();
-    final min = widget.minQueryLength.clamp(1, 64);
-    if (q.isEmpty || q.length < min) return const [];
+    final min = widget.minQueryLength.clamp(0, 64);
+    if (q.isEmpty) {
+      if (min > 0) return const [];
+      final all = widget.items.toList();
+      if (all.length <= 8) return all;
+      return all.take(8);
+    }
+    if (q.length < min) return const [];
     final matched = <InlineSearchItem>[];
     for (final it in widget.items) {
       if (_matchRank(it, q) > 0) matched.add(it);

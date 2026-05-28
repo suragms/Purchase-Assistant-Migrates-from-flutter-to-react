@@ -511,12 +511,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/stock/intelligence/:itemId',
-        pageBuilder: (context, state) {
+        redirect: (context, state) {
           final id = state.pathParameters['itemId']!;
-          return iosPushPage(
-            key: state.pageKey,
-            child: CatalogItemDetailPage(itemId: id),
-          );
+          return '/catalog/item/$id?source=intelligence';
         },
       ),
       GoRoute(

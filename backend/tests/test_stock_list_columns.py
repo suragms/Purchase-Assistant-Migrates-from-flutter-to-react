@@ -111,7 +111,7 @@ def test_physical_update_sets_physical_qty_and_warehouse_diff():
     row = next(i for i in listed.json()["items"] if i["id"] == iid)
     assert Decimal(str(row["physical_stock_qty"])) == Decimal("50")
     assert Decimal(str(row["period_purchased_qty"])) == Decimal("30")
-    assert Decimal(str(row["warehouse_diff_qty"])) == Decimal("-20")
+    assert Decimal(str(row["warehouse_diff_qty"])) == Decimal("20")
 
 
 def test_quick_purchase_included_in_period_purchased():

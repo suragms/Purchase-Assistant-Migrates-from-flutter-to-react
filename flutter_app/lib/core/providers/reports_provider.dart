@@ -14,6 +14,7 @@ import '../models/trade_purchase_models.dart';
 import '../reporting/trade_report_aggregate.dart';
 import '../services/offline_store.dart';
 import '../../features/shell/shell_branch_provider.dart';
+import 'api_degraded_provider.dart';
 import 'analytics_kpi_provider.dart';
 import 'connectivity_provider.dart' show isOfflineResult;
 
@@ -306,13 +307,12 @@ Future<ReportsPurchasePayload> fetchReportsPurchasesLiveForAnalytics(
     final list = await _loadReportsPurchases(ref);
     return ReportsPurchasePayload(items: list, fromLiveFetch: true);
   } catch (e) {
-    if (e is DioException) {
-      final sc = e.response?.statusCode;
-      if (sc == 401 || sc == 403) {
-        try {
-          await ref.read(sessionProvider.notifier).logout();
-        } catch (_) {}
-      }
+    if (e is DioException && (e.response?.statusCode == 401 || e.response?.statusCode == 403)) {
+      try {
+        ref.read(apiDegradedProvider.notifier).notifyDegraded(
+              'Session issue while loading reports. Please refresh or sign in again if needed.',
+            );
+      } catch (_) {}
     }
     final cached = ref.read(reportsPurchasesHiveCacheProvider);
     if (cached != null && cached.isNotEmpty) {

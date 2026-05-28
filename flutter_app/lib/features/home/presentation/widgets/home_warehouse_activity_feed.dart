@@ -2,27 +2,40 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/auth/session_notifier.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
+import '../../../../core/router/post_auth_route.dart' show sessionIsStaff;
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../../shared/widgets/operational_ui.dart';
 import 'home_formatters.dart';
 import 'home_recent_changes_section.dart' show HomeSectionSkeleton;
 
-/// Unified warehouse activity (purchases, stock, staff) — max 15 rows.
-class HomeWarehouseActivityFeed extends ConsumerWidget {
+/// Unified warehouse activity — collapsible on home (max 15 rows).
+class HomeWarehouseActivityFeed extends ConsumerStatefulWidget {
   const HomeWarehouseActivityFeed({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeWarehouseActivityFeed> createState() =>
+      _HomeWarehouseActivityFeedState();
+}
+
+class _HomeWarehouseActivityFeedState
+    extends ConsumerState<HomeWarehouseActivityFeed> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
     final period = ref.watch(homePeriodProvider);
     final feedAsync = ref.watch(homeRecentActivityFeedProvider);
+    final session = ref.watch(sessionProvider);
+    final isStaff = session != null && sessionIsStaff(session);
     final title = switch (period) {
-      HomePeriod.today => "Warehouse activity (today)",
-      HomePeriod.week => "Warehouse activity (week)",
-      HomePeriod.month => "Warehouse activity (month)",
-      HomePeriod.year => "Warehouse activity (year)",
+      HomePeriod.today => 'Warehouse activity (today)',
+      HomePeriod.week => 'Warehouse activity (week)',
+      HomePeriod.month => 'Warehouse activity (month)',
+      HomePeriod.year => 'Warehouse activity (year)',
       HomePeriod.allTime => 'Warehouse activity (all time)',
       HomePeriod.custom => 'Warehouse activity (custom range)',
     };
@@ -63,21 +76,54 @@ class HomeWarehouseActivityFeed extends ConsumerWidget {
             ),
           );
         }
-        final visible = items.take(15).toList();
-        return OperationalSection(
-          title: title,
-          dense: true,
-          trailing: TextButton(
-            onPressed: () => context.push('/staff/activity'),
-            child: const Text('View all', style: TextStyle(fontSize: 12)),
+        final preview = items.take(5).toList();
+        final visible = _expanded ? items.take(15).toList() : preview;
+
+        return Card(
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
           child: Column(
             children: [
+              ListTile(
+                title: Text(title, style: HexaOp.cardTitle(context)),
+                subtitle: Text(
+                  '${items.length} events in period',
+                  style: HexaDsType.label(11, color: HexaDsColors.textMuted),
+                ),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: () => context.push(
+                        isStaff ? '/staff/activity' : '/staff/activity',
+                      ),
+                      child: const Text('View all', style: TextStyle(fontSize: 12)),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        _expanded
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded,
+                      ),
+                      onPressed: () =>
+                          setState(() => _expanded = !_expanded),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
               for (var i = 0; i < visible.length; i++) ...[
                 _ActivityRow(item: visible[i]),
                 if (i < visible.length - 1)
                   const Divider(height: 1, indent: 12, endIndent: 12),
               ],
+              if (!_expanded && items.length > 5)
+                TextButton(
+                  onPressed: () => setState(() => _expanded = true),
+                  child: Text('Show ${items.length - 5} more'),
+                ),
             ],
           ),
         );
@@ -118,49 +164,27 @@ class _ActivityRow extends StatelessWidget {
       _ => const Color(0xFF64748B),
     };
     final actor = item.actor?.trim();
+    final subtitle = [
+      item.subtitle,
+      if (actor != null && actor.isNotEmpty) 'By $actor',
+      homeRelativeTime(item.at),
+    ].where((s) => s.isNotEmpty).join(' · ');
 
     return ListTile(
       dense: true,
-      visualDensity: VisualDensity.compact,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12),
       leading: Icon(icon, size: 20, color: color),
       title: Text(
         item.title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: HexaDsType.listTitle(context).copyWith(fontWeight: FontWeight.w800, fontSize: 13),
+        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
       ),
       subtitle: Text(
-        [
-          if (item.subtitle.isNotEmpty) item.subtitle,
-          if (actor != null && actor.isNotEmpty) actor,
-          homeTimeAgo(item.at),
-        ].join(' · '),
-        maxLines: 1,
+        subtitle,
+        maxLines: 2,
         overflow: TextOverflow.ellipsis,
-        style: HexaDsType.bodySm(context).copyWith(fontSize: 11),
+        style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
       ),
-      trailing: item.amountInr != null && item.amountInr! > 0
-          ? Text(
-              homeInr(item.amountInr!),
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 12,
-                color: HexaColors.brandPrimary,
-              ),
-            )
-          : (item.qtyChange != null && item.qtyChange!.isNotEmpty
-              ? Text(item.qtyChange!, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12))
-              : null),
-      onTap: () {
-        final id = item.routeId;
-        if (id == null || id.isEmpty) return;
-        if (item.kind.contains('purchase')) {
-          context.push('/purchase/detail/$id');
-        } else {
-          context.push('/catalog/item/$id');
-        }
-      },
     );
   }
 }

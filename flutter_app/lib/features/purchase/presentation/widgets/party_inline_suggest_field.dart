@@ -614,7 +614,6 @@ class _PartyInlineSuggestFieldState extends State<PartyInlineSuggestField> {
         type: MaterialType.transparency,
         color: cs.surface,
         child: GestureDetector(
-          onTapDown: (_) => _pick(it, keepFocus: false),
           onTap: commit,
           behavior: HitTestBehavior.opaque,
           child: ConstrainedBox(

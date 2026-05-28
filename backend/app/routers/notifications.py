@@ -69,13 +69,24 @@ async def list_notifications(
             )
         )
     r = await db.execute(
-        select(AppNotification)
+        select(AppNotification, User.name)
+        .outerjoin(User, AppNotification.triggered_by_user_id == User.id)
         .where(*filters)
         .order_by(AppNotification.created_at.desc())
         .offset(off)
         .limit(per_page)
     )
-    return [NotificationOut.model_validate(x) for x in r.scalars().all()]
+    out: list[NotificationOut] = []
+    for row, actor_name in r.all():
+        base = NotificationOut.model_validate(row)
+        out.append(
+            base.model_copy(
+                update={
+                    "triggered_by_name": (actor_name or "").strip() or None,
+                }
+            )
+        )
+    return out
 
 
 @router.get("/summary", response_model=NotificationSummaryOut)

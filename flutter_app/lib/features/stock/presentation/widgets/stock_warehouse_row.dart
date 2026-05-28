@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/utils/unit_utils.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
-import '../stock_compact_update_sheet.dart';
-import '../stock_quick_purchase_sheet.dart';
 import 'stock_row_metrics.dart';
-import 'stock_status_badge.dart';
+import 'stock_status_badge.dart' show formatStockRelativeTime;
 import 'stock_table_layout.dart';
 
-/// Warehouse operational row: ITEM | PURCHASE | STOCK | DIFF + quick actions.
+/// Warehouse operational row — tap row for actions sheet.
 class StockWarehouseRow extends StatelessWidget {
   const StockWarehouseRow({
     super.key,
@@ -40,20 +37,20 @@ class StockWarehouseRow extends StatelessWidget {
     final unit = StockRowMetrics.unit(item);
     final purchased = StockRowMetrics.purchasedQty(item);
     final stock = StockRowMetrics.stockQty(item);
+    final physical = StockRowMetrics.physicalQty(item);
     final diff = StockRowMetrics.diffQty(item);
+    final pending = StockRowMetrics.pendingDeliveryQty(item);
     final status = (item['stock_status']?.toString() ?? 'healthy').toLowerCase();
     final updatedAt = item['last_stock_updated_at']?.toString();
     final updatedBy = item['last_stock_updated_by']?.toString();
     final relative = formatStockRelativeTime(updatedAt);
-    final isLowOrCritical = status == 'low' || status == 'critical';
+    final isLowOrCritical = status == 'low' || status == 'critical' || status == 'out';
 
     final metaParts = <String>[
       if (codeRaw.isNotEmpty) '#$codeRaw',
       if (relative.isNotEmpty) relative,
       if (!isStaffMode && updatedBy != null && updatedBy.isNotEmpty) updatedBy,
     ];
-
-    final itemId = item['id']?.toString() ?? '';
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -69,7 +66,9 @@ class StockWarehouseRow extends StatelessWidget {
             ),
             decoration: StockTableLayout.rowDecoration(isFirst: isFirstRow)
                 .copyWith(
-              color: isSelected ? const Color(0xFFEFF6FF) : StockTableLayout.rowFill,
+              color: isSelected
+                  ? const Color(0xFFEFF6FF)
+                  : StockTableLayout.rowFill,
               border: isLowOrCritical
                   ? const Border(
                       left: BorderSide(color: Color(0xFFDC2626), width: 3),
@@ -125,60 +124,30 @@ class StockWarehouseRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                  _metricCell(
-                    StockRowMetrics.qtyLine(purchased, unit),
+                  _boxedMetric(
+                    formatStockQtyNumber(stock),
+                    unit,
+                    StockRowMetrics.inlineStatusColor(item),
+                  ),
+                  _boxedMetric(
+                    purchased == null ? '—' : formatStockQtyNumber(purchased),
+                    unit,
                     const Color(0xFF1A1A1A),
                   ),
-                  _stockCell(stock, unit),
-                  _metricCell(
-                    StockRowMetrics.signedDiffLine(diff, unit),
-                    StockRowMetrics.diffColor(diff),
-                    bold: true,
+                  _boxedMetric(
+                    physical == null ? '—' : formatStockQtyNumber(physical),
+                    unit,
+                    const Color(0xFF0F766E),
                   ),
-                  SizedBox(
-                    width: MediaQuery.sizeOf(context).width >= 340
-                        ? StockTableLayout.actionsWidth
-                        : 8,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (MediaQuery.sizeOf(context).width >= 340) ...[
-                          _actionIcon(
-                            context,
-                            Icons.inventory_2_outlined,
-                            'Physical stock',
-                            () => showStockCompactUpdateSheet(
-                              context: context,
-                              ref: ref,
-                              item: item,
-                            ),
-                          ),
-                          _actionIcon(
-                            context,
-                            Icons.add_shopping_cart_outlined,
-                            'Purchase qty',
-                            () => showStockQuickPurchaseSheet(
-                              context: context,
-                              ref: ref,
-                              item: item,
-                            ),
-                          ),
-                          _actionIcon(
-                            context,
-                            Icons.info_outline_rounded,
-                            'Item detail',
-                            () {
-                              if (itemId.isEmpty) return;
-                              if (onSelect != null) {
-                                onSelect!();
-                              } else {
-                                context.push('/catalog/item/$itemId');
-                              }
-                            },
-                          ),
-                        ],
-                      ],
-                    ),
+                  _boxedMetric(
+                    _diffPrimary(diff),
+                    _diffSecondary(diff),
+                    StockRowMetrics.diffColor(diff),
+                  ),
+                  _boxedMetric(
+                    _pendingPrimary(pending, item),
+                    _pendingSecondary(item),
+                    _pendingColor(pending, item),
                   ),
                 ],
               ),
@@ -189,98 +158,79 @@ class StockWarehouseRow extends StatelessWidget {
     );
   }
 
-  Widget _stockCell(double stock, String unit) {
-    final statusLabel = StockRowMetrics.inlineStatusLabel(item);
-    final statusColor = StockRowMetrics.inlineStatusColor(item);
-    return Container(
-      width: StockTableLayout.metricColWidth,
-      decoration: StockTableLayout.cellDecoration(),
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            formatStockQtyNumber(stock),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: statusColor,
-            ),
-          ),
-          Text(
-            unit,
-            maxLines: 1,
-            style: HexaDsType.label(9).copyWith(
-              fontWeight: FontWeight.w700,
-              color: statusColor,
-            ),
-          ),
-          Text(
-            statusLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: HexaDsType.label(9).copyWith(
-              color: const Color(0xFF64748B),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
+  String _diffPrimary(double diff) {
+    if (!diff.isFinite) return '—';
+    if (diff.abs() < 0.001) return '0';
+    final sign = diff > 0 ? '+' : '';
+    return '$sign${formatStockQtyNumber(diff)}';
   }
 
-  Widget _metricCell(String text, Color color, {bool bold = false}) {
-    final lines = text.split('\n');
+  String _diffSecondary(double diff) {
+    if (!diff.isFinite) return '';
+    if (diff.abs() < 0.001) return 'OK';
+    return diff > 0 ? 'Excess' : 'Deficit';
+  }
+
+  String _pendingPrimary(double? pending, Map<String, dynamic> item) {
+    if (pending != null && pending > 0) {
+      return formatStockQtyNumber(pending);
+    }
+    if (item['has_pending_order'] == true) return '•';
+    return '—';
+  }
+
+  String _pendingSecondary(Map<String, dynamic> item) {
+    if (item['has_pending_order'] != true) return '';
+    final days = item['pending_order_days'];
+    if (days is num && days > 0) return '${days.toInt()}d';
+    return 'Wait';
+  }
+
+  Color _pendingColor(double? pending, Map<String, dynamic> item) {
+    if ((pending ?? 0) > 0 || item['has_pending_order'] == true) {
+      return const Color(0xFFE65100);
+    }
+    return const Color(0xFF64748B);
+  }
+
+  Widget _boxedMetric(String primary, String secondary, Color color) {
     return Container(
       width: StockTableLayout.metricColWidth,
       decoration: StockTableLayout.cellDecoration(),
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            lines.first,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              color: color,
-            ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: StockTableLayout.metricColWidth - 4,
           ),
-          if (lines.length > 1)
-            Text(
-              lines[1],
-              maxLines: 1,
-              style: HexaDsType.label(9).copyWith(
-                fontWeight: FontWeight.w700,
-                color: const Color(0xFF64748B),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                primary,
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  color: color,
+                ),
               ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _actionIcon(
-    BuildContext context,
-    IconData icon,
-    String tooltip,
-    VoidCallback onPressed,
-  ) {
-    return SizedBox(
-      width: 26,
-      height: 48,
-      child: IconButton(
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(minWidth: 26, minHeight: 48),
-        icon: Icon(icon, size: 18),
-        tooltip: tooltip,
-        onPressed: onPressed,
+              if (secondary.isNotEmpty)
+                Text(
+                  secondary,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: HexaDsType.label(8).copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

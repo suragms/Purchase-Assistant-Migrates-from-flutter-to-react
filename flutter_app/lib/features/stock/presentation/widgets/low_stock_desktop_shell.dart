@@ -92,9 +92,30 @@ class _LowStockDesktopShellState extends State<LowStockDesktopShell> {
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
-                    itemCount: categories.length,
+                    itemCount: categories.length + 1,
                     itemBuilder: (ctx, i) {
-                      final cat = categories[i];
+                      if (i == 0) {
+                        final selected = widget.selectedCategory == null;
+                        return ListTile(
+                          dense: true,
+                          selected: selected,
+                          title: Text(
+                            'All categories',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              color: selected
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null,
+                            ),
+                          ),
+                          trailing: Text(
+                            '${flat.length}',
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                          onTap: () => widget.onSelectedCategory(null),
+                        );
+                      }
+                      final cat = categories[i - 1];
                       final count = affectedCountForCat(cat);
                       final selected = cat == widget.selectedCategory;
                       return ListTile(
@@ -152,7 +173,7 @@ class _LowStockDesktopShellState extends State<LowStockDesktopShell> {
                               : () {
                                   final id = selectedRows.first['id']?.toString();
                                   if (id == null) return;
-                                  context.push('/purchase/new?itemId=$id');
+                                  context.push('/purchase/new?catalogItemId=$id');
                                 },
                           child: const Text('PO draft'),
                         ),

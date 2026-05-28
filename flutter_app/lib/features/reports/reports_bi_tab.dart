@@ -33,7 +33,7 @@ extension ReportsBiTabX on ReportsBiTab {
         ReportsBiTab.items => 'Items',
         ReportsBiTab.suppliers => 'Suppliers',
         ReportsBiTab.brokers => 'Brokers',
-        ReportsBiTab.slowMoving => 'Slow',
+        ReportsBiTab.slowMoving => 'Stock intel',
         ReportsBiTab.deadStock => 'Dead',
         ReportsBiTab.usage => 'Usage',
         ReportsBiTab.stockMovement => 'Stock mvmt',
@@ -61,14 +61,14 @@ extension ReportsBiTabX on ReportsBiTab {
   static const primaryRow = [
     ReportsBiTab.overview,
     ReportsBiTab.categories,
-    ReportsBiTab.subcategories,
     ReportsBiTab.items,
     ReportsBiTab.suppliers,
+    ReportsBiTab.slowMoving,
   ];
 
   static const moreSheet = [
+    ReportsBiTab.subcategories,
     ReportsBiTab.brokers,
-    ReportsBiTab.slowMoving,
     ReportsBiTab.deadStock,
     ReportsBiTab.usage,
     ReportsBiTab.stockMovement,

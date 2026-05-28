@@ -74,6 +74,9 @@ bool notificationMatchesCategoryFilter(
 }
 
 NotificationCategoryFilter notificationCategoryForItem(NotificationItem n) {
+  final fromWire = NotificationCategoryFilterX.fromWire(n.category);
+  if (fromWire != null) return fromWire;
+
   final kind = n.serverKind ?? '';
   if (n.id.startsWith('wh_')) {
     if (n.priority == 'critical' || n.priority == 'high') {
@@ -95,6 +98,8 @@ NotificationCategoryFilter notificationCategoryForItem(NotificationItem n) {
     return NotificationCategoryFilter.purchases;
   }
   if (n.id.startsWith('wh_pending_delivery') ||
+      kind == 'staff_alert' ||
+      kind == 'delivery_verified' ||
       kind == 'staff_action' ||
       kind == 'stock_correction') {
     return NotificationCategoryFilter.staff;
@@ -120,7 +125,10 @@ NotificationCategoryFilter notificationCategoryForItem(NotificationItem n) {
     return NotificationCategoryFilter.system;
   }
   if (n.type == NotificationType.serverInApp) {
-    if (kind == 'delivery_pending' || kind == 'payment_due') {
+    if (kind == 'delivery_pending') {
+      return NotificationCategoryFilter.staff;
+    }
+    if (kind == 'payment_due') {
       return NotificationCategoryFilter.purchases;
     }
     return NotificationCategoryFilter.system;
@@ -273,7 +281,8 @@ final mergedNotificationFeedProvider =
         data: (rows) {
           final list = <NotificationItem>[];
           for (final e in rows) {
-            final n = notificationItemFromServerRow(e);
+            var n = notificationItemFromServerRow(e);
+            n = notificationItemWithRoleRoutes(n, session);
             if (session == null || notificationVisibleForRole(n, session)) {
               list.add(n);
             }
@@ -289,30 +298,48 @@ final mergedNotificationFeedProvider =
           .where((n) => !dismissed.contains(n.id))
           .toList();
   final warehouse = ref.watch(warehouseAlertNotificationItemsProvider);
-  final serverKinds =
-      serverRows.map((e) => e.serverKind).whereType<String>().toSet();
+  final unreadServerKinds = serverRows
+      .where((e) => !e.isRead)
+      .map((e) => e.serverKind)
+      .whereType<String>()
+      .toSet();
+  const maxLowStockServerRows = 12;
+  var lowStockServerShown = 0;
+  final cappedServerRows = <NotificationItem>[];
+  for (final n in serverRows) {
+    if (n.serverKind == 'low_stock') {
+      if (lowStockServerShown >= maxLowStockServerRows) continue;
+      lowStockServerShown++;
+    }
+    cappedServerRows.add(n);
+  }
+
   final byId = <String, NotificationItem>{};
   for (final n in [
-    ...serverRows,
+    ...cappedServerRows,
     ...warehouse.where((w) {
-      if (w.id == 'wh_low_stock' && serverKinds.contains('low_stock')) {
+      if (w.id == 'wh_low_stock' && unreadServerKinds.contains('low_stock')) {
         return false;
       }
       if (w.id == 'wh_missing_barcode' &&
-          serverKinds.contains('missing_barcode')) {
+          unreadServerKinds.contains('missing_barcode')) {
         return false;
       }
-      if (w.id == 'wh_missing_code' && serverKinds.contains('missing_code')) {
+      if (w.id == 'wh_missing_code' &&
+          unreadServerKinds.contains('missing_code')) {
         return false;
       }
       if (w.id == 'wh_opening_stock' &&
-          serverKinds.contains('opening_stock_pending')) {
+          unreadServerKinds.contains('opening_stock_pending')) {
         return false;
       }
       return true;
     }),
     ...tradeAlerts,
-    ...manual,
+    ...manual.where((n) {
+      if (!isStaff) return true;
+      return n.id != 'welcome';
+    }),
   ]) {
     final prev = byId[n.id];
     if (prev == null) {
@@ -570,6 +597,70 @@ final purchaseActionAlertCountProvider = Provider<int>((ref) {
   final dis = ref.watch(dismissedPurchaseAlertIdsProvider);
   return all.where((n) => !dis.contains(n.id)).length;
 });
+
+/// Staff-safe deep links (router blocks `/purchase/*` for staff).
+NotificationItem notificationItemWithRoleRoutes(
+  NotificationItem n,
+  Session? session,
+) {
+  if (session == null) return n;
+  final role = session.primaryBusiness.role.toLowerCase();
+  if (role != 'staff') return n;
+
+  final kind = n.serverKind ?? '';
+  if (kind == 'delivery_pending' || kind == 'delivery_received') {
+    final route = n.actionRoute ?? '';
+    String? pid;
+    const prefix = '/purchase/detail/';
+    if (route.startsWith(prefix)) {
+      pid = route.substring(prefix.length).split('/').first;
+    }
+    if (pid != null && pid.isNotEmpty) {
+      return NotificationItem(
+        id: n.id,
+        type: n.type,
+        title: n.title,
+        subtitle: n.subtitle,
+        createdAt: n.createdAt,
+        isRead: n.isRead,
+        actionRoute: '/staff/receive/$pid',
+        serverNotificationId: n.serverNotificationId,
+        serverKind: n.serverKind,
+        priority: n.priority,
+        category: n.category,
+      );
+    }
+    return NotificationItem(
+      id: n.id,
+      type: n.type,
+      title: n.title,
+      subtitle: n.subtitle,
+      createdAt: n.createdAt,
+      isRead: n.isRead,
+      actionRoute: '/staff/receive',
+      serverNotificationId: n.serverNotificationId,
+      serverKind: n.serverKind,
+      priority: n.priority,
+      category: n.category,
+    );
+  }
+  if (n.actionRoute?.startsWith('/purchase') == true) {
+    return NotificationItem(
+      id: n.id,
+      type: n.type,
+      title: n.title,
+      subtitle: n.subtitle,
+      createdAt: n.createdAt,
+      isRead: n.isRead,
+      actionRoute: '/staff/purchase-history',
+      serverNotificationId: n.serverNotificationId,
+      serverKind: n.serverKind,
+      priority: n.priority,
+      category: n.category,
+    );
+  }
+  return n;
+}
 
 NotificationItem notificationItemFromServerRow(Map<String, dynamic> row) {
   final sid = row['id']?.toString() ?? '';

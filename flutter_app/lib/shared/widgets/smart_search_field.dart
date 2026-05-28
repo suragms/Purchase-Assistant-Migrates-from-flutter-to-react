@@ -31,7 +31,7 @@ Future<void> showSmartSearchResultsSheet({
         expand: false,
         initialChildSize: 0.55,
         minChildSize: 0.28,
-        maxChildSize: 0.94,
+        maxChildSize: 0.55,
         builder: (dragCtx, scrollController) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,

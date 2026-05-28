@@ -4,10 +4,16 @@ import '../../../../core/json_coerce.dart';
 import '../../../../core/utils/unit_utils.dart';
 import '../../../../shared/widgets/stock_number_display.dart';
 
-/// Warehouse table metric formatting (PURCHASE | STOCK | DIFF).
+/// Warehouse table metric formatting (system / purchased / physical / diff / pending).
 abstract final class StockRowMetrics {
   static double? purchasedQty(Map<String, dynamic> item) =>
       coerceToDoubleNullable(item['period_purchased_qty']);
+
+  static double? physicalQty(Map<String, dynamic> item) =>
+      coerceToDoubleNullable(item['physical_stock_qty']);
+
+  static double? pendingDeliveryQty(Map<String, dynamic> item) =>
+      coerceToDoubleNullable(item['pending_delivery_qty']);
 
   static double stockQty(Map<String, dynamic> item) {
     // Stock column must show backend system/on-hand stock truth.
@@ -16,9 +22,14 @@ abstract final class StockRowMetrics {
   }
 
   static double diffQty(Map<String, dynamic> item) {
+    final wh = coerceToDoubleNullable(item['warehouse_diff_qty']);
+    if (wh != null && wh.isFinite) return wh;
+    final phys = physicalQty(item);
+    if (phys != null && phys.isFinite) {
+      return phys - stockQty(item);
+    }
     final purchased = purchasedQty(item);
     if (purchased == null) return double.nan;
-    // Negative => deficit (system lower than purchased), Positive => excess.
     return stockQty(item) - purchased;
   }
 

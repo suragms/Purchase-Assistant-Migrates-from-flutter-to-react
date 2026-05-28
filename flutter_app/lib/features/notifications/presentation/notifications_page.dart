@@ -8,14 +8,17 @@ import '../../../core/providers/notifications_provider.dart'
     show
         NotificationCategoryFilter,
         NotificationItem,
+        dismissedPurchaseAlertIdsProvider,
         mergedNotificationFeedProvider,
         notificationMatchesCategoryFilter,
         notificationsProvider,
         warehouseAlertReadIdsProvider;
 import '../../../core/providers/realtime_notifications_provider.dart';
 import '../../../core/providers/server_notifications_provider.dart';
+import '../../../core/providers/stock_providers.dart';
 import '../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../core/router/navigation_ext.dart';
+import '../../../core/router/post_auth_route.dart' show sessionIsStaff;
 import '../../../core/errors/load_state_error.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/theme/theme_context_ext.dart';
@@ -31,6 +34,24 @@ class NotificationsPage extends ConsumerStatefulWidget {
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   NotificationCategoryFilter _filter = NotificationCategoryFilter.all;
   final _textSearch = TextEditingController();
+
+  bool get _isStaff {
+    final session = ref.read(sessionProvider);
+    return session != null && sessionIsStaff(session);
+  }
+
+  List<NotificationCategoryFilter> get _visibleFilters {
+    if (_isStaff) {
+      return const [
+        NotificationCategoryFilter.all,
+        NotificationCategoryFilter.critical,
+        NotificationCategoryFilter.warehouse,
+        NotificationCategoryFilter.staff,
+        NotificationCategoryFilter.system,
+      ];
+    }
+    return NotificationCategoryFilter.values;
+  }
 
   @override
   void dispose() {
@@ -58,7 +79,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final hasUnread = visible.any((n) => !n.isRead);
     final filterEmptyButHasItems =
         items.isNotEmpty && filtered.isEmpty && q.isEmpty;
-    final showEmptyState = visible.isEmpty && !serverAsync.isLoading;
+    final stockCountsAsync = ref.watch(stockStatusCountsProvider);
+    final showEmptyState = visible.isEmpty &&
+        !serverAsync.isLoading &&
+        !stockCountsAsync.isLoading;
 
     final onSurf = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
@@ -97,7 +121,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             const LinearProgressIndicator(minHeight: 2),
           if (serverAsync.hasError)
             Material(
-              color: Theme.of(context).colorScheme.errorContainer.withValues(alpha: 0.35),
+              color: Theme.of(context)
+                  .colorScheme
+                  .errorContainer
+                  .withValues(alpha: 0.35),
               child: ListTile(
                 dense: true,
                 leading: Icon(Icons.warning_amber_rounded,
@@ -135,7 +162,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                           setState(() {});
                         },
                       ),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
             ),
           ),
@@ -146,7 +174,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  for (final f in NotificationCategoryFilter.values)
+                  for (final f in _visibleFilters)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: _FilterChip(
@@ -181,111 +209,100 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             child: RefreshIndicator(
               onRefresh: () async {
                 ref.invalidate(appNotificationsListProvider);
+                ref.invalidate(stockStatusCountsProvider);
                 await ref.read(appNotificationsListProvider.future);
               },
               child: showEmptyState
-                ? ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      SizedBox(
-                        height: 160,
-                        child: Center(
-                          child: Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 32),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.notifications_none_outlined,
-                                  size: 40,
-                                  color: Colors.grey.shade300,
-                                ),
-                                const SizedBox(height: 10),
-                                Text(
-                                  q.isNotEmpty
-                                      ? 'No matches'
-                                      : _emptyTitleForFilter(_filter),
-                                  textAlign: TextAlign.center,
-                                  style: tt.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 16,
-                                    color: onSurf,
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        SizedBox(
+                          height: 160,
+                          child: Center(
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 32),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.notifications_none_outlined,
+                                    size: 40,
+                                    color: Colors.grey.shade300,
                                   ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  q.isNotEmpty
-                                      ? 'Try a different search or clear the search box.'
-                                      : filterEmptyButHasItems
-                                          ? 'Switch to All or another tab — alerts are hidden by the current filter.'
-                                          : _emptySubtitleForFilter(_filter),
-                                  textAlign: TextAlign.center,
-                                  style: tt.bodySmall?.copyWith(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurfaceVariant,
-                                    height: 1.35,
-                                  ),
-                                ),
-                                if (filterEmptyButHasItems) ...[
-                                  const SizedBox(height: 12),
-                                  FilledButton(
-                                    onPressed: () => setState(
-                                      () => _filter =
-                                          NotificationCategoryFilter.all,
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    q.isNotEmpty
+                                        ? 'No matches'
+                                        : _emptyTitleForFilter(_filter),
+                                    textAlign: TextAlign.center,
+                                    style: tt.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 16,
+                                      color: onSurf,
                                     ),
-                                    child: const Text('Show all alerts'),
                                   ),
-                                ],
-                                if (items.isEmpty) ...[
-                                  const SizedBox(height: 12),
-                                  FilledButton.icon(
-                                    onPressed: () =>
-                                        context.push('/purchase/new'),
-                                    icon: const Icon(
-                                      Icons.add_shopping_cart_rounded,
-                                      size: 20,
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    q.isNotEmpty
+                                        ? 'Try a different search or clear the search box.'
+                                        : filterEmptyButHasItems
+                                            ? 'Switch to All or another tab — alerts are hidden by the current filter.'
+                                            : _emptySubtitleForFilter(_filter),
+                                    textAlign: TextAlign.center,
+                                    style: tt.bodySmall?.copyWith(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                      height: 1.35,
                                     ),
-                                    label: const Text('Record a purchase'),
                                   ),
+                                  if (filterEmptyButHasItems) ...[
+                                    const SizedBox(height: 12),
+                                    FilledButton(
+                                      onPressed: () => setState(
+                                        () => _filter =
+                                            NotificationCategoryFilter.all,
+                                      ),
+                                      child: const Text('Show all alerts'),
+                                    ),
+                                  ],
+                                  if (items.isEmpty) ...[
+                                    const SizedBox(height: 12),
+                                    FilledButton.icon(
+                                      onPressed: () => context.push(
+                                        _isStaff
+                                            ? '/staff/receive'
+                                            : '/purchase/new',
+                                      ),
+                                      icon: Icon(
+                                        _isStaff
+                                            ? Icons.local_shipping_outlined
+                                            : Icons.add_shopping_cart_rounded,
+                                        size: 20,
+                                      ),
+                                      label: Text(_isStaff
+                                          ? 'Open receive'
+                                          : 'Record a purchase'),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  )
-                : Builder(
-                    builder: (_) {
-                      final grouped = _buildGroupedNotificationTiles(
+                      ],
+                    )
+                  : ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      children: _buildGroupedNotificationTiles(
                         context: context,
                         ref: ref,
                         visible: visible,
                         rel: rel,
-                        tt: tt,
-                      );
-                      final hasCard =
-                          grouped.any((w) => w is NotificationAlertCard);
-                      final fallback = <Widget>[
-                        const _NotificationDateHeader(label: 'Alerts'),
-                        for (final n in visible)
-                          _notificationTile(
-                            context: context,
-                            ref: ref,
-                            n: n,
-                            rel: rel,
-                            tt: tt,
-                          ),
-                      ];
-                      return ListView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                        children: hasCard ? grouped : fallback,
-                      );
-                    },
-                  ),
+                      ),
+                    ),
             ),
           ),
         ],
@@ -312,6 +329,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       ref.read(warehouseAlertReadIdsProvider.notifier).state = {
         ...ref.read(warehouseAlertReadIdsProvider),
         ...whIds,
+      };
+    }
+    final purDismiss = <String>{
+      for (final n in items)
+        if (n.id.startsWith('pur_') && !n.isRead) n.id,
+    };
+    if (purDismiss.isNotEmpty) {
+      ref.read(dismissedPurchaseAlertIdsProvider.notifier).state = {
+        ...ref.read(dismissedPurchaseAlertIdsProvider),
+        ...purDismiss,
       };
     }
     for (final n in items) {
@@ -357,37 +384,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _handleApprove(NotificationItem n) async {
-    if (n.serverNotificationId == null || n.serverNotificationId!.isEmpty) {
-      return;
-    }
-    final session = ref.read(sessionProvider);
-    if (session == null) return;
-    try {
-      await ref.read(hexaApiProvider).patchAppNotificationRead(
-            businessId: session.primaryBusiness.id,
-            notificationId: n.serverNotificationId!,
-          );
-      invalidateNotificationSurfaces(ref);
-      ref.invalidate(appNotificationsListProvider);
-      if (mounted) setState(() {});
-    } catch (_) {}
-  }
-
-  Future<void> _handleReject(NotificationItem n) async {
-    await _handleApprove(n);
-  }
-
   List<Widget> _buildGroupedNotificationTiles({
     required BuildContext context,
     required WidgetRef ref,
     required List<NotificationItem> visible,
     required DateFormat rel,
-    required TextTheme tt,
   }) {
-    if (visible.isEmpty) {
-      return const [];
-    }
+    if (visible.isEmpty) return const [];
+
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
@@ -397,59 +401,41 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       if (section.isEmpty) return;
       widgets.add(_NotificationDateHeader(label: label));
       for (final n in section) {
-        widgets.add(_notificationTile(
+        widgets.add(_notificationAlertCard(
           context: context,
           ref: ref,
           n: n,
           rel: rel,
-          tt: tt,
         ));
       }
     }
 
     bool isToday(NotificationItem n) {
-      final d = DateTime(n.createdAt.year, n.createdAt.month, n.createdAt.day);
+      final d =
+          DateTime(n.createdAt.year, n.createdAt.month, n.createdAt.day);
       return d == today;
     }
 
     bool isYesterday(NotificationItem n) {
-      final d = DateTime(n.createdAt.year, n.createdAt.month, n.createdAt.day);
+      final d =
+          DateTime(n.createdAt.year, n.createdAt.month, n.createdAt.day);
       return d == yesterday;
     }
 
-    addSection(
-      'Today',
-      visible.where(isToday).toList(),
-    );
-    addSection(
-      'Yesterday',
-      visible.where(isYesterday).toList(),
-    );
+    addSection('Today', visible.where(isToday).toList());
+    addSection('Yesterday', visible.where(isYesterday).toList());
     addSection(
       'Earlier',
       visible.where((n) => !isToday(n) && !isYesterday(n)).toList(),
     );
-    if (widgets.isEmpty && visible.isNotEmpty) {
-      widgets.add(const _NotificationDateHeader(label: 'Alerts'));
-      for (final n in visible) {
-        widgets.add(_notificationTile(
-          context: context,
-          ref: ref,
-          n: n,
-          rel: rel,
-          tt: tt,
-        ));
-      }
-    }
     return widgets;
   }
 
-  Widget _notificationTile({
+  Widget _notificationAlertCard({
     required BuildContext context,
     required WidgetRef ref,
     required NotificationItem n,
     required DateFormat rel,
-    required TextTheme tt,
   }) {
     Future<void> handleTap() async {
       final sid = n.serverNotificationId;
@@ -469,7 +455,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           ...ref.read(warehouseAlertReadIdsProvider),
           n.id,
         };
-      } else if (!n.id.startsWith('pur_')) {
+      } else if (n.id.startsWith('pur_')) {
+        ref.read(dismissedPurchaseAlertIdsProvider.notifier).state = {
+          ...ref.read(dismissedPurchaseAlertIdsProvider),
+          n.id,
+        };
+      } else {
         ref.read(notificationsProvider.notifier).markRead(n.id);
       }
       final route = n.actionRoute;
@@ -478,17 +469,12 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       }
     }
 
+    final time = NotificationAlertCard.relativeTime(n.createdAt, rel);
     return NotificationAlertCard(
       key: ValueKey(n.id),
       item: n,
-      timeLabel: NotificationAlertCard.relativeTime(n.createdAt, rel),
+      timeLabel: time,
       onTap: handleTap,
-      onApprove: n.serverKind == 'approval_required'
-          ? () => _handleApprove(n)
-          : null,
-      onReject: n.serverKind == 'approval_required'
-          ? () => _handleReject(n)
-          : null,
     );
   }
 }
@@ -538,7 +524,7 @@ String _emptySubtitleForFilter(NotificationCategoryFilter filter) {
     NotificationCategoryFilter.purchases =>
       'Payment due, delivery pending, and invoice updates appear here.',
     NotificationCategoryFilter.staff =>
-      'Staff corrections and warehouse requests appear here.',
+      'Deliveries, corrections, and warehouse requests appear here.',
     NotificationCategoryFilter.system =>
       'Exports, sync status, and general notices appear here.',
   };

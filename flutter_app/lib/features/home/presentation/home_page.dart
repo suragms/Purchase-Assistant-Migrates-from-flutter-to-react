@@ -412,9 +412,9 @@ class _HomePageState extends ConsumerState<HomePage>
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         if (hasDashboard) ...[
-                          const HomeWarehouseSnapshotCard(),
-                          const SizedBox(height: HexaOp.cardGap),
                           const HomePurchaseControlCenter(),
+                          const SizedBox(height: HexaOp.cardGap),
+                          const HomeWarehouseSnapshotCard(),
                           const SizedBox(height: HexaOp.cardGap),
                           HomeOwnerQuickActions(
                             onPurchase: () => context.push('/purchase/new'),

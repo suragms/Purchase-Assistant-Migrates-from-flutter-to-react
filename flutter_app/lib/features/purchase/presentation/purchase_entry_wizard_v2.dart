@@ -1753,10 +1753,12 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
       }
       ref.read(purchaseDraftProvider.notifier).reset();
       await _clearDraftInPrefs();
+      _syncControllersFromDraft();
       if (mounted) {
         setState(() {
           _isSaving = false;
           _formDirty = false;
+          _partyUserSupplierActionGeneration++;
         });
       }
       final pid = saved['id']?.toString() ?? '';
@@ -1829,26 +1831,22 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
         }
         if (!mounted) return;
         if (where == 'add_more') {
-          final supId = saved['supplier_id']?.toString().trim() ?? '';
-          final supName = saved['supplier_name']?.toString().trim() ??
-              draftSnap.supplierName?.trim() ??
-              '';
-          if (supId.isNotEmpty) {
-            ref.read(purchaseDraftProvider.notifier).applySupplierSelection(
-                  const {},
-                  supId,
-                  supName.isNotEmpty ? supName : 'Supplier',
-                );
-          } else if (supName.isNotEmpty) {
-            ref.read(purchaseDraftProvider.notifier).setSupplierNameOnly(supName);
-          }
+          ref.read(purchaseDraftProvider.notifier).reset();
+          _syncControllersFromDraft();
           setState(() {
-            _wizStep = 1;
+            _wizStep = 0;
             _lineJustAdded = null;
             _formDirty = false;
             _inlineSaveError = null;
             _supplierFieldError = null;
             _brokerFieldError = null;
+            _partyUserSupplierActionGeneration++;
+            _didAutoFocusPartyFromAiScan = false;
+            _didAutoFocusBrokerFromAiScan = false;
+          });
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            FocusScope.of(context).requestFocus(_partySupplierFocus);
           });
           return;
         }
@@ -1898,6 +1896,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
         } catch (_) {}
         ref.read(purchaseDraftProvider.notifier).reset();
         await _clearDraftInPrefs();
+        _syncControllersFromDraft();
         if (mounted) {
           setState(() {
             _isSaving = false;
@@ -1905,6 +1904,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
             _inlineSaveError = null;
             _supplierFieldError = null;
             _brokerFieldError = null;
+            _partyUserSupplierActionGeneration++;
           });
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(

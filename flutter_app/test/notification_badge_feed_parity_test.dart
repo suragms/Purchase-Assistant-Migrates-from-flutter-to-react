@@ -109,4 +109,44 @@ void main() {
     expect(notificationVisibleForRole(overdue, staffSession), isFalse);
     expect(notificationVisibleForRole(lowStock, staffSession), isTrue);
   });
+
+  test('staff delivery notification routes to receive detail', () {
+    final staffSession = Session(
+      accessToken: 't',
+      refreshToken: 'r',
+      businesses: [
+        BusinessBrief(id: 'b1', name: 'Test', role: 'staff'),
+      ],
+    );
+    final raw = notificationItemFromServerRow({
+      'id': 'abc',
+      'kind': 'delivery_pending',
+      'title': 'Delivery pending',
+      'body': 'Bill ready',
+      'created_at': '2026-05-27T10:00:00Z',
+      'action_route': '/purchase/detail/pid-1',
+      'related_purchase_id': 'pid-1',
+    });
+    final mapped = notificationItemWithRoleRoutes(raw, staffSession);
+    expect(mapped.actionRoute, '/staff/receive/pid-1');
+    expect(
+      notificationCategoryForItem(mapped),
+      NotificationCategoryFilter.staff,
+    );
+  });
+
+  test('server category wire value used when present', () {
+    final n = NotificationItem(
+      id: 'srv_x',
+      type: NotificationType.serverInApp,
+      title: 'Test',
+      subtitle: 'Body',
+      createdAt: DateTime(2026, 5, 27),
+      category: 'warehouse',
+    );
+    expect(
+      notificationCategoryForItem(n),
+      NotificationCategoryFilter.warehouse,
+    );
+  });
 }
