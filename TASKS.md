@@ -1,6 +1,18 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-05-28 (Warehouse home + notifications sprint docs)
+**Last updated:** 2026-05-28 (Notifications blank-cards P0 fix)
+
+---
+
+## Notifications blank-cards fix (2026-05-28)
+
+- [x] P0: `NotificationAlertCard` — `IntrinsicHeight` wrapper so cards render in `ListView` (fixes “Showing 1 of 3” + TODAY header + blank list)
+- [x] P0: `_buildGroupedNotificationTiles` fallback — flat list when date buckets empty but `visible` non-empty
+- [x] P0: `showEmptyState` guard when server reloads with cached merged feed
+- [x] Tests: `notification_alert_card_test.dart` ListView height test; `notification_badge_feed_parity_test.dart`; `pytest test_notifications.py` (5 passed)
+- [x] DB verify (Supabase MCP): business `7411c8cf-514c-4f42-b25b-14ba86c0d547` has **2 unread** `stock_variance` rows (user kichu, May 24) — merged feed also adds warehouse synthetics (`wh_*`) for Critical tab
+- [ ] Render MCP logs: workspace not authorized — re-run `list_logs` on API for `/notifications` 401 after workspace select
+- [ ] Manual QA: owner + staff — All / Critical / Warehouse tabs after deploy; sign out/in if session stale
 
 ---
 

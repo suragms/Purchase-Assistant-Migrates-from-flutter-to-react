@@ -82,7 +82,8 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final stockCountsAsync = ref.watch(stockStatusCountsProvider);
     final showEmptyState = visible.isEmpty &&
         !serverAsync.isLoading &&
-        !stockCountsAsync.isLoading;
+        !stockCountsAsync.isLoading &&
+        !(serverAsync.isLoading && items.isNotEmpty);
 
     final onSurf = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
@@ -428,6 +429,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       'Earlier',
       visible.where((n) => !isToday(n) && !isYesterday(n)).toList(),
     );
+    if (widgets.isEmpty && visible.isNotEmpty) {
+      for (final n in visible) {
+        widgets.add(_notificationAlertCard(
+          context: context,
+          ref: ref,
+          n: n,
+          rel: rel,
+        ));
+      }
+    }
     return widgets;
   }
 

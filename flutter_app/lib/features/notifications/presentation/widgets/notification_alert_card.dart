@@ -76,13 +76,14 @@ class NotificationAlertCard extends StatelessWidget {
           onTap: onTap,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Container(
-                  width: item.isRead ? 2 : 4,
-                  color: item.isRead ? cs.outlineVariant : pri,
-                ),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    width: item.isRead ? 2 : 4,
+                    color: item.isRead ? cs.outlineVariant : pri,
+                  ),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
@@ -159,7 +160,8 @@ class NotificationAlertCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
