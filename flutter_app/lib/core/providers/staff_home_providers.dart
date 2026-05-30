@@ -227,7 +227,8 @@ class StaffFloorKpis {
 }
 
 int _pipelinePendingCount(Map<String, dynamic> p) {
-  return ((p['dispatched'] as num?)?.toInt() ?? 0) +
+  return ((p['pending'] as num?)?.toInt() ?? 0) +
+      ((p['dispatched'] as num?)?.toInt() ?? 0) +
       ((p['in_transit'] as num?)?.toInt() ?? 0) +
       ((p['arrived'] as num?)?.toInt() ?? 0) +
       ((p['staff_verifying'] as num?)?.toInt() ?? 0) +
@@ -270,7 +271,8 @@ bool staffDeliveryNeedsAction(TradePurchase p) {
   }
   if (p.isDeliveryCommitted) return false;
   final ds = p.deliveryStatusEnum;
-  if (ds == DeliveryStatus.dispatched ||
+  if (ds == DeliveryStatus.pending ||
+      ds == DeliveryStatus.dispatched ||
       ds == DeliveryStatus.inTransit ||
       ds == DeliveryStatus.arrived ||
       ds == DeliveryStatus.staffVerifying) {
@@ -307,7 +309,9 @@ StaffDeliverySections groupStaffDeliverySections(List<TradePurchase> purchases) 
       continue;
     }
     final ds = p.deliveryStatusEnum;
-    if (ds == DeliveryStatus.dispatched || ds == DeliveryStatus.inTransit) {
+    if (ds == DeliveryStatus.pending ||
+        ds == DeliveryStatus.dispatched ||
+        ds == DeliveryStatus.inTransit) {
       dispatched.add(p);
     } else if (ds == DeliveryStatus.staffVerified ||
         ds == DeliveryStatus.partial) {

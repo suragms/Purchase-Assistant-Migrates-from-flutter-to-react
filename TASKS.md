@@ -43,7 +43,9 @@
 - [x] My Tasks → bottom nav **Tasks** tab (`/staff/tasks`); Settings via profile sheet
 - [x] Pending delivery cards use `tradePurchasesForAlertsProvider` (not 30-day history filter)
 - [x] Staff stock table: SYSTEM / PHYS / DIFF + ITEM column border; owner wide 6-col mismatch removed
-- [ ] **Prod DB:** Alembic **040 + 041 + 042** + `python -m scripts.backfill_delivery_status` (manual on Render)
+- [x] **Supabase live audit (2026-05-29):** `alembic_version` = `042_catalog_stock_list_sort_index`; `delivery_status` + indexes present; 0 invalid statuses
+- [ ] **Render API:** confirm `DATABASE_URL` points at same Supabase project (not a stale DB)
+- [ ] Optional: `python -m scripts.backfill_delivery_status` if stock_committed rows lack movements
 
 **Manual QA (staff) — after deploy:**
 
@@ -135,7 +137,8 @@
 | Alembic head `042_catalog_stock_list_sort_index` (repo) | [x] |
 | `flutter build web --release` → `flutter_app/build/web` | [x] 2026-05-29 |
 | Shell: `ShellRealtimeListener` + `notificationCenterCoordinator` (owner + staff) | [x] |
-| Alembic **040 + 041 + 042** on production | [ ] manual |
+| Alembic **040 + 041 + 042** on Supabase (MCP verified) | [x] |
+| Render `DATABASE_URL` = same Supabase | [ ] confirm |
 | Owner + staff **15 min soak** (no refresh loop) | [ ] manual |
 | Delivery/stock validation checklist (roadmap) | [ ] manual |
 
