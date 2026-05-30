@@ -6,6 +6,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/shell_navigation.dart';
 import '../../../features/shell/shell_branch_provider.dart';
+
+/// True when the Home IndexedStack tab is the active shell branch (URL + nav index).
+bool _homeShellTabVisible(WidgetRef ref, BuildContext context) {
+  final shell = StatefulNavigationShell.maybeOf(context);
+  if (shell != null) {
+    return shell.currentIndex == ShellBranch.home;
+  }
+  return ref.watch(shellCurrentBranchProvider) == ShellBranch.home;
+}
 import '../../../core/auth/dashboard_role.dart';
 import '../../../core/auth/auth_failure_policy.dart';
 import '../../../core/auth/session_notifier.dart'
@@ -308,8 +317,8 @@ class _HomePageState extends ConsumerState<HomePage>
       }
     });
 
-    if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) {
-      // IndexedStack keeps this widget mounted off-tab — avoid network work only.
+    if (!_homeShellTabVisible(ref, context)) {
+      // IndexedStack keeps this widget mounted off-tab — avoid painting when another tab is active.
       return const SizedBox.shrink();
     }
 

@@ -94,6 +94,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     ref.watch(notificationCenterCoordinatorProvider);
     final navigationShell = widget.navigationShell;
     final idx = navigationShell.currentIndex;
+    if (ref.read(shellCurrentBranchProvider) != idx) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncShellBranch(idx);
+      });
+    }
     final routePath = GoRouterState.of(context).uri.path;
     final stockAlertN = ref.watch(notificationsUnreadCountProvider);
     final width = MediaQuery.sizeOf(context).width;
