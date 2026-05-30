@@ -735,6 +735,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/staff/settings',
+        name: 'staff_settings',
+        pageBuilder: (context, state) => iosPushPage(
+          key: state.pageKey,
+          child: const SettingsPage(),
+        ),
+      ),
+      GoRoute(
         path: '/staff/quick-purchase',
         name: 'staff_quick_purchase',
         pageBuilder: (context, state) => iosPushPage(
@@ -1156,9 +1164,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/staff/settings',
-                name: 'staff_settings',
-                builder: (context, state) => const SettingsPage(),
+                path: '/staff/tasks',
+                name: 'staff_tasks',
+                builder: (context, state) =>
+                    const StaffChecklistPage(embeddedInShell: true),
               ),
             ],
           ),

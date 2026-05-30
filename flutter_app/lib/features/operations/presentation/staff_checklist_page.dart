@@ -11,7 +11,10 @@ import '../../../core/providers/warehouse_alerts_provider.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 
 class StaffChecklistPage extends ConsumerStatefulWidget {
-  const StaffChecklistPage({super.key});
+  const StaffChecklistPage({super.key, this.embeddedInShell = false});
+
+  /// When true, shown as staff bottom-nav tab (no back button).
+  final bool embeddedInShell;
 
   @override
   ConsumerState<StaffChecklistPage> createState() => _StaffChecklistPageState();
@@ -86,8 +89,20 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
     final data = ref.watch(checklistTodayProvider);
     return Scaffold(
       appBar: AppBar(
-        leading: BackButton(onPressed: () => context.pop()),
-        title: const Text('Daily checklist'),
+        automaticallyImplyLeading: !widget.embeddedInShell,
+        leading: widget.embeddedInShell
+            ? null
+            : BackButton(onPressed: () => context.pop()),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('My tasks'),
+            Text(
+              'Complete these first',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
         bottom: TabBar(
           controller: _tabs,
           isScrollable: true,

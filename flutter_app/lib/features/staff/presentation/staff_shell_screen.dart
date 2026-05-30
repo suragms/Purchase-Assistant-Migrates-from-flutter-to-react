@@ -134,14 +134,14 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
                         label: Text('Scan'),
                       ),
                       NavigationRailDestination(
-                        icon: Icon(Icons.receipt_long_outlined),
-                        selectedIcon: Icon(Icons.receipt_long_rounded),
-                        label: Text('Purchases'),
+                        icon: Icon(Icons.local_shipping_outlined),
+                        selectedIcon: Icon(Icons.local_shipping_rounded),
+                        label: Text('Deliveries'),
                       ),
                       NavigationRailDestination(
-                        icon: Icon(Icons.search_outlined),
-                        selectedIcon: Icon(Icons.search_rounded),
-                        label: Text('Search'),
+                        icon: Icon(Icons.checklist_outlined),
+                        selectedIcon: Icon(Icons.checklist_rounded),
+                        label: Text('Tasks'),
                       ),
                     ],
                   ),
@@ -289,12 +289,12 @@ class _StaffShellBottomBar extends StatelessWidget {
                     ),
                     Expanded(
                       child: _StaffNavTile(
-                        selected: selectedIndex == StaffShellBranch.settings,
-                        icon: Icons.settings_outlined,
-                        selectedIcon: Icons.settings_rounded,
-                        label: 'Settings',
+                        selected: selectedIndex == StaffShellBranch.tasks,
+                        icon: Icons.checklist_outlined,
+                        selectedIcon: Icons.checklist_rounded,
+                        label: 'Tasks',
                         onTap: () =>
-                            onDestinationSelected(StaffShellBranch.settings),
+                            onDestinationSelected(StaffShellBranch.tasks),
                       ),
                     ),
                   ],

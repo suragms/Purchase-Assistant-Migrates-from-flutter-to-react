@@ -35,4 +35,12 @@ abstract final class StockTableLayout {
       ),
     );
   }
+
+  static BoxDecoration itemCellDecoration() {
+    return const BoxDecoration(
+      border: Border(
+        right: cellBorder,
+      ),
+    );
+  }
 }

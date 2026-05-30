@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../auth/auth_failure_policy.dart';
 import '../auth/session_notifier.dart';
 import '../models/session.dart';
 import '../models/trade_purchase_models.dart';
 import 'barcode_recent_scans.dart';
+import 'delivery_pipeline_provider.dart';
 import 'prefs_provider.dart';
 import 'stock_providers.dart';
 import 'trade_purchases_provider.dart';
@@ -29,7 +31,17 @@ void invalidateStaffHomeCaches(Ref ref) {
   ref.invalidate(staffStockMismatchCountProvider);
   ref.invalidate(missingCodeItemsProvider);
   ref.invalidate(tradePurchasesListProvider);
+  ref.invalidate(tradePurchasesForAlertsProvider);
+  ref.invalidate(deliveryPipelineProvider);
   ref.invalidate(openingStockMissingProvider);
+  ref.invalidate(stockStatusCountsProvider);
+  ref.invalidate(stockOnHandTotalsProvider);
+}
+
+bool _staffSessionActive(Ref ref) {
+  final session = ref.watch(sessionProvider);
+  final authExpired = ref.watch(authSessionExpiredProvider);
+  return session != null && !authExpired;
 }
 
 /// Floor role hint for staff home layout (client preference until API has staff_focus).
@@ -137,13 +149,19 @@ final staffTodayActivityProvider =
 final staffTodayStockWorkProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   _providerKeepAlive(ref, const Duration(minutes: 2));
+  if (!_staffSessionActive(ref)) return [];
   final session = await _waitForSession(ref);
   if (session == null) return [];
-  return ref.read(hexaApiProvider).listStockAuditFeed(
-        businessId: session.primaryBusiness.id,
-        onDate: _todayApiDate(),
-        limit: 200,
-      );
+  try {
+    return await ref.read(hexaApiProvider).listStockAuditFeed(
+          businessId: session.primaryBusiness.id,
+          onDate: _todayApiDate(),
+          limit: 200,
+        );
+  } catch (e) {
+    _rethrowAuthFailure(e);
+    rethrow;
+  }
 });
 
 final staffLowStockAlertsProvider =
@@ -195,10 +213,54 @@ final staffLowStockAttentionCountProvider = Provider.autoDispose<int>((ref) {
   );
 });
 
+/// Floor KPI counts from delivery pipeline API + stock status.
+class StaffFloorKpis {
+  const StaffFloorKpis({
+    this.pending = 0,
+    this.delivered = 0,
+    this.lowStock = 0,
+  });
+
+  final int pending;
+  final int delivered;
+  final int lowStock;
+}
+
+int _pipelinePendingCount(Map<String, dynamic> p) {
+  return ((p['dispatched'] as num?)?.toInt() ?? 0) +
+      ((p['in_transit'] as num?)?.toInt() ?? 0) +
+      ((p['arrived'] as num?)?.toInt() ?? 0) +
+      ((p['staff_verifying'] as num?)?.toInt() ?? 0) +
+      ((p['staff_verified'] as num?)?.toInt() ?? 0) +
+      ((p['partial'] as num?)?.toInt() ?? 0);
+}
+
+final staffDeliveryPipelineKpisProvider =
+    Provider.autoDispose<AsyncValue<StaffFloorKpis>>((ref) {
+  if (!_staffSessionActive(ref)) {
+    return const AsyncData(StaffFloorKpis());
+  }
+  final pipeline = ref.watch(deliveryPipelineProvider);
+  final low = ref.watch(staffLowStockAttentionCountProvider);
+  return pipeline.when(
+    data: (p) => AsyncData(
+      StaffFloorKpis(
+        pending: _pipelinePendingCount(p),
+        delivered: (p['stock_committed'] as num?)?.toInt() ?? 0,
+        lowStock: low,
+      ),
+    ),
+    loading: () => const AsyncLoading(),
+    error: (e, st) => AsyncError(e, st),
+  );
+});
+
 /// Undelivered trade purchases visible to staff (for home alert pill).
 final staffPendingDeliveryCountProvider = Provider.autoDispose<int>((ref) {
-  final purchases = ref.watch(staffPendingDeliveriesProvider).valueOrNull;
-  return purchases?.length ?? 0;
+  final kpis = ref.watch(staffDeliveryPipelineKpisProvider);
+  return kpis.valueOrNull?.pending ??
+      ref.watch(staffPendingDeliveriesProvider).valueOrNull?.length ??
+      0;
 });
 
 bool staffDeliveryNeedsAction(TradePurchase p) {
@@ -271,7 +333,7 @@ StaffDeliverySections groupStaffDeliverySections(List<TradePurchase> purchases) 
 
 final staffDeliverySectionsProvider =
     Provider.autoDispose<AsyncValue<StaffDeliverySections>>((ref) {
-  final list = ref.watch(tradePurchasesParsedProvider);
+  final list = ref.watch(tradePurchasesForAlertsParsedProvider);
   return list.whenData(groupStaffDeliverySections);
 });
 

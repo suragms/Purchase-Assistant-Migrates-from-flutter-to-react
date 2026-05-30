@@ -7,7 +7,7 @@
 1. **Prod DB:** `cd backend && alembic upgrade head` (migrations **040**, **041**, **042**).
 2. **API:** deploy Render backend from current `main`.
 3. **Web:** publish `flutter_app/build/web` to Vercel (or host).
-4. **Smoke:** owner Home → Stock → Purchase → Reports; staff **Deliveries** + **Settings** tabs.
+4. **Smoke:** owner Home → Stock → Purchase → Reports; staff **Deliveries** + **Tasks** tabs.
 5. **Sign out/in** once after deploy if session was stale.
 
 ---
@@ -33,6 +33,27 @@
 | Catalog type list FAB **Add item**: same 2-step flow | [ ] |
 | System back on step 2 → step 1; step 1 back exits wizard | [ ] |
 | Supplier/broker create wizards: system back steps back before exit dialog | [ ] |
+
+---
+
+## Staff home + stock table (2026-05-29)
+
+- [x] Staff home top KPI row: Pending / Delivered / Low stock (`deliveryPipelineProvider`)
+- [x] Warehouse + purchase stats boxes always visible (not collapsed)
+- [x] My Tasks → bottom nav **Tasks** tab (`/staff/tasks`); Settings via profile sheet
+- [x] Pending delivery cards use `tradePurchasesForAlertsProvider` (not 30-day history filter)
+- [x] Staff stock table: SYSTEM / PHYS / DIFF + ITEM column border; owner wide 6-col mismatch removed
+- [ ] **Prod DB:** Alembic **040 + 041 + 042** + `python -m scripts.backfill_delivery_status` (manual on Render)
+
+**Manual QA (staff) — after deploy:**
+
+| Check | Pass |
+|-------|------|
+| Home top: 3 KPI cards show numbers (0 ok) | [ ] |
+| Warehouse + Purchases boxes load (not blank grey) | [ ] |
+| Tasks tab → full checklist (Morning/Midday/Evening) | [ ] |
+| Profile → Settings opens `/staff/settings` | [ ] |
+| Stock tab: bordered table, SYSTEM has values | [ ] |
 
 ---
 

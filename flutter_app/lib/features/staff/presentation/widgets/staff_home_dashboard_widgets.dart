@@ -6,9 +6,14 @@ import 'package:shimmer/shimmer.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../../core/json_coerce.dart';
+import '../../../../core/providers/app_period_provider.dart';
+import '../../../../core/providers/delivery_pipeline_provider.dart';
 import '../../../../core/providers/search_focus_provider.dart';
 import '../../../../core/providers/staff_home_providers.dart';
+import '../../../../core/providers/stock_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
+import '../../../../core/widgets/section_inline_error.dart';
 
 /// Section label for staff home blocks.
 class StaffHomeSectionHeader extends StatelessWidget {
@@ -47,6 +52,287 @@ class StaffHomeSectionHeader extends StatelessWidget {
           ),
           if (trailing != null) trailing!,
         ],
+      ),
+    );
+  }
+}
+
+/// Top floor KPIs: pending deliveries, delivered (committed), low stock.
+class StaffHomeFloorKpiRow extends ConsumerWidget {
+  const StaffHomeFloorKpiRow({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final kpis = ref.watch(staffDeliveryPipelineKpisProvider);
+
+    return kpis.when(
+      loading: () => const _StaffKpiRowSkeleton(),
+      error: (_, __) => SectionInlineError(
+        message: 'Could not load floor counts',
+        onRetry: () {
+          ref.invalidate(deliveryPipelineProvider);
+          ref.invalidate(stockStatusCountsProvider);
+        },
+      ),
+      data: (k) => Row(
+        children: [
+          Expanded(
+            child: _StaffKpiCard(
+              label: 'Pending',
+              value: '${k.pending}',
+              icon: Icons.local_shipping_outlined,
+              accent: const Color(0xFFE65100),
+              onTap: () => context.go('/staff/deliveries'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _StaffKpiCard(
+              label: 'Delivered',
+              value: '${k.delivered}',
+              icon: Icons.check_circle_outline,
+              accent: const Color(0xFF0F766E),
+              onTap: () => context.go('/staff/deliveries'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _StaffKpiCard(
+              label: 'Low stock',
+              value: '${k.lowStock}',
+              icon: Icons.warning_amber_rounded,
+              accent: const Color(0xFFDC2626),
+              onTap: () => context.push('/staff/low-stock'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StaffKpiCard extends StatelessWidget {
+  const _StaffKpiCard({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: HexaColors.brandBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          child: Column(
+            children: [
+              Icon(icon, size: 20, color: accent),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: accent,
+                  height: 1,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: HexaDsType.label(10, color: HexaDsColors.textMuted),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StaffKpiRowSkeleton extends StatelessWidget {
+  const _StaffKpiRowSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: const Color(0xFFE8ECEF),
+      highlightColor: const Color(0xFFF8FAFC),
+      child: Row(
+        children: List.generate(
+          3,
+          (_) => Expanded(
+            child: Container(
+              height: 88,
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: HexaColors.brandBorder),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// On-hand warehouse units + month purchase comparison (always visible).
+class StaffHomeWarehousePurchaseStats extends ConsumerWidget {
+  const StaffHomeWarehousePurchaseStats({super.key});
+
+  static String _fmtNum(double n) {
+    final rounded = n.roundToDouble();
+    if ((n - rounded).abs() < 0.001) return rounded.round().toString();
+    return n.toStringAsFixed(1);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final onHandAsync = ref.watch(stockOnHandTotalsProvider);
+    final periodAsync = ref.watch(stockTotalsProvider(AppPeriod.month));
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _StatsBox(
+            title: 'Warehouse',
+            subtitle: 'On hand now',
+            child: onHandAsync.when(
+              loading: () => const LinearProgressIndicator(minHeight: 2),
+              error: (_, __) => SectionInlineError(
+                message: 'Warehouse stats unavailable',
+                onRetry: () => ref.invalidate(stockOnHandTotalsProvider),
+              ),
+              data: (onHand) {
+                final bags = coerceToDouble(onHand['total_bags']);
+                final kg = coerceToDouble(onHand['total_kg']);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _statLine('Bags', bags, HexaColors.brandPrimary),
+                    const SizedBox(height: 6),
+                    _statLine('KG', kg, const Color(0xFF1565C0)),
+                  ],
+                );
+              },
+            ),
+            onTap: () => context.go('/staff/stock'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _StatsBox(
+            title: 'Purchases',
+            subtitle: 'This month',
+            child: periodAsync.when(
+              loading: () => const LinearProgressIndicator(minHeight: 2),
+              error: (_, __) => SectionInlineError(
+                message: 'Purchase stats unavailable',
+                onRetry: () =>
+                    ref.invalidate(stockTotalsProvider(AppPeriod.month)),
+              ),
+              data: (period) {
+                final bags = coerceToDouble(period['total_bags']);
+                final kg = coerceToDouble(period['total_kg']);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _statLine('Bags bought', bags, const Color(0xFF2563EB)),
+                    const SizedBox(height: 6),
+                    _statLine('KG bought', kg, const Color(0xFF6A1B9A)),
+                  ],
+                );
+              },
+            ),
+            onTap: () => context.go('/staff/deliveries'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _statLine(String label, double value, Color color) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: HexaDsType.label(11, color: HexaDsColors.textMuted),
+          ),
+        ),
+        Text(
+          _fmtNum(value),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatsBox extends StatelessWidget {
+  const _StatsBox({
+    required this.title,
+    required this.subtitle,
+    required this.child,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final Widget child;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: HexaColors.brandBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(title, style: HexaDsType.heading(14)),
+              Text(
+                subtitle,
+                style: HexaDsType.body(11, color: HexaDsColors.textMuted),
+              ),
+              const SizedBox(height: 10),
+              child,
+            ],
+          ),
+        ),
       ),
     );
   }

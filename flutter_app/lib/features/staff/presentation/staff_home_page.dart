@@ -5,9 +5,9 @@ import 'package:intl/intl.dart';
 
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
-import '../../../core/design_system/hexa_desktop_layout.dart';
 import '../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../core/providers/app_period_provider.dart';
+import '../../../core/providers/delivery_pipeline_provider.dart';
 import '../../../core/providers/notifications_provider.dart';
 import '../../../core/providers/staff_home_providers.dart';
 import '../../../core/providers/stock_providers.dart';
@@ -16,8 +16,6 @@ import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import 'widgets/staff_home_dashboard_widgets.dart';
 import 'widgets/staff_home_pending_delivery_cards.dart';
-import 'widgets/staff_warehouse_totals_card.dart';
-import 'widgets/staff_warehouse_difference_card.dart';
 
 String _staffInitials(String name) {
   final parts = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
@@ -25,8 +23,6 @@ String _staffInitials(String name) {
   if (list.isEmpty) return 'S';
   return list.map((w) => w[0].toUpperCase()).join();
 }
-
-// (Removed) `_pendingDeliverySubtitle` — now rendered inline by cards.
 
 String _staffFocusLabel(StaffHomeFocus f) => switch (f) {
       StaffHomeFocus.all => 'All tasks',
@@ -87,7 +83,17 @@ Future<void> _showStaffProfileSheet(BuildContext context, WidgetRef ref) async {
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.settings_outlined),
+                  title: const Text('Settings'),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    context.push('/staff/settings');
+                  },
+                ),
+                const SizedBox(height: 8),
                 Text(
                   'Home focus',
                   style: HexaDsType.heading(14),
@@ -160,7 +166,24 @@ Future<void> _showStaffProfileSheet(BuildContext context, WidgetRef ref) async {
   );
 }
 
-/// Staff shell home — scan-first dashboard (FEAT-5).
+void _invalidateStaffHomeRefresh(WidgetRef ref) {
+  ref.invalidate(staffTodayActivityProvider);
+  ref.invalidate(staffTodayStockWorkProvider);
+  ref.invalidate(staffLowStockAlertsProvider);
+  ref.invalidate(staffRecentScansProvider);
+  ref.invalidate(staffRecentActivityProvider);
+  ref.invalidate(staffStockMismatchCountProvider);
+  ref.invalidate(missingCodeItemsProvider);
+  ref.invalidate(openingStockMissingProvider);
+  ref.invalidate(tradePurchasesListProvider);
+  ref.invalidate(tradePurchasesForAlertsProvider);
+  ref.invalidate(deliveryPipelineProvider);
+  ref.invalidate(stockOnHandTotalsProvider);
+  ref.invalidate(stockTotalsProvider(AppPeriod.month));
+  ref.invalidate(stockStatusCountsProvider);
+}
+
+/// Staff shell home — floor KPIs, warehouse stats, tools.
 class StaffHomePage extends ConsumerWidget {
   const StaffHomePage({super.key});
 
@@ -173,11 +196,11 @@ class StaffHomePage extends ConsumerWidget {
     final focus = ref.watch(staffHomeFocusProvider);
     final missingCount = ref.watch(staffMissingCodeCountProvider);
     final pendingDeliveries = ref.watch(staffPendingDeliveryCountProvider);
-    // Cards read pending list directly from provider.
     final lowCount = ref.watch(staffLowStockAttentionCountProvider);
     final openingCount = ref.watch(staffOpeningStockCountProvider);
     final mismatchAsync = ref.watch(staffStockMismatchCountProvider);
     final mismatchCount = mismatchAsync.valueOrNull ?? 0;
+    final kpisAsync = ref.watch(staffDeliveryPipelineKpisProvider);
     final lowStockAsync = ref.watch(staffLowStockAlertsProvider);
 
     final showAttention = (staffHomeShowsPurchaseTools(focus) &&
@@ -187,26 +210,17 @@ class StaffHomePage extends ConsumerWidget {
         (staffHomeShowsBarcodeTools(focus) && missingCount > 0) ||
         mismatchCount > 0;
 
-    final authError = lowStockAsync.hasError ? lowStockAsync.error : null;
+    final criticalError = kpisAsync.hasError
+        ? kpisAsync.error
+        : lowStockAsync.hasError
+            ? lowStockAsync.error
+            : null;
 
     return Scaffold(
       backgroundColor: HexaColors.brandBackground,
       body: SafeArea(
         child: RefreshIndicator(
-          onRefresh: () async {
-            ref.invalidate(staffTodayActivityProvider);
-            ref.invalidate(staffTodayStockWorkProvider);
-            ref.invalidate(staffLowStockAlertsProvider);
-            ref.invalidate(staffRecentScansProvider);
-            ref.invalidate(staffRecentActivityProvider);
-            ref.invalidate(staffStockMismatchCountProvider);
-            ref.invalidate(missingCodeItemsProvider);
-            ref.invalidate(openingStockMissingProvider);
-            ref.invalidate(tradePurchasesListProvider);
-            ref.invalidate(stockOnHandTotalsProvider);
-            ref.invalidate(stockTotalsProvider(AppPeriod.month));
-            ref.invalidate(stockStatusCountsProvider);
-          },
+          onRefresh: () async => _invalidateStaffHomeRefresh(ref),
           child: ListView(
             padding: const EdgeInsets.fromLTRB(
               HexaOp.pageGutter,
@@ -254,11 +268,6 @@ class StaffHomePage extends ConsumerWidget {
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Tasks',
-                    onPressed: () => context.push('/operations/checklist'),
-                    icon: const Icon(Icons.checklist_rounded),
-                  ),
-                  IconButton(
                     tooltip: 'Notifications',
                     onPressed: () => context.push('/notifications'),
                     icon: Badge(
@@ -275,28 +284,22 @@ class StaffHomePage extends ConsumerWidget {
                   ),
                 ],
               ),
-              if (authError != null) ...[
+              if (criticalError != null) ...[
                 const SizedBox(height: HexaOp.cardGap),
                 FriendlyLoadError(
-                  message: 'Session expired or offline — pull to retry or sign in again.',
-                  onRetry: () {
-                    ref.invalidate(staffLowStockAlertsProvider);
-                    ref.invalidate(stockStatusCountsProvider);
-                  },
+                  message:
+                      'Could not load floor data — pull to retry or sign in again.',
+                  onRetry: () => _invalidateStaffHomeRefresh(ref),
                 ),
               ],
               const SizedBox(height: HexaOp.cardGap),
+              const StaffHomeFloorKpiRow(),
+              const SizedBox(height: HexaOp.cardGap),
               const StaffHomeSectionHeader(
-                title: 'Warehouse summary',
-                subtitle: 'Today on the floor',
+                title: 'Warehouse & purchases',
+                subtitle: 'On-hand stock and this month',
               ),
-              DesktopTwoColumnGrid(
-                spacing: HexaOp.cardGap,
-                runSpacing: HexaOp.cardGap,
-                children: const [
-                  StaffHomeShiftSnapshotStrip(),
-                ],
-              ),
+              const StaffHomeWarehousePurchaseStats(),
               if (pendingDeliveries > 0) ...[
                 const SizedBox(height: HexaOp.cardGap),
                 const StaffHomeSectionHeader(
@@ -305,17 +308,12 @@ class StaffHomePage extends ConsumerWidget {
                 ),
                 const StaffHomePendingDeliveryCards(),
               ],
-              if (lowCount > 0) ...[
-                const SizedBox(height: HexaOp.cardGap),
-                StaffHomeAttentionTile(
-                  icon: Icons.warning_amber_rounded,
-                  title: 'Low stock',
-                  subtitle: 'Tap to inform owner for reorder',
-                  count: lowCount,
-                  accent: const Color(0xFFDC2626),
-                  onTap: () => context.push('/staff/low-stock'),
-                ),
-              ],
+              const SizedBox(height: HexaOp.cardGap),
+              const StaffHomeSectionHeader(
+                title: 'Your shift today',
+                subtitle: 'Scans, stock updates, purchases',
+              ),
+              const StaffHomeShiftSnapshotStrip(),
               const SizedBox(height: HexaOp.cardGap),
               const StaffHomeSectionHeader(
                 title: 'Tools',
@@ -367,28 +365,17 @@ class StaffHomePage extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => context.push('/operations/checklist'),
-                      icon: const Icon(Icons.checklist_rounded),
-                      label: const Text('Checklist'),
-                    ),
+              if (staffHomeShowsPurchaseTools(focus)) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => context.push('/staff/quick-purchase'),
+                    icon: const Icon(Icons.add_shopping_cart_rounded),
+                    label: const Text('Cash buy'),
                   ),
-                  if (staffHomeShowsPurchaseTools(focus)) ...[
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => context.push('/staff/quick-purchase'),
-                        icon: const Icon(Icons.add_shopping_cart_rounded),
-                        label: const Text('Cash buy'),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+                ),
+              ],
               if (showAttention &&
                   (openingCount > 0 ||
                       (staffHomeShowsBarcodeTools(focus) && missingCount > 0) ||
@@ -432,49 +419,8 @@ class StaffHomePage extends ConsumerWidget {
                 subtitle: 'Latest stock and warehouse updates',
               ),
               const StaffHomeRecentActivitySection(),
-              if (staffHomeShowsWarehouse(focus)) ...[
-                const SizedBox(height: HexaOp.cardGap),
-                _StaffWarehouseTotalsExpandable(),
-              ],
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Collapsed warehouse totals — expand for full unit breakdown (roadmap: de-emphasize).
-class _StaffWarehouseTotalsExpandable extends StatelessWidget {
-  const _StaffWarehouseTotalsExpandable();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.shade300),
-      ),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          title: const Text(
-            'Warehouse totals',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-          ),
-          subtitle: const Text(
-            'All units — bags, kg, boxes, tins',
-            style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-          ),
-          children: const [
-            StaffWarehouseTotalsCard(),
-            SizedBox(height: HexaOp.cardGap),
-            StaffWarehouseDifferenceCard(),
-          ],
         ),
       ),
     );

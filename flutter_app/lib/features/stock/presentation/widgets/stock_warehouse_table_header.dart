@@ -22,9 +22,7 @@ class StockWarehouseTableHeader extends StatelessWidget {
       height: 1.15,
     );
 
-    final metrics = isStaffMode
-        ? const ['PHYS', 'PENDING']
-        : const ['SYSTEM', 'PHYS', 'DIFF'];
+    const metrics = ['SYSTEM', 'PHYS', 'DIFF'];
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -41,11 +39,13 @@ class StockWarehouseTableHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
-                child: Padding(
+                child: Container(
+                  decoration: StockTableLayout.itemCellDecoration(),
                   padding: const EdgeInsets.symmetric(
                     horizontal: StockTableLayout.cellHPadding,
                     vertical: 6,
                   ),
+                  alignment: Alignment.centerLeft,
                   child: Text('ITEM', style: hdr),
                 ),
               ),
