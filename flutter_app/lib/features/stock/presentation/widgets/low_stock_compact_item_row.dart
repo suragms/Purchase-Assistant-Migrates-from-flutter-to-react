@@ -19,6 +19,7 @@ class LowStockCompactItemRow extends ConsumerWidget {
     this.onNotifyOwner,
     this.onEditReorder,
     this.onStockUpdate,
+    this.onSystemStockUpdate,
     this.onReceive,
   });
 
@@ -30,6 +31,7 @@ class LowStockCompactItemRow extends ConsumerWidget {
   final void Function(Map<String, dynamic> item)? onNotifyOwner;
   final void Function(Map<String, dynamic> item)? onEditReorder;
   final void Function(Map<String, dynamic> item)? onStockUpdate;
+  final void Function(Map<String, dynamic> item)? onSystemStockUpdate;
   final void Function(Map<String, dynamic> item)? onReceive;
 
   static const _critical = Color(0xFFDC2626);
@@ -74,6 +76,7 @@ class LowStockCompactItemRow extends ConsumerWidget {
         onNotifyOwner: onNotifyOwner,
         onEditReorder: onEditReorder,
         onStockUpdate: onStockUpdate,
+        onSystemStockUpdate: onSystemStockUpdate,
         onReceive: onReceive,
       );
     }

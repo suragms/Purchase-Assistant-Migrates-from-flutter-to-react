@@ -16,8 +16,10 @@ import '../../../core/providers/stock_providers.dart';
 import '../../../core/services/stock_list_pdf.dart';
 import '../../../core/services/pdf_actions.dart';
 import '../../../core/theme/hexa_colors.dart';
+import '../../../core/widgets/hexa_elevated_autocomplete.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import 'quick_stock_action_sheet.dart';
+import 'widgets/stock_update_mode_toggle.dart';
 import 'widgets/low_stock_bulk_export.dart';
 import 'widgets/low_stock_category_tree.dart';
 import 'widgets/reorder_level_sheet.dart';
@@ -47,7 +49,6 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
   ];
 
   late final TabController _tabs;
-  final _searchCtrl = TextEditingController();
   Timer? _debounce;
   String _search = '';
   LowStockSearchScope _searchScope = LowStockSearchScope.all;
@@ -59,7 +60,6 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
   void initState() {
     super.initState();
     _tabs = TabController(length: _tabCount, vsync: this);
-    _searchCtrl.addListener(_onSearchChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -68,16 +68,6 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
       if (idx != null && idx != _tabs.index) {
         _tabs.animateTo(idx);
       }
-    });
-  }
-
-  void _onSearchChanged() {
-    final q = _searchCtrl.text.trim();
-    if (q == _search) return;
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 200), () {
-      if (!mounted) return;
-      setState(() => _search = q);
     });
   }
 
@@ -104,7 +94,6 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
   void dispose() {
     _debounce?.cancel();
     _tabs.dispose();
-    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -159,6 +148,19 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
       context: context,
       ref: ref,
       item: item,
+      initialMode: StockUpdateMode.physical,
+    );
+    if (ok && mounted) {
+      ref.invalidate(lowStockByCategoryProvider);
+    }
+  }
+
+  Future<void> _stockUpdateSystem(Map<String, dynamic> item) async {
+    final ok = await showQuickStockActionSheet(
+      context: context,
+      ref: ref,
+      item: item,
+      initialMode: StockUpdateMode.system,
     );
     if (ok && mounted) {
       ref.invalidate(lowStockByCategoryProvider);
@@ -304,6 +306,7 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
           data: (grouped) {
             final n = countLowStockForTab(grouped, LowStockTreeTab.allLow);
             final subOptions = lowStockSubcategoryOptions(grouped);
+            final suggestions = lowStockSearchSuggestions(grouped);
             return PreferredSize(
               preferredSize: Size.fromHeight(
                 _subcategoryFilter != null && _subcategoryFilter!.trim().isNotEmpty
@@ -318,21 +321,60 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
                     child: Row(
                       children: [
                         Expanded(
-                          child: TextField(
-                            controller: _searchCtrl,
-                            decoration: InputDecoration(
-                              hintText: 'Search items, category…',
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 8,
-                              ),
-                              prefixIcon: const Icon(Icons.search, size: 20),
-                              filled: true,
-                              fillColor: Colors.white,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
+                          child: Autocomplete<String>(
+                            optionsViewBuilder: (context, onSelected, options) {
+                              return hexaElevatedAutocompleteOptions<String>(
+                                context,
+                                onSelected,
+                                options,
+                                label: (v) => v,
+                              );
+                            },
+                            optionsBuilder: (text) {
+                              final needle = text.text.trim().toLowerCase();
+                              if (needle.isEmpty) return const Iterable<String>.empty();
+                              return suggestions
+                                  .where((s) => s.toLowerCase().contains(needle))
+                                  .take(12);
+                            },
+                            onSelected: (v) {
+                              setState(() => _search = v);
+                            },
+                            fieldViewBuilder:
+                                (ctx, ctrl, focus, onFieldSubmitted) {
+                              if (ctrl.text != _search) {
+                                ctrl.text = _search;
+                              }
+                              return TextField(
+                                controller: ctrl,
+                                focusNode: focus,
+                                onChanged: (v) {
+                                  _debounce?.cancel();
+                                  _debounce = Timer(
+                                    const Duration(milliseconds: 200),
+                                    () {
+                                      if (!mounted) return;
+                                      setState(() => _search = v.trim());
+                                    },
+                                  );
+                                },
+                                onSubmitted: (_) => onFieldSubmitted(),
+                                decoration: InputDecoration(
+                                  hintText: 'Search item, subcategory, supplier…',
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    vertical: 8,
+                                  ),
+                                  prefixIcon:
+                                      const Icon(Icons.search, size: 20),
+                                  filled: true,
+                                  fillColor: Colors.white,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -420,6 +462,7 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
                   onNotifyOwner: widget.staffMode ? _notifyOwner : null,
                   onEditReorder: _editReorder,
                   onStockUpdate: _stockUpdate,
+                  onSystemStockUpdate: _stockUpdateSystem,
                   onReceive: _receive,
                 ),
             ],
@@ -498,6 +541,7 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
                               (LowStockSearchScope.category, 'Category'),
                               (LowStockSearchScope.subcategory, 'Subcategory'),
                               (LowStockSearchScope.item, 'Item name'),
+                              (LowStockSearchScope.supplier, 'Supplier'),
                             ])
                               ChoiceChip(
                                 label: Text(entry.$2),

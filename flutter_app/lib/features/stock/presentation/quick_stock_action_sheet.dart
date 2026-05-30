@@ -28,13 +28,18 @@ Future<bool> showQuickStockActionSheet({
   required BuildContext context,
   required WidgetRef ref,
   required Map<String, dynamic> item,
+  StockUpdateMode initialMode = StockUpdateMode.physical,
 }) async {
   final result = await showModalBottomSheet<bool>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: true,
-    builder: (ctx) => _QuickStockActionBody(item: item, parentRef: ref),
+    builder: (ctx) => _QuickStockActionBody(
+      item: item,
+      parentRef: ref,
+      initialMode: initialMode,
+    ),
   );
   return result == true;
 }
@@ -43,10 +48,12 @@ class _QuickStockActionBody extends ConsumerStatefulWidget {
   const _QuickStockActionBody({
     required this.item,
     required this.parentRef,
+    this.initialMode = StockUpdateMode.physical,
   });
 
   final Map<String, dynamic> item;
   final WidgetRef parentRef;
+  final StockUpdateMode initialMode;
 
   @override
   ConsumerState<_QuickStockActionBody> createState() =>
@@ -61,11 +68,12 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
   String? _reasonType = 'verification';
   String _reasonLabel = 'Physical count';
   late final String _idempotencyKey;
-  StockUpdateMode _mode = StockUpdateMode.physical;
+  late StockUpdateMode _mode;
 
   @override
   void initState() {
     super.initState();
+    _mode = widget.initialMode;
     _current = coerceToDouble(widget.item['current_stock']);
     if (!_current.isFinite) _current = 0;
     _qtyCtrl = TextEditingController(text: formatStockQtyNumber(_current));

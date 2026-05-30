@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../json_coerce.dart';
 import 'package:intl/intl.dart';
 
-import '../auth/session_notifier.dart';
+import '../auth/session_notifier.dart' show activeSessionProvider, hexaApiProvider;
 import 'analytics_kpi_provider.dart';
 
 /// One calendar day of summed line profit (for Overview trend chart).
@@ -13,7 +13,7 @@ typedef AnalyticsDailyProfitPoint = ({DateTime day, double profit});
 /// Uses `GET …/reports/trade-daily-profit` (server line-profit SSOT).
 final analyticsDailyProfitProvider =
     FutureProvider.autoDispose<List<AnalyticsDailyProfitPoint>>((ref) async {
-  final session = ref.watch(sessionProvider);
+  final session = ref.watch(activeSessionProvider);
   final range = ref.watch(analyticsDateRangeProvider);
   if (session == null) return [];
   final end = DateTime(range.to.year, range.to.month, range.to.day);
@@ -43,7 +43,7 @@ final analyticsDailyProfitProvider =
 
 final analyticsItemsTableProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final session = ref.watch(sessionProvider);
+  final session = ref.watch(activeSessionProvider);
   final range = ref.watch(analyticsDateRangeProvider);
   if (session == null) return [];
   final fmt = DateFormat('yyyy-MM-dd');
@@ -56,7 +56,7 @@ final analyticsItemsTableProvider =
 
 final analyticsCategoriesTableProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final session = ref.watch(sessionProvider);
+  final session = ref.watch(activeSessionProvider);
   final range = ref.watch(analyticsDateRangeProvider);
   if (session == null) return [];
   final fmt = DateFormat('yyyy-MM-dd');
@@ -70,7 +70,7 @@ final analyticsCategoriesTableProvider =
 /// Trade-backed subcategory (CategoryType) rows — use for Home donut + subcategory view.
 final analyticsTypesTableProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final session = ref.watch(sessionProvider);
+  final session = ref.watch(activeSessionProvider);
   final range = ref.watch(analyticsDateRangeProvider);
   if (session == null) return [];
   final fmt = DateFormat('yyyy-MM-dd');
@@ -83,7 +83,7 @@ final analyticsTypesTableProvider =
 
 final analyticsSuppliersTableProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final session = ref.watch(sessionProvider);
+  final session = ref.watch(activeSessionProvider);
   final range = ref.watch(analyticsDateRangeProvider);
   if (session == null) return [];
   final fmt = DateFormat('yyyy-MM-dd');
@@ -96,7 +96,7 @@ final analyticsSuppliersTableProvider =
 
 final analyticsBrokersTableProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
-  final session = ref.watch(sessionProvider);
+  final session = ref.watch(activeSessionProvider);
   final range = ref.watch(analyticsDateRangeProvider);
   if (session == null) return [];
   final fmt = DateFormat('yyyy-MM-dd');

@@ -1,12 +1,18 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../theme/hexa_colors.dart';
+import '../../features/shell/shell_branch_provider.dart';
 
 /// Page-scoped error boundary — keeps one screen's failure from replacing the
 /// entire app shell (notably Reports on cold web load).
-class HexaPageErrorBoundary extends StatefulWidget {
+///
+/// When [shellBranchIndex] is set, only the **visible** IndexedStack tab
+/// registers [FlutterError.onError]. Otherwise an off-screen Home crash could
+/// surface as "Reports could not load" because lazy branches had not mounted yet.
+class HexaPageErrorBoundary extends ConsumerStatefulWidget {
   const HexaPageErrorBoundary({
     super.key,
     required this.child,
@@ -14,6 +20,7 @@ class HexaPageErrorBoundary extends StatefulWidget {
     this.subtitle,
     this.fallbackRoute = '/home',
     this.onRetry,
+    this.shellBranchIndex,
   });
 
   final Widget child;
@@ -21,23 +28,54 @@ class HexaPageErrorBoundary extends StatefulWidget {
   final String? subtitle;
   final String fallbackRoute;
   final VoidCallback? onRetry;
+  /// [ShellBranch] index for this tab — limits error capture to the active tab.
+  final int? shellBranchIndex;
 
   @override
-  State<HexaPageErrorBoundary> createState() => _HexaPageErrorBoundaryState();
+  ConsumerState<HexaPageErrorBoundary> createState() =>
+      _HexaPageErrorBoundaryState();
 }
 
-class _HexaPageErrorBoundaryState extends State<HexaPageErrorBoundary> {
+class _HexaPageErrorBoundaryState extends ConsumerState<HexaPageErrorBoundary> {
   Object? _error;
   void Function(FlutterErrorDetails)? _previousOnError;
+  static _HexaPageErrorBoundaryState? _registered;
 
-  @override
-  void initState() {
-    super.initState();
+  bool get _shouldHandleErrors {
+    final idx = widget.shellBranchIndex;
+    if (idx == null) return true;
+    return ref.read(shellCurrentBranchProvider) == idx;
+  }
+
+  void _installHandler() {
+    if (_registered == this) return;
+    _registered?._uninstallHandler();
     _previousOnError = FlutterError.onError;
     FlutterError.onError = _onFlutterError;
+    _registered = this;
+  }
+
+  void _uninstallHandler() {
+    if (_registered != this) return;
+    FlutterError.onError = _previousOnError;
+    _previousOnError = null;
+    _registered = null;
+  }
+
+  void _syncErrorHandler() {
+    if (!mounted) return;
+    if (_shouldHandleErrors) {
+      _installHandler();
+    } else {
+      _uninstallHandler();
+    }
   }
 
   void _onFlutterError(FlutterErrorDetails details) {
+    if (!_shouldHandleErrors) {
+      _previousOnError?.call(details);
+      return;
+    }
     if (hexaErrorLikelyNonFatal(details)) {
       _previousOnError?.call(details);
       return;
@@ -46,15 +84,20 @@ class _HexaPageErrorBoundaryState extends State<HexaPageErrorBoundary> {
       FlutterError.dumpErrorToConsole(details);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || !_shouldHandleErrors) return;
       setState(() => _error = details.exception);
     });
-    // Swallow — do not bubble to the app-wide boundary.
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _syncErrorHandler());
   }
 
   @override
   void dispose() {
-    FlutterError.onError = _previousOnError;
+    _uninstallHandler();
     super.dispose();
   }
 
@@ -67,7 +110,14 @@ class _HexaPageErrorBoundaryState extends State<HexaPageErrorBoundary> {
 
   @override
   Widget build(BuildContext context) {
-    if (_error != null) {
+    ref.listen<int>(shellCurrentBranchProvider, (_, __) {
+      _syncErrorHandler();
+      if (!_shouldHandleErrors && _error != null) {
+        _clearError();
+      }
+    });
+
+    if (_error != null && _shouldHandleErrors) {
       final detail = _error.toString().split('\n').first;
       return Material(
         color: HexaColors.brandBackground,

@@ -1,12 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../auth/session_notifier.dart';
+import '../auth/session_notifier.dart' show activeSessionProvider, hexaApiProvider;
 import 'analytics_kpi_provider.dart';
 
 final reportsPeriodComparisonProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
-  final session = ref.watch(sessionProvider);
+  final session = ref.watch(activeSessionProvider);
   final range = ref.watch(analyticsDateRangeProvider);
   if (session == null) return {};
   final fmt = DateFormat('yyyy-MM-dd');
@@ -19,7 +19,7 @@ final reportsPeriodComparisonProvider =
 
 final reportsMovementSummaryProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
-  final session = ref.watch(sessionProvider);
+  final session = ref.watch(activeSessionProvider);
   final range = ref.watch(analyticsDateRangeProvider);
   if (session == null) return {};
   final fmt = DateFormat('yyyy-MM-dd');

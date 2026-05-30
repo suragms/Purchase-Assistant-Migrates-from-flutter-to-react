@@ -62,10 +62,11 @@ class ItemStockSnapshotCard extends ConsumerWidget {
     final openingLocked = stock['opening_stock_locked'] == true;
     final showOpeningCta = openingSetAt == null && !openingLocked;
 
-    final diff =
-        (stock['physical_stock_difference_qty'] as num?)?.toDouble() ??
+    final hasPhysicalCount = physicalQty > 0.001 ||
+        stock['physical_stock_counted_at'] != null;
+    final diff = (stock['physical_stock_difference_qty'] as num?)?.toDouble() ??
         (stock['warehouse_diff_qty'] as num?)?.toDouble() ??
-        (physicalQty > 0.001 ? physicalQty - expectedSystemQty : double.nan);
+        (hasPhysicalCount ? physicalQty - expectedSystemQty : 0.0);
 
     final updatedAtRaw = stock['last_stock_updated_at']?.toString();
     final updatedAt = updatedAtRaw != null ? DateTime.tryParse(updatedAtRaw)?.toLocal() : null;
@@ -128,25 +129,28 @@ class ItemStockSnapshotCard extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Opening stock not set',
-                        style: TextStyle(
+                        isOwner
+                            ? 'Opening stock not set — baseline before purchases'
+                            : 'Opening stock not set — ask owner/admin to set baseline',
+                        style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w800,
                           color: HexaColors.warning,
                         ),
                       ),
                     ),
-                    TextButton(
-                      onPressed: () => _showOpeningStockSheet(
-                        context,
-                        ref,
-                        itemId,
-                        systemQty,
+                    if (isOwner)
+                      TextButton(
+                        onPressed: () => _showOpeningStockSheet(
+                          context,
+                          ref,
+                          itemId,
+                          openingQty > 0.001 ? openingQty : systemQty,
+                        ),
+                        child: const Text('Set opening'),
                       ),
-                      child: const Text('Set opening stock'),
-                    ),
                   ],
                 ),
               ),
@@ -290,10 +294,15 @@ class ItemStockSnapshotCard extends ConsumerWidget {
             ),
             _summaryLine(
               label: 'Difference',
-              value: diff.isFinite ? '${diff > 0 ? '+' : ''}${_qty(diff)}' : '—',
+              value: hasPhysicalCount
+                  ? '${diff > 0 ? '+' : ''}${_qty(diff)}'
+                  : '—',
               unitLabel: unitLabel,
-              valueColor: _diffColor(diff),
-              emphasized: diff.abs() > 0.001,
+              valueColor: hasPhysicalCount ? _diffColor(diff) : null,
+              emphasized: hasPhysicalCount && diff.abs() > 0.001,
+              subtitle: hasPhysicalCount
+                  ? null
+                  : 'Do a physical count to compare',
             ),
             const SizedBox(height: 8),
             Container(

@@ -12,7 +12,7 @@ enum LowStockTreeTab {
   pendingDelivery,
 }
 
-enum LowStockSearchScope { all, category, subcategory, item }
+enum LowStockSearchScope { all, category, subcategory, item, supplier }
 
 bool lowStockItemNeedsAttention(Map<String, dynamic> item) {
   final status = (item['stock_status']?.toString() ?? '').toLowerCase();
@@ -94,6 +94,10 @@ Map<String, Map<String, List<Map<String, dynamic>>>> filterLowStockGrouped({
         return sub.toLowerCase().contains(q) || itemHay.contains(q);
       case LowStockSearchScope.item:
         return itemHay.contains(q);
+      case LowStockSearchScope.supplier:
+        return (it['supplier_name']?.toString().toLowerCase() ?? '')
+                .contains(q) ||
+            itemHay.contains(q);
       case LowStockSearchScope.all:
         return cat.toLowerCase().contains(q) ||
             sub.toLowerCase().contains(q) ||
@@ -160,6 +164,34 @@ List<String> lowStockSubcategoryOptions(
   return list;
 }
 
+/// Search suggestions: item names, categories, subcategories, suppliers, codes.
+List<String> lowStockSearchSuggestions(
+  Map<String, Map<String, List<Map<String, dynamic>>>> grouped,
+) {
+  final out = <String>{};
+  for (final catEntry in grouped.entries) {
+    if (catEntry.key.trim().isNotEmpty) out.add(catEntry.key.trim());
+    for (final subEntry in catEntry.value.entries) {
+      if (subEntry.key.trim().isNotEmpty &&
+          subEntry.key != '—' &&
+          subEntry.key != 'Uncategorized') {
+        out.add(subEntry.key.trim());
+      }
+      for (final it in subEntry.value) {
+        final name = it['name']?.toString().trim();
+        if (name != null && name.isNotEmpty) out.add(name);
+        final code = it['item_code']?.toString().trim();
+        if (code != null && code.isNotEmpty) out.add(code);
+        final sup = it['supplier_name']?.toString().trim();
+        if (sup != null && sup.isNotEmpty) out.add(sup);
+      }
+    }
+  }
+  final list = out.toList()
+    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+  return list;
+}
+
 /// Flatten filtered grouped map to item rows (PDF / export).
 List<Map<String, dynamic>> flattenLowStockGrouped(
   Map<String, Map<String, List<Map<String, dynamic>>>> grouped,
@@ -188,6 +220,7 @@ class LowStockCategoryTree extends StatefulWidget {
     this.onNotifyOwner,
     this.onEditReorder,
     this.onStockUpdate,
+    this.onSystemStockUpdate,
     this.onReceive,
   });
 
@@ -202,6 +235,7 @@ class LowStockCategoryTree extends StatefulWidget {
   final void Function(Map<String, dynamic> item)? onNotifyOwner;
   final void Function(Map<String, dynamic> item)? onEditReorder;
   final void Function(Map<String, dynamic> item)? onStockUpdate;
+  final void Function(Map<String, dynamic> item)? onSystemStockUpdate;
   final void Function(Map<String, dynamic> item)? onReceive;
 
   @override
@@ -210,6 +244,8 @@ class LowStockCategoryTree extends StatefulWidget {
 
 class _LowStockCategoryTreeState extends State<LowStockCategoryTree> {
   final _expandedCats = <String>{};
+  /// Per-category subcategory tab (`null` = all subs in category).
+  final _subTabByCat = <String, String?>{};
   String? _lastFilterKey;
 
   @override
@@ -219,8 +255,8 @@ class _LowStockCategoryTreeState extends State<LowStockCategoryTree> {
   }
 
   void _resetExpandedForFilter() {
-    // Categories stay collapsed — user expands one at a time (faster scan).
     _expandedCats.clear();
+    _subTabByCat.clear();
     _lastFilterKey =
         '${widget.tab}|${widget.searchQuery}|${widget.searchScope}|${widget.subcategoryFilter}|${widget.grouped.length}';
   }
@@ -306,43 +342,120 @@ class _LowStockCategoryTreeState extends State<LowStockCategoryTree> {
                   }
                 }),
               ),
-              if (expanded)
+              if (expanded) ...[
+                _SubcategoryTabBar(
+                  subs: subMap.keys
+                      .where(
+                        (k) =>
+                            k.trim().isNotEmpty &&
+                            k != '—' &&
+                            k != 'Uncategorized',
+                      )
+                      .toList()
+                    ..sort(),
+                  selected: _subTabByCat[cat],
+                  onSelected: (sub) => setState(() {
+                    if (sub == null) {
+                      _subTabByCat.remove(cat);
+                    } else {
+                      _subTabByCat[cat] = sub;
+                    }
+                  }),
+                ),
                 for (final subEntry in subMap.entries.toList()
-                  ..sort((a, b) => a.key.compareTo(b.key))) ...[
-                  if (subEntry.key.trim().isNotEmpty &&
-                      subEntry.key != '—' &&
-                      subEntry.key != 'Uncategorized')
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 2),
-                      child: Text(
-                        subEntry.key,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 11,
-                          color: Color(0xFF64748B),
+                  ..sort((a, b) => a.key.compareTo(b.key)))
+                  if (_subTabByCat[cat] == null ||
+                      _subTabByCat[cat] == subEntry.key) ...[
+                    if (subEntry.key.trim().isNotEmpty &&
+                        subEntry.key != '—' &&
+                        subEntry.key != 'Uncategorized' &&
+                        _subTabByCat[cat] == null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 2),
+                        child: Text(
+                          subEntry.key,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 11,
+                            color: Color(0xFF64748B),
+                          ),
                         ),
                       ),
-                    ),
-                  for (final item in subEntry.value)
-                    LowStockCompactItemRow(
-                      item: item,
-                      staffMode: widget.staffMode,
-                      hideSubcategory: subEntry.key.trim().isNotEmpty &&
-                          subEntry.key != '—' &&
-                          subEntry.key != 'Uncategorized',
-                      ownerInformed: widget.informedOwnerIds
-                          .contains(item['id']?.toString()),
-                      onOrderNow: widget.onOrderNow,
-                      onNotifyOwner: widget.onNotifyOwner,
-                      onEditReorder: widget.onEditReorder,
-                      onStockUpdate: widget.onStockUpdate,
-                      onReceive: widget.onReceive,
-                    ),
-                ],
+                    for (final item in subEntry.value)
+                      LowStockCompactItemRow(
+                        item: item,
+                        staffMode: widget.staffMode,
+                        hideSubcategory: subEntry.key.trim().isNotEmpty &&
+                            subEntry.key != '—' &&
+                            subEntry.key != 'Uncategorized',
+                        ownerInformed: widget.informedOwnerIds
+                            .contains(item['id']?.toString()),
+                        onOrderNow: widget.onOrderNow,
+                        onNotifyOwner: widget.onNotifyOwner,
+                        onEditReorder: widget.onEditReorder,
+                        onStockUpdate: widget.onStockUpdate,
+                        onSystemStockUpdate: widget.onSystemStockUpdate,
+                        onReceive: widget.onReceive,
+                      ),
+                  ],
+              ],
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _SubcategoryTabBar extends StatelessWidget {
+  const _SubcategoryTabBar({
+    required this.subs,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final List<String> subs;
+  final String? selected;
+  final void Function(String? sub) onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (subs.length <= 1) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: ChoiceChip(
+                label: const Text('All', style: TextStyle(fontSize: 11)),
+                selected: selected == null,
+                onSelected: (_) => onSelected(null),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+            for (final sub in subs)
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: ChoiceChip(
+                  label: Text(
+                    sub,
+                    style: const TextStyle(fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  selected: selected == sub,
+                  onSelected: (_) => onSelected(sub),
+                  visualDensity: VisualDensity.compact,
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

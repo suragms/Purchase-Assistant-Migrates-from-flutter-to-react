@@ -19,6 +19,7 @@ Future<void> showLowStockItemDetailSheet({
   void Function(Map<String, dynamic> item)? onNotifyOwner,
   void Function(Map<String, dynamic> item)? onEditReorder,
   void Function(Map<String, dynamic> item)? onStockUpdate,
+  void Function(Map<String, dynamic> item)? onSystemStockUpdate,
   void Function(Map<String, dynamic> item)? onReceive,
 }) {
   return showModalBottomSheet<void>(
@@ -33,6 +34,7 @@ Future<void> showLowStockItemDetailSheet({
       onNotifyOwner: onNotifyOwner,
       onEditReorder: onEditReorder,
       onStockUpdate: onStockUpdate,
+      onSystemStockUpdate: onSystemStockUpdate,
       onReceive: onReceive,
     ),
   );
@@ -47,6 +49,7 @@ class _LowStockItemDetailSheet extends StatelessWidget {
     this.onNotifyOwner,
     this.onEditReorder,
     this.onStockUpdate,
+    this.onSystemStockUpdate,
     this.onReceive,
   });
 
@@ -57,6 +60,7 @@ class _LowStockItemDetailSheet extends StatelessWidget {
   final void Function(Map<String, dynamic> item)? onNotifyOwner;
   final void Function(Map<String, dynamic> item)? onEditReorder;
   final void Function(Map<String, dynamic> item)? onStockUpdate;
+  final void Function(Map<String, dynamic> item)? onSystemStockUpdate;
   final void Function(Map<String, dynamic> item)? onReceive;
 
   static const _critical = Color(0xFFDC2626);
@@ -144,10 +148,28 @@ class _LowStockItemDetailSheet extends StatelessWidget {
                 onStockUpdate!(item);
               },
               child: const Text(
-                'Update stock',
+                'Update physical stock',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
             ),
+          if (onSystemStockUpdate != null) ...[
+            const SizedBox(height: 8),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size.fromHeight(48),
+                foregroundColor: _primaryBtn,
+                side: const BorderSide(color: _primaryBtn),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                onSystemStockUpdate!(item);
+              },
+              child: const Text(
+                'Update system stock',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
           if (!staffMode && onOrderNow != null) ...[
             const SizedBox(height: 8),
             OutlinedButton(

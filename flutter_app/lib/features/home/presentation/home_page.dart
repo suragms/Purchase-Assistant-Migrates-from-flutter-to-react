@@ -49,7 +49,6 @@ import 'widgets/home_compact_header.dart';
 import 'widgets/home_session_data_banner.dart';
 import 'widgets/home_quick_actions_grid.dart';
 import 'widgets/home_live_status_bar.dart';
-import 'widgets/home_owner_compact_alerts.dart';
 import 'widgets/home_owner_dashboard_body.dart';
 import 'widgets/home_sticky_period_header.dart';
 
@@ -393,11 +392,7 @@ class _HomePageState extends ConsumerState<HomePage>
                         ],
                         const SizedBox(height: HexaOp.cardGap),
                         const ResumePurchaseDraftBanner(),
-                        if (hasDashboard) ...[
-                          const HomeSessionDataBanner(),
-                          const SizedBox(height: HexaOp.cardGap),
-                          const HomeOwnerCompactAlerts(),
-                        ],
+                        if (hasDashboard) const HomeSessionDataBanner(),
                       ],
                     ),
                   ),

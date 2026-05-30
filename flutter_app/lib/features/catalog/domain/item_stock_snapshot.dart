@@ -88,7 +88,9 @@ class ItemStockSnapshot {
 
   ItemStockStatus get status {
     if (systemQty < -0.0001) return ItemStockStatus.negative;
-    if (needsVerification) return ItemStockStatus.pendingVerification;
+    if (needsVerification || !diffQty.isFinite) {
+      return ItemStockStatus.pendingVerification;
+    }
     if (diffQty.abs() > 0.0001) return ItemStockStatus.mismatch;
     if (systemQty <= 0.0001) return ItemStockStatus.outOfStock;
     if (reorderLevel > 0.0001 && systemQty <= reorderLevel) {
@@ -98,8 +100,16 @@ class ItemStockSnapshot {
   }
 
   String diffLabel() {
+    if (!diffQty.isFinite) {
+      if (needsVerification) return 'Verify needed';
+      if (openingQty <= 0.0001 && systemQty <= 0.0001) return 'Opening not set';
+      return 'Count pending';
+    }
     final abs = diffQty.abs();
-    if (abs <= 0.0001) return 'No difference';
+    if (abs <= 0.0001) {
+      if (needsVerification) return 'Verify needed';
+      return 'No difference';
+    }
     final n = _fmt(abs);
     if (diffQty < 0) return '$n $unitLabel missing';
     return '$n $unitLabel extra';

@@ -7,14 +7,13 @@ import '../../../../core/providers/stock_providers.dart'
     show lowStockByCategoryProvider;
 import '../../../stock/presentation/widgets/low_stock_category_tree.dart'
     show countLowStockForTab, LowStockTreeTab;
-import 'home_low_stock_section.dart';
-import 'home_out_of_stock_section.dart';
+import 'home_owner_compact_alerts.dart';
 import 'home_owner_quick_actions.dart';
 import 'home_purchase_control_center.dart';
 import 'home_warehouse_activity_feed.dart';
 import 'home_warehouse_snapshot_card.dart';
 
-/// Owner dashboard scroll body: purchases → warehouse → stock lists → tools → activity.
+/// Owner dashboard: alerts → purchases → warehouse → tools → recent activity.
 class HomeOwnerDashboardBody extends ConsumerWidget {
   const HomeOwnerDashboardBody({super.key});
 
@@ -29,13 +28,11 @@ class HomeOwnerDashboardBody extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const HomeOwnerCompactAlerts(),
+        SizedBox(height: gap),
         const HomePurchaseControlCenter(),
         SizedBox(height: gap),
         const HomeWarehouseSnapshotCard(),
-        SizedBox(height: gap),
-        const HomeLowStockSection(dense: true),
-        SizedBox(height: gap * 0.6),
-        const HomeOutOfStockSection(dense: true),
         SizedBox(height: gap),
         HomeOwnerQuickActions(
           lowStockCount: lowCount,

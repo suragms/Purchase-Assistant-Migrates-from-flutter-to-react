@@ -4,13 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/json_coerce.dart';
-import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/providers/stock_providers.dart';
-import '../../../../core/providers/notification_center_provider.dart'
-    show homeWarehouseAlertsProvider;
 import '../../../../core/utils/unit_utils.dart';
 import '../../../../core/widgets/section_inline_error.dart';
+import 'home_bold_metrics_line.dart';
 import 'home_formatters.dart';
 import 'home_recent_changes_section.dart' show HomeSectionSkeleton;
 
@@ -24,8 +22,6 @@ class HomeWarehouseSnapshotCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final invAsync = ref.watch(homeInventorySummaryProvider);
-    final warehouse = ref.watch(homeWarehouseAlertsProvider);
-    final dashState = ref.watch(homeDashboardDataProvider);
     final status = ref.watch(stockStatusCountsProvider);
 
     return invAsync.when(
@@ -45,28 +41,38 @@ class HomeWarehouseSnapshotCard extends ConsumerWidget {
         ),
       ),
       data: (inv) {
-        final wh = warehouse.valueOrNull;
         final statusMap = status.valueOrNull ?? const {};
-        final dash = dashState.snapshot.data;
-
-        final units = <String>[];
-        if (inv.bags > 0.001) units.add('${_qty(inv.bags)} Bags');
-        if (inv.kg > 0.001) units.add('${_qty(inv.kg)} KG');
-        if (inv.boxes > 0.001) units.add('${_qty(inv.boxes)} Boxes');
-        if (inv.tins > 0.001) units.add('${_qty(inv.tins)} Tins');
-
-        final low = coerceToInt(statusMap['low']);
-        final critical = coerceToInt(statusMap['critical']);
-        final mismatch = wh?.pendingVerifications ?? 0;
-        final pendingDel = dash.pendingDeliveryCount;
         final outN = coerceToInt(statusMap['out']);
 
-        final ops = <String>[
-          if (low + critical > 0) 'Low: ${low + critical}',
-          if (outN > 0) 'Out: $outN',
-          if (mismatch > 0) 'Mismatch: $mismatch',
-          if (pendingDel > 0) 'Pending delivery: $pendingDel',
-        ];
+        final unitSegments = <HomeBoldMetricSegment>[];
+        if (inv.bags > 0.001) {
+          unitSegments.add(HomeBoldMetricSegment(
+            value: _qty(inv.bags),
+            unit: 'Bags',
+            color: HomeMetricColors.bags,
+          ));
+        }
+        if (inv.kg > 0.001) {
+          unitSegments.add(HomeBoldMetricSegment(
+            value: _qty(inv.kg),
+            unit: 'KG',
+            color: HomeMetricColors.kg,
+          ));
+        }
+        if (inv.boxes > 0.001) {
+          unitSegments.add(HomeBoldMetricSegment(
+            value: _qty(inv.boxes),
+            unit: 'Boxes',
+            color: HomeMetricColors.boxes,
+          ));
+        }
+        if (inv.tins > 0.001) {
+          unitSegments.add(HomeBoldMetricSegment(
+            value: _qty(inv.tins),
+            unit: 'Tins',
+            color: HomeMetricColors.tins,
+          ));
+        }
 
         return Card(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -91,40 +97,49 @@ class HomeWarehouseSnapshotCard extends ConsumerWidget {
                     'On-hand snapshot · live warehouse totals',
                     style: HexaOp.caption(context),
                   ),
-                  const SizedBox(height: 8),
-                  if (units.isNotEmpty)
-                    Text(
-                      units.join(' · '),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 17,
-                        height: 1.25,
-                      ),
-                    )
-                  else
-                    Text(
-                      'No on-hand units recorded',
-                      style: HexaOp.caption(context),
-                    ),
-                  if (ops.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  HomeBoldMetricsLine(segments: unitSegments, fontSize: 18),
+                  if (outN > 0) ...[
                     const SizedBox(height: 8),
                     Text(
-                      ops.join(' · '),
+                      'Out of stock: $outN items',
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF64748B),
+                        color: Color(0xFFDC2626),
                       ),
                     ),
                   ],
                   if (inv.totalValueInr > 0.01) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      'Stock value ${homeInr(inv.totalValueInr)} · ${inv.itemCount} items',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF94A3B8),
-                        fontWeight: FontWeight.w600,
+                    const SizedBox(height: 8),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          const TextSpan(
+                            text: 'Stock value ',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: HomeMetricColors.meta,
+                            ),
+                          ),
+                          TextSpan(
+                            text: homeInr(inv.totalValueInr),
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: HomeMetricColors.amount,
+                            ),
+                          ),
+                          TextSpan(
+                            text: ' · ${inv.itemCount} items',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: HomeMetricColors.meta,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],

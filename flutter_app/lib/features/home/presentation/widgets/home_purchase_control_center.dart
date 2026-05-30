@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/dashboard_role.dart';
 import '../../../../core/auth/session_notifier.dart';
@@ -9,6 +8,7 @@ import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../../core/utils/currency_utils.dart';
 import '../../../../core/utils/unit_utils.dart';
+import 'home_bold_metrics_line.dart';
 import 'home_formatters.dart';
 import 'home_recent_changes_section.dart' show HomeSectionSkeleton;
 
@@ -55,18 +55,34 @@ class HomePurchaseControlCenter extends ConsumerWidget {
 
     final dash = dashState.snapshot.data;
     {
-        final unitParts = <String>[];
+        final unitSegments = <HomeBoldMetricSegment>[];
         if (dash.totalBags > 0.001) {
-          unitParts.add('${_qty(dash.totalBags)} bags');
+          unitSegments.add(HomeBoldMetricSegment(
+            value: _qty(dash.totalBags),
+            unit: 'bags',
+            color: HomeMetricColors.bags,
+          ));
         }
         if (dash.totalKg > 0.001) {
-          unitParts.add('${_qty(dash.totalKg)} KG');
+          unitSegments.add(HomeBoldMetricSegment(
+            value: _qty(dash.totalKg),
+            unit: 'KG',
+            color: HomeMetricColors.kg,
+          ));
         }
         if (dash.totalBoxes > 0.001) {
-          unitParts.add('${_qty(dash.totalBoxes)} boxes');
+          unitSegments.add(HomeBoldMetricSegment(
+            value: _qty(dash.totalBoxes),
+            unit: 'boxes',
+            color: HomeMetricColors.boxes,
+          ));
         }
         if (dash.totalTins > 0.001) {
-          unitParts.add('${_qty(dash.totalTins)} tins');
+          unitSegments.add(HomeBoldMetricSegment(
+            value: _qty(dash.totalTins),
+            unit: 'tins',
+            color: HomeMetricColors.tins,
+          ));
         }
 
         final received = dash.receivedDeliveryCount;
@@ -97,24 +113,29 @@ class HomePurchaseControlCenter extends ConsumerWidget {
                     letterSpacing: 0,
                   ),
                 ),
+                const SizedBox(height: 10),
+                HomeBoldMetricsLine(segments: unitSegments, fontSize: 18),
                 const SizedBox(height: 8),
-                if (unitParts.isNotEmpty)
-                  Text(
-                    unitParts.join(' · '),
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                      height: 1.2,
-                      color: Color(0xFF0F172A),
-                    ),
-                  ),
-                const SizedBox(height: 6),
-                Text(
-                  '${formatRupee(dash.totalPurchase)} · ${dash.purchaseCount} bills',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Color(0xFF64748B),
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: formatRupee(dash.totalPurchase),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: HomeMetricColors.amount,
+                        ),
+                      ),
+                      TextSpan(
+                        text: ' · ${dash.purchaseCount} bills',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: HomeMetricColors.meta,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -136,27 +157,6 @@ class HomePurchaseControlCenter extends ConsumerWidget {
                     style: HexaOp.caption(context).copyWith(fontWeight: FontWeight.w800),
                   ),
                 ],
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 48,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      _action(context, 'Add purchase', Icons.add_shopping_cart_rounded,
-                          () => context.push('/purchase/new')),
-                      _action(context, 'Pending', Icons.local_shipping_outlined,
-                          () => context.go('/purchase')),
-                      _action(context, 'Suppliers', Icons.store_outlined,
-                          () => context.push('/contacts?tab=suppliers')),
-                      _action(context, 'Brokers', Icons.handshake_outlined,
-                          () => context.push('/contacts?tab=brokers')),
-                      _action(context, 'History', Icons.receipt_long_outlined,
-                          () => context.go('/purchase')),
-                      _action(context, 'Reports', Icons.bar_chart_rounded,
-                          () => context.go('/reports')),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
@@ -169,17 +169,4 @@ class HomePurchaseControlCenter extends ConsumerWidget {
         style: const TextStyle(
             fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w700),
       );
-
-  Widget _action(
-      BuildContext context, String label, IconData icon, VoidCallback onTap) {
-    return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: ActionChip(
-        avatar: Icon(icon, size: 18),
-        label: Text(label, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
-        onPressed: onTap,
-        visualDensity: VisualDensity.compact,
-      ),
-    );
-  }
 }

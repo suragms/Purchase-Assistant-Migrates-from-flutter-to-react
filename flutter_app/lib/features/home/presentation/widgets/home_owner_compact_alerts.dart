@@ -8,11 +8,14 @@ import '../../../../core/providers/delivery_pipeline_provider.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/stock_providers.dart'
     show openingStockMissingProvider, stockStatusCountsProvider;
-import '../../../../core/theme/hexa_colors.dart';
 
-/// Owner home: four compact tappable chips (low · opening · out · pending delivery).
+/// Owner home: priority cards (low stock + pending delivery first), then opening/out.
 class HomeOwnerCompactAlerts extends ConsumerWidget {
   const HomeOwnerCompactAlerts({super.key});
+
+  static const _critical = Color(0xFFDC2626);
+  static const _warn = Color(0xFFF59E0B);
+  static const _opening = Color(0xFFCA8A04);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -27,64 +30,70 @@ class HomeOwnerCompactAlerts extends ConsumerWidget {
       pending = ref.watch(homeDashboardDataProvider).snapshot.data.pendingDeliveryCount;
     }
 
-    final chips = <_ChipSpec>[
-      _ChipSpec(
-        label: 'Low stock',
-        count: low,
-        accent: HexaColors.warning,
-        urgent: low > 0,
-        onTap: () => context.push('/stock/low-stock'),
-      ),
-      _ChipSpec(
-        label: 'Opening',
-        count: openingN,
-        accent: const Color(0xFFCA8A04),
-        urgent: openingN > 0,
-        onTap: () => context.push('/stock/opening-setup'),
-      ),
-      _ChipSpec(
-        label: 'Out',
-        count: out,
-        accent: const Color(0xFFC62828),
-        urgent: out > 0,
-        onTap: () => context.go('/stock?status=out'),
-      ),
-      _ChipSpec(
-        label: 'Pending delivery',
-        count: pending,
-        accent: const Color(0xFFB91C1C),
-        urgent: pending > 0,
-        filled: pending > 0,
-        onTap: () => context.go('/purchase'),
-      ),
-    ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text('Needs attention', style: HexaOp.cardTitle(context)),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 58,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: chips.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (context, i) => _CompactChip(spec: chips[i]),
-          ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _PriorityCard(
+                label: 'Low stock',
+                count: low,
+                accent: _warn,
+                onTap: () => context.push('/stock/low-stock'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _PriorityCard(
+                label: 'Pending delivery',
+                count: pending,
+                accent: _critical,
+                filled: pending > 0,
+                onTap: () => context.go('/purchase'),
+              ),
+            ),
+          ],
         ),
+        if (openingN > 0 || out > 0) ...[
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              if (openingN > 0)
+                Expanded(
+                  child: _SecondaryChip(
+                    label: 'Opening stock',
+                    count: openingN,
+                    accent: _opening,
+                    onTap: () => context.push('/stock/opening-setup'),
+                  ),
+                ),
+              if (openingN > 0 && out > 0) const SizedBox(width: 8),
+              if (out > 0)
+                Expanded(
+                  child: _SecondaryChip(
+                    label: 'Out of stock',
+                    count: out,
+                    accent: _critical,
+                    onTap: () => context.go('/stock?status=out'),
+                  ),
+                ),
+            ],
+          ),
+        ],
       ],
     );
   }
 }
 
-class _ChipSpec {
-  const _ChipSpec({
+class _PriorityCard extends StatelessWidget {
+  const _PriorityCard({
     required this.label,
     required this.count,
     required this.accent,
     required this.onTap,
-    this.urgent = false,
     this.filled = false,
   });
 
@@ -92,59 +101,105 @@ class _ChipSpec {
   final int count;
   final Color accent;
   final VoidCallback onTap;
-  final bool urgent;
   final bool filled;
-}
-
-class _CompactChip extends StatelessWidget {
-  const _CompactChip({required this.spec});
-
-  final _ChipSpec spec;
 
   @override
   Widget build(BuildContext context) {
-    final bg = spec.filled
-        ? spec.accent.withValues(alpha: 0.12)
-        : Colors.white;
-    final border = spec.urgent
-        ? spec.accent.withValues(alpha: 0.65)
-        : Colors.grey.shade300;
-
     return Material(
-      color: bg,
-      borderRadius: BorderRadius.circular(10),
+      color: filled ? accent.withValues(alpha: 0.1) : Colors.white,
+      borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        onTap: spec.onTap,
-        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          width: 108,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          height: 72,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: border, width: spec.filled ? 1.5 : 1),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: accent.withValues(alpha: filled ? 0.7 : 0.45),
+              width: filled ? 2 : 1.5,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                spec.label,
+                label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: spec.filled ? spec.accent : const Color(0xFF64748B),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: accent,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
-                spec.count > 0 ? '${spec.count}' : '—',
+                '$count',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 22,
                   fontWeight: FontWeight.w900,
                   height: 1,
-                  color: spec.urgent ? spec.accent : const Color(0xFF94A3B8),
+                  color: accent,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SecondaryChip extends StatelessWidget {
+  const _SecondaryChip({
+    required this.label,
+    required this.count,
+    required this.accent,
+    required this.onTap,
+  });
+
+  final String label;
+  final int count;
+  final Color accent;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: accent.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF64748B),
+                  ),
+                ),
+              ),
+              Text(
+                '$count',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                  color: accent,
                 ),
               ),
             ],

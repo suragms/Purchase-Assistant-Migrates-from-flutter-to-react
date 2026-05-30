@@ -8,7 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../api/hexa_api.dart';
-import '../auth/session_notifier.dart';
+import '../auth/session_notifier.dart' show activeSessionProvider, hexaApiProvider;
 import '../errors/user_facing_errors.dart';
 import '../models/trade_purchase_models.dart';
 import '../reporting/trade_report_aggregate.dart';
@@ -167,7 +167,7 @@ List<TradePurchase>? _decodePurchasesJson(String? js) {
 /// on **purchase_date**, same window as Home analytics when that provider is shared.
 final reportsPurchasesHiveCacheProvider =
     Provider.autoDispose<List<TradePurchase>?>((ref) {
-  final session = ref.watch(sessionProvider);
+  final session = ref.watch(activeSessionProvider);
   final range = ref.watch(analyticsDateRangeProvider);
   if (session == null) return null;
   final df = DateFormat('yyyy-MM-dd');
@@ -182,7 +182,7 @@ final reportsPurchasesHiveCacheProvider =
 });
 
 Future<List<TradePurchase>> _loadReportsPurchases(Ref ref) async {
-  final session = ref.read(sessionProvider);
+  final session = ref.read(activeSessionProvider);
   final range = ref.read(analyticsDateRangeProvider);
   if (session == null) return [];
   final api = ref.read(hexaApiProvider);
@@ -323,7 +323,7 @@ Future<List<TradePurchase>> _loadReportsPurchases(Ref ref) async {
 Future<ReportsPurchasePayload> fetchReportsPurchasesLiveForAnalytics(
   Ref ref,
 ) async {
-  final session = ref.read(sessionProvider);
+  final session = ref.read(activeSessionProvider);
   if (session == null) return ReportsPurchasePayload.empty();
   try {
     final list = await _loadReportsPurchases(ref);
@@ -358,7 +358,7 @@ final reportsPurchasesPayloadProvider =
   final link = ref.keepAlive();
   final t = Timer(const Duration(minutes: 5), link.close);
   ref.onDispose(t.cancel);
-  final session = ref.watch(sessionProvider);
+  final session = ref.watch(activeSessionProvider);
   ref.watch(analyticsDateRangeProvider);
   final branch = ref.watch(shellCurrentBranchProvider);
   if (session == null) return ReportsPurchasePayload.empty();

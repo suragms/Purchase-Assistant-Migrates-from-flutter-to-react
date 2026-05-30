@@ -8,6 +8,7 @@ import '../../../../core/utils/unit_utils.dart';
 import '../quick_stock_action_sheet.dart';
 import '../stock_quick_purchase_sheet.dart';
 import 'stock_row_metrics.dart';
+import 'stock_update_mode_toggle.dart';
 
 Future<void> showStockRowActions({
   required BuildContext context,
@@ -28,6 +29,7 @@ Future<void> showStockRowActions({
     context: context,
     showDragHandle: true,
     useSafeArea: true,
+    isScrollControlled: true,
     builder: (ctx) => HexaResponsiveSheetViewport(
       compact: true,
       bottomExtra: 12,
@@ -66,6 +68,20 @@ Future<void> showStockRowActions({
                 context: context,
                 ref: ref,
                 item: item,
+                initialMode: StockUpdateMode.physical,
+              );
+            },
+          ),
+          _StockActionTile(
+            icon: Icons.memory_outlined,
+            label: 'Update system stock',
+            onTap: () async {
+              Navigator.pop(ctx);
+              await showQuickStockActionSheet(
+                context: context,
+                ref: ref,
+                item: item,
+                initialMode: StockUpdateMode.system,
               );
             },
           ),

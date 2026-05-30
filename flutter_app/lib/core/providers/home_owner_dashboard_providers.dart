@@ -267,7 +267,10 @@ final homeOwnerPeriodDashboardProvider =
 final stockVariancesTodayProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   _providerKeepAlive(ref, const Duration(minutes: 2));
-  if (!shellBranchIsVisible(ref, ShellBranch.home)) return [];
+  if (!shellBranchIsVisible(ref, ShellBranch.home) &&
+      !shellBranchIsVisible(ref, ShellBranch.reports)) {
+    return [];
+  }
   final session = ref.watch(activeSessionProvider);
   if (session == null) return [];
   return ref.read(hexaApiProvider).listStockVariancesToday(

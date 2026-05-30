@@ -10,6 +10,7 @@ import 'post_auth_route.dart'
 import '../models/trade_purchase_models.dart';
 import 'page_transitions.dart';
 import '../widgets/hexa_page_error_boundary.dart';
+import '../../features/shell/shell_branch_provider.dart';
 import '../../features/analytics/presentation/full_reports_page.dart';
 import '../../features/reports/reports_bi_tab.dart';
 import '../../features/catalog/presentation/item_analytics_redirect_page.dart';
@@ -1052,6 +1053,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => HexaPageErrorBoundary(
                   title: 'Home could not load',
                   fallbackRoute: '/home',
+                  shellBranchIndex: ShellBranch.home,
                   child: const HomePage(),
                 ),
                 routes: [
@@ -1079,6 +1081,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => HexaPageErrorBoundary(
                   title: 'Stock could not load',
                   fallbackRoute: '/home',
+                  shellBranchIndex: ShellBranch.stock,
                   child: StockPage(
                       mode: StockPageMode.owner,
                       initialTab: state.uri.queryParameters['tab'],
@@ -1096,6 +1099,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => HexaPageErrorBoundary(
                       title: 'Reports could not load',
                       fallbackRoute: '/home',
+                      shellBranchIndex: ShellBranch.reports,
                       child: FullReportsPage(
                         initialTab: ReportsBiTabX.fromQuery(
                           state.uri.queryParameters['tab'],
@@ -1114,6 +1118,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 builder: (context, state) => HexaPageErrorBoundary(
                   title: 'Purchases could not load',
                   fallbackRoute: '/home',
+                  shellBranchIndex: ShellBranch.history,
                   child: const PurchaseHomePage(),
                 ),
               ),

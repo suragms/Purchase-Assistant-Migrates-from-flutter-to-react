@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../../core/widgets/hexa_elevated_autocomplete.dart';
 import '../../../../core/providers/catalog_providers.dart';
 import '../../../../core/providers/stock_providers.dart';
 import '../../stock_period_utils.dart';
@@ -115,6 +116,14 @@ class StockInlineCategoryFilters extends ConsumerWidget {
                 initialValue: q.subcategory.isEmpty
                     ? null
                     : TextEditingValue(text: q.subcategory),
+                optionsViewBuilder: (context, onSelected, options) {
+                  return hexaElevatedAutocompleteOptions<String>(
+                    context,
+                    onSelected,
+                    options,
+                    label: (v) => v,
+                  );
+                },
                 optionsBuilder: (text) {
                   final needle = text.text.trim().toLowerCase();
                   if (needle.isEmpty) return options.take(12);
