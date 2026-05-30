@@ -168,6 +168,7 @@ class HexaResponsiveSheetViewport extends StatelessWidget {
     this.padding,
     this.bottomExtra = 16,
     this.scrollController,
+    this.compact = false,
   });
 
   final Widget child;
@@ -175,6 +176,8 @@ class HexaResponsiveSheetViewport extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final double bottomExtra;
   final ScrollController? scrollController;
+  /// When true, sheet height hugs content (action menus). Avoids full-screen white gap.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -187,6 +190,26 @@ class HexaResponsiveSheetViewport extends StatelessWidget {
           HexaResponsive.pageGutter(context, operational: true),
           bottomExtra + bottomSafe,
         );
+
+    final padded = Padding(padding: effectivePadding, child: child);
+
+    if (compact) {
+      return AnimatedPadding(
+        duration: HexaDsMotion.fast,
+        curve: HexaDsMotion.enter,
+        padding: EdgeInsets.only(bottom: bottomInset),
+        child: SafeArea(
+          top: false,
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxWidth),
+              child: padded,
+            ),
+          ),
+        ),
+      );
+    }
 
     return AnimatedPadding(
       duration: HexaDsMotion.fast,

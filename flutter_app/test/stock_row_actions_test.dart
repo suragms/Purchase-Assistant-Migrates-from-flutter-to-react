@@ -35,8 +35,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('916 RAVA 50KG'), findsOneWidget);
-    expect(find.text('Update Physical Stock'), findsOneWidget);
-    expect(find.text('Add Purchase Quantity'), findsOneWidget);
-    expect(find.text('View Item Activity'), findsOneWidget);
+    expect(find.text('Update physical stock'), findsOneWidget);
+    expect(find.text('Add purchase quantity'), findsOneWidget);
+    expect(find.text('View item activity'), findsOneWidget);
   });
 }
