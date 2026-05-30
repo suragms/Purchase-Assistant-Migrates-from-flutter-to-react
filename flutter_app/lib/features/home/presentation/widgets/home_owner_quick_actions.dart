@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/hexa_colors.dart';
+import '../../../../core/widgets/hexa_count_badge.dart';
 
 /// Owner dashboard quick actions (2×4 grid, ~56dp tiles).
 class HomeOwnerQuickActions extends StatelessWidget {
@@ -69,6 +70,7 @@ class _Tile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final badge = spec.badge;
     return Material(
       color: spec.color.withValues(alpha: 0.08),
       borderRadius: BorderRadius.circular(12),
@@ -80,12 +82,9 @@ class _Tile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Badge(
-                isLabelVisible: spec.badge != null && spec.badge! > 0,
-                label: Text(
-                  spec.badge! > 999 ? '999+' : '${spec.badge}',
-                  style: const TextStyle(fontSize: 10),
-                ),
+              HexaCountBadge(
+                count: badge,
+                maxDisplay: 999,
                 child: Icon(spec.icon, color: spec.color, size: 22),
               ),
               const SizedBox(height: 4),

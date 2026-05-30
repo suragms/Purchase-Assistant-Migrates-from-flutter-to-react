@@ -21,6 +21,7 @@ import '../../../core/providers/staff_home_providers.dart'
     show staffPendingDeliveryCountProvider;
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/theme/hexa_colors.dart';
+import '../../../core/widgets/hexa_count_badge.dart';
 import '../../shell/app_shell.dart';
 import '../../shell/shell_realtime_listener.dart';
 import '../staff_shell_branch_provider.dart';
@@ -379,9 +380,8 @@ class _StaffNavTile extends StatelessWidget {
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Badge(
-                  isLabelVisible: badge != null && badge! > 0,
-                  label: Text(badge! > 99 ? '99+' : '$badge'),
+                child: HexaCountBadge(
+                  count: badge,
                   backgroundColor: badgeColor ?? const Color(0xFFDC2626),
                   child: Icon(
                     ic,

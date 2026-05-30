@@ -253,7 +253,7 @@ class _AlertCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
               ),
-              const Spacer(),
+              const SizedBox(height: 6),
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton(

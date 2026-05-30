@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/session_notifier.dart';
@@ -7,9 +9,16 @@ final deliveryPipelineProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
   final session = ref.watch(sessionProvider);
   if (session == null) return {};
-  return ref.read(hexaApiProvider).fetchDeliveryPipeline(
-        businessId: session.primaryBusiness.id,
-      );
+  try {
+    return await ref
+        .read(hexaApiProvider)
+        .fetchDeliveryPipeline(
+          businessId: session.primaryBusiness.id,
+        )
+        .timeout(const Duration(seconds: 15));
+  } on TimeoutException {
+    return {};
+  }
 });
 
 /// Undelivered PUR bills across pipeline stages (same as staff home KPI).

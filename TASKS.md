@@ -1,8 +1,22 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-05-29 (final release gate — all automated checks green)
+**Last updated:** 2026-05-29 (production home/reports null-crash hotfix)
 
-## Staff tasks + owner arrange (2026-05-29)
+## Production hotfix — Home/Reports blank (2026-05-29)
+
+- [x] **Root cause:** `Badge` always builds `label` — several grids used `badge!` or unsafe labels on tiles **without** a count (owner quick actions, staff tools, staff nav)
+- [x] **Why so many console errors:** one build crash → Flutter retries every frame → hundreds of `Another exception was thrown` lines (not hundreds of different bugs)
+- [x] Shared fix: `HexaCountBadge` widget; applied on owner + staff home tools + staff bottom nav
+- [x] Per-tab `HexaPageErrorBoundary` on Home, Stock, Purchases, Staff home (IndexedStack builds all shell tabs at once)
+- [x] Delivery pipeline API: 15s timeout so staff KPI row does not shimmer forever
+- [x] `HexaPageErrorBoundary`: null-check errors are fatal again (no silent grey loop)
+- [x] Critical alert cards: removed `Spacer` in unbounded column
+- [x] Render cron: `POST /internal/whatsapp-reports/send-due` stub (was 404)
+- [x] Tests: `home_owner_quick_actions_test.dart`, `test_internal_cron.py`
+
+**Deploy:** push Flutter to Vercel + API to Render. Set `WHATSAPP_REPORTS_CRON_SECRET` on API (must match cron job header). Users: hard refresh or sign out/in once.
+
+---
 
 - [x] Fix checkbox: optimistic state no longer cleared on success (tasks stay checked)
 - [x] Per-business default seed (6 tasks); templates API `GET/PUT /operations/checklist/templates`

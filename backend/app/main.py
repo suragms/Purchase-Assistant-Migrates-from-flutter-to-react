@@ -35,6 +35,7 @@ from app.routers import (
     entries,
     exports,
     health,
+    internal_cron,
     me,
     media,
     price_intelligence,
@@ -468,6 +469,7 @@ if settings.trusted_hosts:
         app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
 
 app.include_router(health.router)
+app.include_router(internal_cron.router)
 app.include_router(auth.router)
 app.include_router(me.router)
 app.include_router(entries.router)

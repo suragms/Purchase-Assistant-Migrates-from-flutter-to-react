@@ -13,6 +13,7 @@ import '../../../../core/providers/search_focus_provider.dart';
 import '../../../../core/providers/staff_home_providers.dart';
 import '../../../../core/providers/stock_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
+import '../../../../core/widgets/hexa_count_badge.dart';
 import '../../../../core/widgets/section_inline_error.dart';
 
 /// Section label for staff home blocks.
@@ -907,9 +908,8 @@ class StaffHomeToolsGrid extends ConsumerWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Badge(
-                      isLabelVisible: t.badge != null && t.badge! > 0,
-                      label: Text('${t.badge}'),
+                    HexaCountBadge(
+                      count: t.badge,
                       child: Icon(t.icon, color: t.color, size: 22),
                     ),
                     const SizedBox(height: 4),
@@ -963,9 +963,8 @@ class StaffHomeQuickLinksRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
               child: Row(
                 children: [
-                  Badge(
-                    isLabelVisible: badge != null && badge > 0,
-                    label: Text('$badge'),
+                  HexaCountBadge(
+                    count: badge,
                     child: Icon(icon, color: color, size: 24),
                   ),
                   const SizedBox(width: 10),

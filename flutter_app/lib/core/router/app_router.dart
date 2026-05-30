@@ -1049,7 +1049,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/home',
                 name: 'home',
-                builder: (context, state) => const HomePage(),
+                builder: (context, state) => HexaPageErrorBoundary(
+                  title: 'Home could not load',
+                  fallbackRoute: '/home',
+                  child: const HomePage(),
+                ),
                 routes: [
                   GoRoute(
                     path: 'breakdown-more',
@@ -1072,10 +1076,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/stock',
                 name: 'stock_tab',
-                builder: (context, state) => StockPage(
+                builder: (context, state) => HexaPageErrorBoundary(
+                  title: 'Stock could not load',
+                  fallbackRoute: '/home',
+                  child: StockPage(
                       mode: StockPageMode.owner,
                       initialTab: state.uri.queryParameters['tab'],
                     ),
+                ),
               ),
             ],
           ),
@@ -1103,7 +1111,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/purchase',
                 name: 'purchase',
-                builder: (context, state) => const PurchaseHomePage(),
+                builder: (context, state) => HexaPageErrorBoundary(
+                  title: 'Purchases could not load',
+                  fallbackRoute: '/home',
+                  child: const PurchaseHomePage(),
+                ),
               ),
             ],
           ),
@@ -1136,7 +1148,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/staff/home',
                 name: 'staff_home',
-                builder: (context, state) => const StaffDashboardPage(),
+                builder: (context, state) => HexaPageErrorBoundary(
+                  title: 'Staff home could not load',
+                  fallbackRoute: '/staff/home',
+                  child: const StaffDashboardPage(),
+                ),
               ),
             ],
           ),

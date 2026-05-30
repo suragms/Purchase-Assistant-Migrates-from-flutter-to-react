@@ -175,7 +175,6 @@ bool hexaErrorLikelyNonFatal(FlutterErrorDetails details) {
       s.contains('GoError') ||
       s.contains('nothing to pop') ||
       s.contains('There is nothing to pop') ||
-      s.contains('Null check operator used on a null value') ||
       s.contains('RenderBox was not laid out') ||
       s.contains('Vertical viewport was given unbounded height') ||
       s.contains('HiveError') ||

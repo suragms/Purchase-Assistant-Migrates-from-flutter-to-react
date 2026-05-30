@@ -170,6 +170,8 @@ class Settings(BaseSettings):
     whatsapp_llm_agent: bool = False
     # Optional shared secret: Authkey must send header X-Authkey-Webhook-Secret matching this value (empty = disabled).
     authkey_webhook_secret: str | None = None
+    # Render cron → POST /internal/whatsapp-reports/send-due (X-Cron-Secret header).
+    whatsapp_reports_cron_secret: str | None = None
     # Inbound Authkey webhook rate limits (per phone; in-process — use Redis + single worker or tune for multi-instance).
     webhook_max_per_minute: int = 20
     webhook_max_per_hour: int = 120
