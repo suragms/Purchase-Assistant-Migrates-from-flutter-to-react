@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:async';
 import 'dart:convert';
 
@@ -7,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/services/stock_list_pdf.dart';
+import '../../../core/services/pdf_actions.dart';
 import '../../../core/json_coerce.dart';
 import '../../../core/providers/home_dashboard_provider.dart';
 import '../../../core/providers/stock_providers.dart';
@@ -31,6 +33,7 @@ import 'widgets/operational_stock_filter_sheet.dart'
 import 'widgets/stock_warehouse_filter_sheet.dart'
     show countWarehouseActiveFilters;
 import 'widgets/stock_delivery_filter_chips.dart';
+import 'widgets/stock_status_quick_chips.dart';
 import 'widgets/stock_row_metrics.dart';
 
 enum StockPageMode { auto, staff, owner }
@@ -246,7 +249,17 @@ class _StockPageState extends ConsumerState<StockPage>
         rows: items.take(500).toList(),
         filterSummary: summary.isEmpty ? null : summary,
       );
-      final result = await shareStockListPdf(bytes: bytes);
+      final result = kIsWeb
+          ? await savePdfBytes(
+              buildBytes: () async => bytes,
+              filename: 'harisree_stock_statement.pdf',
+              subject: 'Harisree stock statement',
+              source: 'stock_list_pdf',
+            )
+          : await shareStockListPdf(
+              bytes: bytes,
+              filename: 'harisree_stock_statement.pdf',
+            );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result.message)),
@@ -387,6 +400,17 @@ class _StockPageState extends ConsumerState<StockPage>
     }
 
     final listSlivers = <Widget>[
+      SliverToBoxAdapter(
+        child: StockStatusQuickChips(
+          selectedStatus: listQ.status,
+          onSelected: (status) {
+            ref.read(stockListQueryProvider.notifier).state =
+                listQ.copyWith(status: status, page: 1);
+            _resetMerged();
+            ref.invalidate(stockListProvider);
+          },
+        ),
+      ),
       if (_searchExpanded)
         SliverToBoxAdapter(
           child: StockInlineSearchBar(

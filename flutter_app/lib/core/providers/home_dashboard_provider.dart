@@ -9,6 +9,7 @@ import 'package:dio/dio.dart';
 import '../../features/shell/shell_branch_provider.dart';
 import '../api/hexa_api.dart';
 import '../auth/session_notifier.dart';
+import '../json_coerce.dart';
 import '../models/trade_purchase_models.dart';
 import '../services/offline_store.dart';
 import '../utils/line_display.dart';
@@ -262,26 +263,24 @@ HomeDashboardData homeDashboardDataFromApiSnapshot(
   final unitTotals = (clean['unit_totals'] is Map)
       ? clean['unit_totals']! as Map
       : const {};
-  final deals = (summary['deals'] as num?)?.toInt() ?? 0;
-  final totalPurchase = (summary['total_purchase'] as num?)?.toDouble() ?? 0.0;
-  final totalLanding = (summary['total_landing'] as num?)?.toDouble() ?? totalPurchase;
-  final totalSelling = (summary['total_selling'] as num?)?.toDouble() ?? 0.0;
-  final totalProfit = (summary['total_profit'] as num?)?.toDouble() ??
+  final deals = coerceToInt(summary['deals']);
+  final totalPurchase = coerceToDouble(summary['total_purchase']);
+  final totalLandingRaw = coerceToDoubleNullable(summary['total_landing']);
+  final totalLanding = totalLandingRaw ?? totalPurchase;
+  final totalSelling = coerceToDouble(summary['total_selling']);
+  final totalProfit = coerceToDoubleNullable(summary['total_profit']) ??
       (totalSelling - totalLanding);
-  final profitPercent = (summary['profit_percent'] as num?)?.toDouble();
-  final pendingDeliveryCount =
-      (summary['pending_delivery_count'] as num?)?.toInt() ?? 0;
-  final supplierCount = (summary['supplier_count'] as num?)?.toInt() ?? 0;
-  final brokerCount = (summary['broker_count'] as num?)?.toInt() ?? 0;
-  final receivedDeliveryCount =
-      (summary['received_delivery_count'] as num?)?.toInt() ?? 0;
-  final negativeStockCount =
-      (summary['negative_stock_count'] as num?)?.toInt() ?? 0;
-  final totalQtyAllLines = (summary['total_qty'] as num?)?.toDouble() ?? 0.0;
-  final totalKg = (unitTotals['total_kg'] as num?)?.toDouble() ?? 0.0;
-  final totalBags = (unitTotals['total_bags'] as num?)?.toDouble() ?? 0.0;
-  final totalBoxes = (unitTotals['total_boxes'] as num?)?.toDouble() ?? 0.0;
-  final totalTins = (unitTotals['total_tins'] as num?)?.toDouble() ?? 0.0;
+  final profitPercent = coerceToDoubleNullable(summary['profit_percent']);
+  final pendingDeliveryCount = coerceToInt(summary['pending_delivery_count']);
+  final supplierCount = coerceToInt(summary['supplier_count']);
+  final brokerCount = coerceToInt(summary['broker_count']);
+  final receivedDeliveryCount = coerceToInt(summary['received_delivery_count']);
+  final negativeStockCount = coerceToInt(summary['negative_stock_count']);
+  final totalQtyAllLines = coerceToDouble(summary['total_qty']);
+  final totalKg = coerceToDouble(unitTotals['total_kg']);
+  final totalBags = coerceToDouble(unitTotals['total_bags']);
+  final totalBoxes = coerceToDouble(unitTotals['total_boxes']);
+  final totalTins = coerceToDouble(unitTotals['total_tins']);
 
   final rawCats = clean['categories'];
   final categories = <CategoryStat>[];
@@ -301,9 +300,9 @@ HomeDashboardData homeDashboardDataFromApiSnapshot(
           itemRows.add(
             CategoryItemStat(
               name: im['name']?.toString() ?? '—',
-              qty: (im['qty'] as num?)?.toDouble() ?? 0.0,
+              qty: coerceToDouble(im['qty']),
               unit: im['unit']?.toString() ?? '—',
-              amount: (im['amount'] as num?)?.toDouble() ?? 0.0,
+              amount: coerceToDouble(im['amount']),
               catalogItemId: (cid != null && cid.isNotEmpty) ? cid : null,
             ),
           );
@@ -314,12 +313,12 @@ HomeDashboardData homeDashboardDataFromApiSnapshot(
         CategoryStat(
           categoryId: m['category_id']?.toString() ?? '_uncat',
           categoryName: m['category_name']?.toString() ?? 'Uncategorised',
-          totalAmount: (m['total_purchase'] as num?)?.toDouble() ?? 0.0,
-          totalQty: (m['total_qty'] as num?)?.toDouble() ?? 0.0,
+          totalAmount: coerceToDouble(m['total_purchase']),
+          totalQty: coerceToDouble(m['total_qty']),
           units: CategoryUnitTotals(
-            bags: (umap['bags'] as num?)?.toDouble() ?? 0.0,
-            boxes: (umap['boxes'] as num?)?.toDouble() ?? 0.0,
-            tins: (umap['tins'] as num?)?.toDouble() ?? 0.0,
+            bags: coerceToDouble(umap['bags']),
+            boxes: coerceToDouble(umap['boxes']),
+            tins: coerceToDouble(umap['tins']),
           ),
           items: itemRows,
           subtitleSupplier: m['subtitle_supplier']?.toString(),
@@ -344,8 +343,8 @@ HomeDashboardData homeDashboardDataFromApiSnapshot(
         SubcategoryStat(
           id: id,
           label: label,
-          totalAmount: (tm['total_purchase'] as num?)?.toDouble() ?? 0.0,
-          totalQty: (tm['total_qty'] as num?)?.toDouble() ?? 0.0,
+          totalAmount: coerceToDouble(tm['total_purchase']),
+          totalQty: coerceToDouble(tm['total_qty']),
         ),
       );
     }
@@ -362,8 +361,8 @@ HomeDashboardData homeDashboardDataFromApiSnapshot(
         ItemSliceStat(
           name: im['item_name']?.toString() ?? '—',
           catalogItemId: im['catalog_item_id']?.toString(),
-          totalAmount: (im['total_purchase'] as num?)?.toDouble() ?? 0.0,
-          totalQty: (im['total_qty'] as num?)?.toDouble() ?? 0.0,
+          totalAmount: coerceToDouble(im['total_purchase']),
+          totalQty: coerceToDouble(im['total_qty']),
           unit: im['unit']?.toString() ?? '—',
         ),
       );

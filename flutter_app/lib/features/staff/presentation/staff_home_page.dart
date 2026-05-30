@@ -319,8 +319,6 @@ class StaffHomePage extends ConsumerWidget {
               ),
               StaffHomeToolsGrid(lowCount: lowCount, focus: focus),
               const SizedBox(height: HexaOp.cardGap),
-              StaffHomeQuickLinksRow(lowCount: lowCount),
-              const SizedBox(height: HexaOp.cardGap),
               const StaffHomeSectionHeader(
                 title: 'Start here',
                 subtitle: 'Scan and quick actions',

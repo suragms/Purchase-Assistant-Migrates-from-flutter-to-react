@@ -102,8 +102,32 @@ class ScanItemStockSummaryCard extends StatelessWidget {
             'Last purchase: $lastPurchaseLine',
             style: const TextStyle(fontSize: 12, color: HexaColors.textBody),
           ),
+          if (_lastUpdatedLine(item).isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              _lastUpdatedLine(item),
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2563EB),
+              ),
+            ),
+          ],
         ],
       ),
     );
+  }
+
+  static String _lastUpdatedLine(Map<String, dynamic> item) {
+    final by = item['last_stock_updated_by']?.toString().trim() ?? '';
+    final atRaw = item['last_stock_updated_at']?.toString();
+    if (by.isEmpty && (atRaw == null || atRaw.isEmpty)) return '';
+    final at = atRaw != null ? DateTime.tryParse(atRaw)?.toLocal() : null;
+    final when = at != null ? DateFormat('d MMM, h:mm a').format(at) : '';
+    if (by.isNotEmpty && when.isNotEmpty) {
+      return 'System last set by $by · $when';
+    }
+    if (by.isNotEmpty) return 'System last set by $by';
+    return 'System updated $when';
   }
 }

@@ -149,7 +149,7 @@ NotificationCategoryFilter notificationCategoryForItem(NotificationItem n) {
       (n.actionRoute?.startsWith('/purchase') ?? false)) {
     return NotificationCategoryFilter.purchases;
   }
-  if (kind == 'reorder_request' || kind == 'delivery_idle') {
+  if (kind == 'delivery_idle') {
     return NotificationCategoryFilter.purchases;
   }
   if (kind == 'physical_count_reminder') {

@@ -30,6 +30,8 @@ Future<bool> showReorderLevelSheet({
     isScrollControlled: true,
     showDragHandle: true,
     builder: (ctx) => HexaResponsiveSheetViewport(
+      compact: true,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -1,6 +1,35 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-05-29 (production home/reports null-crash hotfix)
+**Last updated:** 2026-05-29 (owner dashboard num coercion + stock UX)
+
+## Owner dashboard blank fix (2026-05-29)
+
+- [x] **Root cause:** API returns decimals as **strings** — `as num?` casts in dashboard parse + status counts crashed Home (gray blank + console `not a subtype of type num?`)
+- [x] Safe coercion via `coerceToInt` / `coerceToDouble` in `homeDashboardDataFromApiSnapshot`, `stockStatusCountsProvider`, delivery pipeline, warehouse alerts, home cards
+- [x] Stock page: **All / Low / Out** quick chips above list; subcategory in row meta; bolder metric numbers
+- [x] Low stock + stock PDF/CSV export: web download + mobile share
+- [x] Notifications: **Order now** on staff reorder-request alerts (owner)
+- [ ] Deploy Flutter to Vercel + hard refresh
+
+## Staff system stock + barcode UX (2026-05-29)
+
+- [x] Staff can set **System stock** (ledger) from scan sheet + quick stock sheet (Physical | System toggle)
+- [x] Backend: staff system PATCH notifies **owners** (`stock_correction` alert) + audit via existing movement log
+- [x] Scan summary shows **last system edit by** + timestamp
+- [x] Barcode scan: deferred camera init, faster debounce (900ms), app bar icons → single **More** menu
+- [x] Scan action sheet: compact (no 62% blank sheet), label print toolbar unchanged (settings in one button)
+- [x] Tests: `test_staff_system_stock_notify.py`
+
+## Low stock mobile UX (2026-05-29)
+
+- [x] Compact row: bold colored metric tiles (System / Physical / Reorder / Purchased) + lifecycle pills + labeled action chips
+- [x] Search bar: single **Filters** sheet (scope + subcategory) — removed 5 icon clutter
+- [x] Staff inform-owner: local **Informed** state + notification provider invalidation
+- [x] Bottom sheets: `compact: true` on reorder level, update stock, quick stock patch (no top blank gap)
+- [x] Staff home: removed duplicate Purchases/Low stock quick-links row (Tools grid already has them)
+- [ ] Manual QA: low stock tabs (All/Pending/Out/Bought/Delivery), staff inform owner, reorder sheet height
+
+---
 
 ## Production hotfix — Home/Reports blank (2026-05-29)
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/stock_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
 
@@ -12,7 +13,7 @@ class HomeOpeningStockCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(openingStockMissingProvider).valueOrNull;
-    final missing = (data?['missing_count'] as num?)?.toInt() ?? 0;
+    final missing = coerceToInt(data?['missing_count']);
     if (missing <= 0) return const SizedBox.shrink();
 
     return Card(

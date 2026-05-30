@@ -9,8 +9,11 @@ import '../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../core/notifications/local_notifications_service.dart';
 import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/providers/stock_providers.dart';
+import '../../../core/providers/notification_center_provider.dart';
+import '../../../core/providers/server_notifications_provider.dart';
 import '../../../core/utils/unit_utils.dart';
 import '../../../core/design_system/hexa_responsive.dart';
+import 'widgets/stock_update_mode_toggle.dart';
 
 const _kReasonChips = <(String label, String type)>[
   ('Physical count', 'verification'),
@@ -58,6 +61,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
   String? _reasonType = 'verification';
   String _reasonLabel = 'Physical count';
   late final String _idempotencyKey;
+  StockUpdateMode _mode = StockUpdateMode.physical;
 
   @override
   void initState() {
@@ -119,21 +123,33 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
       if (session == null) return;
       final note = _notesCtrl.text.trim();
       final reasonLabel = _reasonLabel;
-      final version =
-          int.tryParse(widget.item['stock_version']?.toString() ?? '');
-      final listQ = ref.read(stockListQueryProvider);
-      await ref.read(hexaApiProvider).updatePhysicalStock(
-            businessId: session.primaryBusiness.id,
-            itemId: _itemId,
-            countedQty: parsed,
-            adjustmentType: _reasonType!,
-            reason: reasonLabel,
-            notes: note,
-            lastSeenStockVersion: version,
-            idempotencyKey: _idempotencyKey,
-            periodStart: listQ.periodStart,
-            periodEnd: listQ.periodEnd,
-          );
+      if (_mode == StockUpdateMode.system) {
+        await ref.read(hexaApiProvider).patchStockItem(
+              businessId: session.primaryBusiness.id,
+              itemId: _itemId,
+              newQty: parsed,
+              adjustmentType: _reasonType ?? 'correction',
+              reason: note.isNotEmpty ? '$reasonLabel — $note' : reasonLabel,
+            );
+        ref.invalidate(appNotificationsListProvider);
+        ref.invalidate(notificationCenterCoordinatorProvider);
+      } else {
+        final version =
+            int.tryParse(widget.item['stock_version']?.toString() ?? '');
+        final listQ = ref.read(stockListQueryProvider);
+        await ref.read(hexaApiProvider).updatePhysicalStock(
+              businessId: session.primaryBusiness.id,
+              itemId: _itemId,
+              countedQty: parsed,
+              adjustmentType: _reasonType!,
+              reason: reasonLabel,
+              notes: note,
+              lastSeenStockVersion: version,
+              idempotencyKey: _idempotencyKey,
+              periodStart: listQ.periodStart,
+              periodEnd: listQ.periodEnd,
+            );
+      }
       invalidateWarehouseSurfaces(ref, itemId: _itemId);
       ref.invalidate(stockAuditPeriodProvider);
       ref.invalidate(stockChangesFeedProvider);
@@ -165,6 +181,8 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     final lastPhysical = _lastPhysicalLabel;
 
     return HexaResponsiveSheetViewport(
+      compact: true,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -188,12 +206,24 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
               ),
             ],
           ),
-          Text(
-            'Current: $stockLabel',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF64748B),
+          Text.rich(
+            TextSpan(
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF64748B),
+              ),
+              children: [
+                const TextSpan(text: 'Current: '),
+                TextSpan(
+                  text: stockLabel,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: Color(0xFF2563EB),
+                    fontSize: 15,
+                  ),
+                ),
+              ],
             ),
           ),
           if (lastPhysical != null)
@@ -208,10 +238,31 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
                 ),
               ),
             ),
+          if (widget.item['last_stock_updated_by'] != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Last system edit: ${widget.item['last_stock_updated_by']}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF64748B),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          StockUpdateModeToggle(
+            mode: _mode,
+            onChanged: (m) => setState(() => _mode = m),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            stockUpdateModeHint(_mode),
+            style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+          ),
           const Divider(height: 20),
-          const Text(
-            'Physical stock',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          Text(
+            _mode == StockUpdateMode.system ? 'System stock' : 'Physical stock',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 6),
           TextField(
@@ -273,7 +324,12 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
                       height: 22,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text('UPDATE STOCK'),
+                  : Text(
+                      _mode == StockUpdateMode.system
+                          ? 'SAVE SYSTEM STOCK'
+                          : 'UPDATE STOCK',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
             ),
           ),
         ],

@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/hexa_api.dart';
 import '../auth/session_notifier.dart';
+import '../json_coerce.dart';
 import 'analytics_kpi_provider.dart' show analyticsDateRangeProvider;
 import 'app_period_provider.dart';
 import 'home_dashboard_provider.dart';
@@ -452,18 +453,18 @@ final stockStatusCountsProvider =
   final bid = session.primaryBusiness.id;
 
   final summary = await api.getStockAlertsSummary(businessId: bid);
-  final allTotal = (summary['total_items'] as num?)?.toInt();
-  final outCount = (summary['active_out_of_stock'] as num?)?.toInt() ??
-      (summary['out_of_stock'] as num?)?.toInt() ??
-      0;
+  final allTotal = coerceToIntNullable(summary['total_items']);
+  final outCount = coerceToInt(summary['active_out_of_stock']) > 0
+      ? coerceToInt(summary['active_out_of_stock'])
+      : coerceToInt(summary['out_of_stock']);
   if (allTotal != null && allTotal > 0) {
     return {
       'all': allTotal,
-      'low': (summary['low_stock'] as num?)?.toInt() ?? 0,
-      'critical': (summary['critical_stock'] as num?)?.toInt() ?? 0,
+      'low': coerceToInt(summary['low_stock']),
+      'critical': coerceToInt(summary['critical_stock']),
       'out': outCount,
-      'missing_code': (summary['missing_item_code'] as num?)?.toInt() ?? 0,
-      'missing_barcode': (summary['missing_barcode'] as num?)?.toInt() ?? 0,
+      'missing_code': coerceToInt(summary['missing_item_code']),
+      'missing_barcode': coerceToInt(summary['missing_barcode']),
     };
   }
 
@@ -475,12 +476,12 @@ final stockStatusCountsProvider =
     sort: 'recent',
   );
   return {
-    'all': (res['total'] as num?)?.toInt() ?? 0,
-    'low': (summary['low_stock'] as num?)?.toInt() ?? 0,
-    'critical': (summary['critical_stock'] as num?)?.toInt() ?? 0,
+    'all': coerceToInt(res['total']),
+    'low': coerceToInt(summary['low_stock']),
+    'critical': coerceToInt(summary['critical_stock']),
     'out': outCount,
-    'missing_code': (summary['missing_item_code'] as num?)?.toInt() ?? 0,
-    'missing_barcode': (summary['missing_barcode'] as num?)?.toInt() ?? 0,
+    'missing_code': coerceToInt(summary['missing_item_code']),
+    'missing_barcode': coerceToInt(summary['missing_barcode']),
   };
 });
 

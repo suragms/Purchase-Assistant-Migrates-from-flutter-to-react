@@ -84,10 +84,16 @@ class _HomeLowStockSectionState extends ConsumerState<HomeLowStockSection> {
                     ),
                   ),
                   subtitle: Text(
-                    '${visible[i]['current_stock'] ?? '—'} / '
-                    '${visible[i]['reorder_level'] ?? '—'} '
-                    '${visible[i]['unit'] ?? ''}'
-                    '${visible[i]['supplier_name'] != null ? ' · ${visible[i]['supplier_name']}' : ''}',
+                    [
+                      if ((visible[i]['subcategory_name']?.toString().trim() ?? '')
+                          .isNotEmpty)
+                        visible[i]['subcategory_name']?.toString(),
+                      '${visible[i]['current_stock'] ?? '—'} / '
+                          '${visible[i]['reorder_level'] ?? '—'} '
+                          '${visible[i]['unit'] ?? ''}',
+                      if (visible[i]['supplier_name'] != null)
+                        visible[i]['supplier_name']?.toString(),
+                    ].whereType<String>().where((s) => s.isNotEmpty).join(' · '),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: HexaDsType.bodySm(context).copyWith(fontSize: 11),

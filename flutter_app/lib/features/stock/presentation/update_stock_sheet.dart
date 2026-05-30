@@ -60,6 +60,8 @@ Future<void> showUpdateStockSheet({
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
     builder: (ctx) => HexaResponsiveSheetViewport(
+      compact: true,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: _UpdateStockSheetBody(
         itemId: itemId,
         itemName: itemName,

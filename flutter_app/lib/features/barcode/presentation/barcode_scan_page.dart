@@ -32,7 +32,7 @@ import 'barcode_scan_web_stub.dart'
     if (dart.library.html) 'barcode_scan_web.dart';
 
 const _kMaxRecent = 10;
-const _kDebounceMs = 1200;
+const _kDebounceMs = 900;
 const _kManualSearchDebounceMs = 400;
 /// Retail + warehouse linear formats (fewer = faster camera decode).
 const _kWarehouseBarcodeFormats = <BarcodeFormat>[
@@ -80,7 +80,9 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     )..repeat(reverse: true);
     _manualCtrl.addListener(_onManualChanged);
     unawaited(_loadRecent());
-    unawaited(_initCamera());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_initCamera());
+    });
   }
 
   void _onManualChanged() {
@@ -580,30 +582,59 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
         ),
         title: const Text('Scan barcode'),
         actions: [
-          IconButton(
-            tooltip: 'Scan history',
-            icon: const Icon(Icons.history_rounded),
-            onPressed: () => context.push('/barcode/scan-history'),
-          ),
-          IconButton(
-            tooltip: 'Manual entry',
-            icon: const Icon(Icons.keyboard_rounded),
-            onPressed: () => _manualFocus.requestFocus(),
-          ),
-          if (!kIsWeb)
-            IconButton(
-              tooltip: 'Torch',
-              onPressed: _toggleTorch,
-              icon: Icon(
-                _torch
-                    ? Icons.flashlight_on_rounded
-                    : Icons.flashlight_off_rounded,
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            onSelected: (v) {
+              switch (v) {
+                case 'history':
+                  context.push('/barcode/scan-history');
+                case 'manual':
+                  _manualFocus.requestFocus();
+                case 'torch':
+                  unawaited(_toggleTorch());
+                case 'audit':
+                  if (!_busy) unawaited(_startAuditSession());
+              }
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'history',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.history_rounded, size: 20),
+                  title: Text('Scan history'),
+                  contentPadding: EdgeInsets.zero,
+                ),
               ),
-            ),
-          IconButton(
-            tooltip: 'Start audit session',
-            icon: const Icon(Icons.fact_check_outlined),
-            onPressed: _busy ? null : () => unawaited(_startAuditSession()),
+              const PopupMenuItem(
+                value: 'manual',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.keyboard_rounded, size: 20),
+                  title: Text('Manual entry'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              if (!kIsWeb)
+                const PopupMenuItem(
+                  value: 'torch',
+                  child: ListTile(
+                    dense: true,
+                    leading: Icon(Icons.flashlight_on_rounded, size: 20),
+                    title: Text('Torch'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              const PopupMenuItem(
+                value: 'audit',
+                child: ListTile(
+                  dense: true,
+                  leading: Icon(Icons.fact_check_outlined, size: 20),
+                  title: Text('Start audit'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
           ),
         ],
       ),

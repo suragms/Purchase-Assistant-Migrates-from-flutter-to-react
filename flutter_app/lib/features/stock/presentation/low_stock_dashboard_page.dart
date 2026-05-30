@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,8 +10,11 @@ import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/design_system/hexa_responsive.dart';
+import '../../../core/providers/notification_center_provider.dart';
+import '../../../core/providers/server_notifications_provider.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/services/stock_list_pdf.dart';
+import '../../../core/services/pdf_actions.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import 'quick_stock_action_sheet.dart';
@@ -40,6 +44,7 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
   LowStockSearchScope _searchScope = LowStockSearchScope.all;
   String? _subcategoryFilter;
   bool _exportingPdf = false;
+  final _informedOwnerIds = <String>{};
 
   @override
   void initState() {
@@ -100,6 +105,10 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
             itemId: id,
           );
       if (!mounted) return;
+      setState(() => _informedOwnerIds.add(id));
+      ref.invalidate(lowStockByCategoryProvider);
+      ref.invalidate(appNotificationsListProvider);
+      ref.invalidate(notificationCenterCoordinatorProvider);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Owner notified about $name')),
       );
@@ -209,10 +218,17 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
         rows: items.take(500).toList(),
         filterSummary: 'Low stock · ${filterParts.join(' · ')}',
       );
-      final result = await shareStockListPdf(
-        bytes: bytes,
-        filename: 'harisree_low_stock.pdf',
-      );
+      final result = kIsWeb
+          ? await savePdfBytes(
+              buildBytes: () async => bytes,
+              filename: 'harisree_low_stock.pdf',
+              subject: 'Harisree low stock list',
+              source: 'low_stock_pdf',
+            )
+          : await shareStockListPdf(
+              bytes: bytes,
+              filename: 'harisree_low_stock.pdf',
+            );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result.message)),
@@ -274,7 +290,11 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
             final n = countLowStockForTab(grouped, LowStockTreeTab.allLow);
             final subOptions = lowStockSubcategoryOptions(grouped);
             return PreferredSize(
-              preferredSize: Size.fromHeight(subOptions.length > 1 ? 118 : 96),
+              preferredSize: Size.fromHeight(
+                _subcategoryFilter != null && _subcategoryFilter!.trim().isNotEmpty
+                    ? 118
+                    : 96,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -300,52 +320,21 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
                             ),
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        _scopeIcon(
-                          icon: Icons.layers_outlined,
-                          scope: LowStockSearchScope.all,
-                          tooltip: 'Search all',
-                        ),
-                        _scopeIcon(
-                          icon: Icons.category_outlined,
-                          scope: LowStockSearchScope.category,
-                          tooltip: 'Category',
-                        ),
-                        _scopeIcon(
-                          icon: Icons.account_tree_outlined,
-                          scope: LowStockSearchScope.subcategory,
-                          tooltip: 'Subcategory',
-                        ),
-                        _scopeIcon(
-                          icon: Icons.inventory_2_outlined,
-                          scope: LowStockSearchScope.item,
-                          tooltip: 'Item name',
-                        ),
-                        PopupMenuButton<String?>(
-                          tooltip: 'Subcategory filter',
+                        const SizedBox(width: 6),
+                        IconButton(
+                          tooltip: 'Search & filter',
+                          onPressed: () => _showFiltersSheet(subOptions),
                           icon: Icon(
-                            Icons.filter_alt_outlined,
-                            color: _subcategoryFilter != null
+                            Icons.tune_rounded,
+                            color: _filtersActive
                                 ? HexaColors.brandPrimary
-                                : null,
+                                : const Color(0xFF64748B),
                           ),
-                          onSelected: (v) =>
-                              setState(() => _subcategoryFilter = v),
-                          itemBuilder: (ctx) => [
-                            const PopupMenuItem(
-                              value: null,
-                              child: Text('All subcategories'),
-                            ),
-                            for (final sub in subOptions)
-                              PopupMenuItem(
-                                value: sub,
-                                child: Text(
-                                  sub,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                          ],
+                          style: IconButton.styleFrom(
+                            backgroundColor: _filtersActive
+                                ? HexaColors.brandPrimary.withValues(alpha: 0.12)
+                                : Colors.white,
+                          ),
                         ),
                       ],
                     ),
@@ -446,6 +435,7 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
                   searchScope: _searchScope,
                   subcategoryFilter: _subcategoryFilter,
                   staffMode: widget.staffMode,
+                  informedOwnerIds: _informedOwnerIds,
                   onOrderNow: widget.staffMode ? null : _orderNow,
                   onNotifyOwner: widget.staffMode ? _notifyOwner : null,
                   onEditReorder: _editReorder,
@@ -472,26 +462,123 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
     );
   }
 
-  Widget _scopeIcon({
-    required IconData icon,
-    required LowStockSearchScope scope,
-    required String tooltip,
-  }) {
-    final active = _searchScope == scope;
-    return IconButton(
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-      tooltip: tooltip,
-      onPressed: () => setState(() => _searchScope = scope),
-      icon: Icon(
-        icon,
-        size: 20,
-        color: active ? HexaColors.brandPrimary : const Color(0xFF64748B),
-      ),
-      style: IconButton.styleFrom(
-        backgroundColor:
-            active ? HexaColors.brandPrimary.withValues(alpha: 0.12) : null,
+  bool get _filtersActive =>
+      _searchScope != LowStockSearchScope.all ||
+      (_subcategoryFilter != null && _subcategoryFilter!.trim().isNotEmpty);
+
+  Future<void> _showFiltersSheet(List<String> subOptions) async {
+    var scope = _searchScope;
+    String? sub = _subcategoryFilter;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (ctx) => HexaResponsiveSheetViewport(
+        compact: true,
+        child: StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Search & filters',
+                  style: HexaDsType.heading(16),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Choose where search matches and optional subcategory.',
+                  style: HexaDsType.body(12, color: HexaDsColors.textMuted),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Search in',
+                  style: HexaDsType.label(11, color: HexaDsColors.textMuted),
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final entry in <(LowStockSearchScope, String)>[
+                      (LowStockSearchScope.all, 'All fields'),
+                      (LowStockSearchScope.category, 'Category'),
+                      (LowStockSearchScope.subcategory, 'Subcategory'),
+                      (LowStockSearchScope.item, 'Item name'),
+                    ])
+                      FilterChip(
+                        label: Text(entry.$2),
+                        selected: scope == entry.$1,
+                        onSelected: (_) =>
+                            setSheetState(() => scope = entry.$1),
+                      ),
+                  ],
+                ),
+                if (subOptions.length > 1) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'Subcategory',
+                    style: HexaDsType.label(11, color: HexaDsColors.textMuted),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: const Color(0xFFE2E8E6)),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String?>(
+                        isExpanded: true,
+                        value: sub,
+                        items: [
+                          const DropdownMenuItem(
+                            value: null,
+                            child: Text('All subcategories'),
+                          ),
+                          for (final s in subOptions)
+                            DropdownMenuItem(
+                              value: s,
+                              child: Text(
+                                s,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                        ],
+                        onChanged: (v) => setSheetState(() => sub = v),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                FilledButton(
+                  onPressed: () {
+                    setState(() {
+                      _searchScope = scope;
+                      _subcategoryFilter = sub;
+                    });
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text('Apply'),
+                ),
+                if (_filtersActive) ...[
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _searchScope = LowStockSearchScope.all;
+                        _subcategoryFilter = null;
+                      });
+                      Navigator.pop(ctx);
+                    },
+                    child: const Text('Clear filters'),
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
       ),
     );
   }

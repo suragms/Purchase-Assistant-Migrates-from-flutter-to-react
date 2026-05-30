@@ -35,6 +35,7 @@ class StockWarehouseRow extends StatelessWidget {
     final name = item['name']?.toString() ?? '—';
     final codeRaw = item['item_code']?.toString().trim() ?? '';
     final cat = item['category_name']?.toString().trim() ?? '';
+    final sub = item['subcategory_name']?.toString().trim() ?? '';
     final system = StockRowMetrics.systemQty(item);
     final physical = StockRowMetrics.physicalQty(item);
     final diff = StockRowMetrics.diffQty(item);
@@ -51,7 +52,7 @@ class StockWarehouseRow extends StatelessWidget {
 
     final metaParts = <String>[
       if (codeRaw.isNotEmpty) '#$codeRaw',
-      if (cat.isNotEmpty) cat,
+      if (sub.isNotEmpty) sub else if (cat.isNotEmpty) cat,
       if (openingLabel.isNotEmpty) openingLabel,
       if (delivery.isNotEmpty) delivery,
       if (relative.isNotEmpty) relative,
@@ -209,7 +210,7 @@ class StockWarehouseRow extends StatelessWidget {
                 maxLines: 1,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: FontWeight.w900,
                   color: color,
                 ),

@@ -103,6 +103,7 @@ from app.services.realtime_events import publish_business_event
 from app.services.notification_emitter import publish_notification_changed
 from app.services.stock_variance_notifications import (
     _last_purchase_expected_qty,
+    maybe_notify_staff_system_stock_edit,
     maybe_notify_stock_variance,
 )
 from app.services.stock_tracking_profile import profile_from_catalog_item
@@ -3320,6 +3321,21 @@ async def patch_stock_item(
         item_id=item_id,
         adjustment_type=body.adjustment_type,
         new_qty=result.movement.qty_after,
+        triggered_by_user_id=user.id,
+    )
+    item = result.item
+    unit = catalog_stock_unit(item) or item.default_unit or ""
+    await maybe_notify_staff_system_stock_edit(
+        db,
+        business_id=business_id,
+        item_id=item_id,
+        item_name=item.name,
+        unit=unit,
+        old_qty=result.movement.qty_before,
+        new_qty=result.movement.qty_after,
+        actor_user_id=user.id,
+        actor_display=_user_display(user),
+        actor_role=_membership.role or "",
     )
     await db.commit()
     publish_business_event(

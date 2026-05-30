@@ -3,17 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/auth/session_permissions.dart';
+import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/services/offline_store.dart';
 import '../../../core/errors/errors.dart';
 import '../../../core/json_coerce.dart';
 import '../../../core/providers/business_aggregates_invalidation.dart';
+import '../../../core/providers/notification_center_provider.dart';
+import '../../../core/providers/server_notifications_provider.dart';
 import '../../../core/providers/stock_audit_providers.dart';
-import '../../../core/providers/stock_providers.dart';
+import '../../../core/theme/hexa_colors.dart';
+import '../../stock/presentation/widgets/stock_update_mode_toggle.dart';
 import 'widgets/scan_item_stock_summary_card.dart';
 
-/// Compact post-scan warehouse sheet: counted stock, reconciliation, reasons, ledger preview.
+/// Compact post-scan sheet: physical count or system stock + owner alert on staff system edits.
 Future<bool> showWarehouseScanActionSheet({
   required BuildContext context,
   required WidgetRef ref,
@@ -24,28 +29,19 @@ Future<bool> showWarehouseScanActionSheet({
     isScrollControlled: true,
     useSafeArea: true,
     showDragHandle: true,
-    builder: (ctx) => DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.62,
-      minChildSize: 0.4,
-      maxChildSize: 0.88,
-      builder: (_, scroll) => _WarehouseScanActionBody(
-        item: item,
-        scrollController: scroll,
-      ),
+    builder: (ctx) => HexaResponsiveSheetViewport(
+      compact: true,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: _WarehouseScanActionBody(item: item),
     ),
   );
   return saved == true;
 }
 
 class _WarehouseScanActionBody extends ConsumerStatefulWidget {
-  const _WarehouseScanActionBody({
-    required this.item,
-    required this.scrollController,
-  });
+  const _WarehouseScanActionBody({required this.item});
 
   final Map<String, dynamic> item;
-  final ScrollController scrollController;
 
   @override
   ConsumerState<_WarehouseScanActionBody> createState() =>
@@ -53,8 +49,9 @@ class _WarehouseScanActionBody extends ConsumerStatefulWidget {
 }
 
 class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBody> {
-  final _countedCtl = TextEditingController();
+  final _qtyCtl = TextEditingController();
   final _notesCtl = TextEditingController();
+  StockUpdateMode _mode = StockUpdateMode.physical;
   String? _reasonType;
   bool _saving = false;
 
@@ -62,14 +59,14 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
   void initState() {
     super.initState();
     final cur = coerceToDouble(widget.item['current_stock']);
-    _countedCtl.text = cur == cur.roundToDouble()
+    _qtyCtl.text = cur == cur.roundToDouble()
         ? '${cur.round()}'
         : cur.toStringAsFixed(1);
   }
 
   @override
   void dispose() {
-    _countedCtl.dispose();
+    _qtyCtl.dispose();
     _notesCtl.dispose();
     super.dispose();
   }
@@ -78,12 +75,19 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
 
   double get _systemQty => coerceToDouble(widget.item['current_stock']);
 
-  double? get _countedQty => double.tryParse(_countedCtl.text.trim());
+  double? get _enteredQty => double.tryParse(_qtyCtl.text.trim());
+
+  String get _unit =>
+      widget.item['unit']?.toString() ??
+      widget.item['stock_unit']?.toString() ??
+      '';
+
+  String get _unitLabel => _unit.isNotEmpty ? _unit.toUpperCase() : '';
 
   double get _diff {
-    final c = _countedQty;
-    if (c == null) return 0;
-    return _systemQty - c;
+    final q = _enteredQty;
+    if (q == null) return 0;
+    return _systemQty - q;
   }
 
   Color get _diffColor {
@@ -93,21 +97,12 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
     return const Color(0xFFA32D2D);
   }
 
-  String _insightLine() {
-    final d = _diff;
-    if (d.abs() < 0.01) return 'Count matches system stock.';
-    if (d > 0) return 'Possible unrecorded usage or missing stock.';
-    return 'Counted stock is higher than system — check recent purchases.';
-  }
-
   static const _reasons = <String, String>{
-    'sale': 'Sale',
-    'usage': 'Usage',
-    'damaged': 'Damage',
-    'transfer': 'Transfer',
+    'verification': 'Physical count',
     'correction': 'Correction',
+    'sale': 'Sale',
+    'damaged': 'Damage',
     'manual': 'Missing',
-    'purchase': 'Purchase received',
   };
 
   Future<void> _save() async {
@@ -116,65 +111,99 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
     if (session == null) return;
     if (sessionIsStockReadOnly(session)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Read-only account — cannot update stock from scan.'),
-        ),
+        const SnackBar(content: Text('Read-only account — cannot update stock.')),
       );
       return;
     }
-    final counted = _countedQty;
-    if (counted == null || counted < 0) {
+    final qty = _enteredQty;
+    if (qty == null || qty < 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid counted quantity')),
+        const SnackBar(content: Text('Enter a valid quantity')),
       );
       return;
     }
-    final diff = _systemQty - counted;
-    if (diff.abs() > 0.01 && (_reasonType == null || _reasonType!.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Select a reason for the difference')),
-      );
-      return;
+
+    if (_mode == StockUpdateMode.system) {
+      if ((_reasonType == null || _reasonType!.isEmpty) &&
+          (qty - _systemQty).abs() > 0.01) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Select a reason for the change')),
+        );
+        return;
+      }
+    } else {
+      final diff = _systemQty - qty;
+      if (diff.abs() > 0.01 && (_reasonType == null || _reasonType!.isEmpty)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Select a reason for the difference')),
+        );
+        return;
+      }
     }
+
     setState(() => _saving = true);
     try {
       final bid = session.primaryBusiness.id;
-      final reasonLabel = _reasons[_reasonType] ?? 'Physical count';
-      final audit = ref.read(activeStockAuditProvider).valueOrNull;
-      if (audit != null && audit['id'] != null) {
-        await ref.read(hexaApiProvider).upsertStockAuditLine(
+      final note = _notesCtl.text.trim();
+      final reasonLabel = _reasons[_reasonType] ?? 'Stock update';
+
+      if (_mode == StockUpdateMode.system) {
+        await ref.read(hexaApiProvider).patchStockItem(
               businessId: bid,
-              auditId: audit['id'].toString(),
               itemId: _itemId,
-              countedQty: counted,
-              adjustmentType: _reasonType ?? 'verification',
-              reason: reasonLabel,
-              notes: _notesCtl.text.trim().isEmpty ? null : _notesCtl.text.trim(),
+              newQty: qty,
+              adjustmentType: _reasonType ?? 'correction',
+              reason: note.isNotEmpty ? '$reasonLabel — $note' : reasonLabel,
             );
+        ref.invalidate(appNotificationsListProvider);
+        ref.invalidate(notificationCenterCoordinatorProvider);
       } else {
-        await ref.read(hexaApiProvider).verifyStockCount(
-              businessId: bid,
-              itemId: _itemId,
-              countedQty: counted,
-              adjustmentType: _reasonType ?? 'verification',
-              reason: reasonLabel,
-              notes: _notesCtl.text.trim().isEmpty ? null : _notesCtl.text.trim(),
-            );
+        final audit = ref.read(activeStockAuditProvider).valueOrNull;
+        if (audit != null && audit['id'] != null) {
+          await ref.read(hexaApiProvider).upsertStockAuditLine(
+                businessId: bid,
+                auditId: audit['id'].toString(),
+                itemId: _itemId,
+                countedQty: qty,
+                adjustmentType: _reasonType ?? 'verification',
+                reason: reasonLabel,
+                notes: note.isEmpty ? null : note,
+              );
+        } else {
+          await ref.read(hexaApiProvider).verifyStockCount(
+                businessId: bid,
+                itemId: _itemId,
+                countedQty: qty,
+                adjustmentType: _reasonType ?? 'verification',
+                reason: reasonLabel,
+                notes: note.isEmpty ? null : note,
+              );
+        }
       }
+
       invalidateWarehouseSurfaces(ref, itemId: _itemId);
       ref.invalidate(activeStockAuditProvider);
       if (!mounted) return;
       await HapticFeedback.mediumImpact();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _mode == StockUpdateMode.system
+                ? 'System stock updated'
+                : 'Physical count saved',
+          ),
+        ),
+      );
       Navigator.pop(context, true);
     } on DioException catch (e) {
       if (!mounted) return;
       final offline = e.type == DioExceptionType.connectionError ||
           e.type == DioExceptionType.connectionTimeout;
-      if (offline) {
+      if (offline && _mode == StockUpdateMode.physical) {
         await OfflineStore.queueStockVerify(
           businessId: session.primaryBusiness.id,
           itemId: _itemId,
-          countedQty: counted,
+          countedQty: qty,
           reason: _reasons[_reasonType] ?? 'Physical count',
           adjustmentType: _reasonType ?? 'verification',
           notes: _notesCtl.text.trim().isEmpty ? null : _notesCtl.text.trim(),
@@ -201,215 +230,139 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
 
   @override
   Widget build(BuildContext context) {
-    final itemId = _itemId;
-    final intel = ref.watch(stockItemIntelligenceProvider(itemId));
-    final unit = widget.item['unit']?.toString() ??
-        widget.item['default_unit']?.toString() ??
-        '';
-    final unitLabel = unit.isNotEmpty ? unit.toUpperCase() : '';
+    final showReason = _mode == StockUpdateMode.system
+        ? (_enteredQty != null && (_enteredQty! - _systemQty).abs() > 0.01)
+        : _diff.abs() > 0.01;
 
-    return Padding(
-      padding: EdgeInsets.only(
-        left: 16,
-        right: 16,
-        bottom: 16 + MediaQuery.viewInsetsOf(context).bottom,
-      ),
-      child: ListView(
-        controller: widget.scrollController,
-        children: [
-          ScanItemStockSummaryCard(item: widget.item),
-          const SizedBox(height: 12),
-          Text(
-            'Update stock (counted)',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w800,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ScanItemStockSummaryCard(item: widget.item),
+        const SizedBox(height: 10),
+        StockUpdateModeToggle(
+          mode: _mode,
+          onChanged: (m) => setState(() => _mode = m),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          stockUpdateModeHint(_mode),
+          style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), height: 1.3),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          _mode == StockUpdateMode.system ? 'System stock' : 'Physical count',
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              onPressed: () {
+                final c = _enteredQty ?? _systemQty;
+                final next = (c - 1).clamp(0, double.infinity);
+                _qtyCtl.text = formatQty(next.toDouble());
+                setState(() {});
+              },
+              icon: const Icon(Icons.remove_circle_outline),
+            ),
+            Expanded(
+              child: TextField(
+                controller: _qtyCtl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  suffixText: _unitLabel,
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              IconButton(
-                tooltip: 'Decrease count',
-                onPressed: () {
-                  final c = _countedQty ?? _systemQty;
-                  final next = (c - 1).clamp(0, double.infinity);
-                  _countedCtl.text = next == next.roundToDouble()
-                      ? '${next.round()}'
-                      : next.toStringAsFixed(1);
-                  setState(() {});
-                },
-                icon: const Icon(Icons.remove_circle_outline),
+                onChanged: (_) => setState(() {}),
               ),
-              Expanded(
-                child: TextField(
-                  controller: _countedCtl,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    suffixText: unitLabel,
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                    isDense: true,
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Increase count',
-                onPressed: () {
-                  final c = _countedQty ?? _systemQty;
-                  final next = c + 1;
-                  _countedCtl.text = next == next.roundToDouble()
-                      ? '${next.round()}'
-                      : next.toStringAsFixed(1);
-                  setState(() {});
-                },
-                icon: const Icon(Icons.add_circle_outline),
-              ),
-            ],
-          ),
+            ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              onPressed: () {
+                final c = _enteredQty ?? _systemQty;
+                _qtyCtl.text = formatQty(c + 1);
+                setState(() {});
+              },
+              icon: const Icon(Icons.add_circle_outline),
+            ),
+          ],
+        ),
+        if (_mode == StockUpdateMode.physical && _diff.abs() > 0.01) ...[
           const SizedBox(height: 8),
-          _reconciliationBlock(unitLabel),
-          if (_diff.abs() > 0.01) ...[
-            const SizedBox(height: 10),
-            Text(
-              _insightLine(),
-              style: TextStyle(fontSize: 12, color: _diffColor, height: 1.3),
+          Text(
+            'System ${_formatQty(_systemQty)} $_unitLabel · Diff ${_formatQty(_diff)}',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: _diffColor),
+          ),
+        ],
+        if (showReason) ...[
+          const SizedBox(height: 10),
+          const Text('Reason', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: _reasons.entries.map((e) {
+              final sel = _reasonType == e.key;
+              return FilterChip(
+                label: Text(e.value, style: const TextStyle(fontSize: 11)),
+                selected: sel,
+                onSelected: (_) => setState(() => _reasonType = e.key),
+                visualDensity: VisualDensity.compact,
+              );
+            }).toList(),
+          ),
+        ],
+        const SizedBox(height: 8),
+        TextField(
+          controller: _notesCtl,
+          maxLines: 2,
+          decoration: InputDecoration(
+            hintText: 'Notes (optional)',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  context.push('/catalog/item/$_itemId');
+                },
+                child: const Text('Item detail', style: TextStyle(fontSize: 12)),
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Reason (required)',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: _reasons.entries.map((e) {
-                final sel = _reasonType == e.key;
-                return FilterChip(
-                  label: Text(e.value, style: const TextStyle(fontSize: 11)),
-                  selected: sel,
-                  onSelected: (_) => setState(() => _reasonType = e.key),
-                  visualDensity: VisualDensity.compact,
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _notesCtl,
-              maxLines: 2,
-              decoration: InputDecoration(
-                hintText: 'Notes (optional)',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                isDense: true,
+            const SizedBox(width: 8),
+            Expanded(
+              flex: 2,
+              child: FilledButton(
+                style: FilledButton.styleFrom(backgroundColor: HexaColors.brandPrimary),
+                onPressed: _saving ? null : _save,
+                child: _saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : Text(
+                        _mode == StockUpdateMode.system ? 'Save system' : 'Save count',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          intel.when(
-            loading: () => const LinearProgressIndicator(minHeight: 2),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (m) => _miniLedger(m),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    context.push('/stock/intelligence/$itemId');
-                  },
-                  child: const Text('Full detail', style: TextStyle(fontSize: 12)),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _saving ? null : _save,
-                  child: _saving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Update'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _reconciliationBlock(String unitLabel) {
-    final c = _countedQty ?? _systemQty;
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: _diffColor.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: _diffColor.withValues(alpha: 0.35)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('System: ${formatQty(_systemQty)} $unitLabel',
-              style: const TextStyle(fontSize: 12)),
-          Text('Counted: ${formatQty(c)} $unitLabel',
-              style: const TextStyle(fontSize: 12)),
-          const SizedBox(height: 4),
-          Text(
-            'Difference: ${formatQty(_diff)} $unitLabel',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w800,
-              color: _diffColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _miniLedger(Map<String, dynamic> intel) {
-    final adj = intel['recent_adjustments'];
-    if (adj is! List || adj.isEmpty) {
-      return const Text('No recent ledger entries', style: TextStyle(fontSize: 12));
-    }
-    final rows = adj.take(3).toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Recent ledger', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-        const SizedBox(height: 6),
-        ...rows.map((r) {
-          final m = r is Map ? Map<String, dynamic>.from(r) : <String, dynamic>{};
-          final type = m['adjustment_type']?.toString() ?? '';
-          final oldQ = coerceToDouble(m['old_qty']);
-          final newQ = coerceToDouble(m['new_qty']);
-          final delta = newQ - oldQ;
-          final sign = delta >= 0 ? '+' : '';
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Text(
-              '$sign${formatQty(delta)} · $type',
-              style: const TextStyle(fontSize: 11),
-            ),
-          );
-        }),
-        TextButton(
-          onPressed: () =>
-              context.push('/catalog/item/$_itemId?tab=history'),
-          child: const Text('Open full ledger'),
         ),
       ],
     );
   }
+
+  String _formatQty(double q) =>
+      q == q.roundToDouble() ? '${q.round()}' : q.toStringAsFixed(1);
 }
 
 String formatQty(double q) =>

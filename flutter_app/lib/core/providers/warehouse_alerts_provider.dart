@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/session_notifier.dart';
+import '../json_coerce.dart';
 import 'stock_providers.dart' show providerKeepAlive;
 
 /// Consolidated warehouse alert counts for home / stock LIVE chips.
@@ -59,14 +60,14 @@ final warehouseAlertsProvider =
     summary = await api.getWarehouseAlertsSummary(businessId: bid);
   } catch (_) {}
   return WarehouseAlerts(
-    pendingDeliveries: (summary['pending_deliveries'] as num?)?.toInt() ?? 0,
-    lowStock: (summary['low_stock'] as num?)?.toInt() ?? 0,
-    criticalStock: (summary['critical_stock'] as num?)?.toInt() ?? 0,
-    pendingVerifications: (summary['pending_verifications'] as num?)?.toInt() ?? 0,
-    missingBarcode: (summary['missing_barcode'] as num?)?.toInt() ?? 0,
-    missingUsageLogs: (summary['missing_usage_logs'] as num?)?.toInt() ?? 0,
-    evictionCount: (summary['eviction_count'] as num?)?.toInt() ?? 0,
+    pendingDeliveries: coerceToInt(summary['pending_deliveries']),
+    lowStock: coerceToInt(summary['low_stock']),
+    criticalStock: coerceToInt(summary['critical_stock']),
+    pendingVerifications: coerceToInt(summary['pending_verifications']),
+    missingBarcode: coerceToInt(summary['missing_barcode']),
+    missingUsageLogs: coerceToInt(summary['missing_usage_logs']),
+    evictionCount: coerceToInt(summary['eviction_count']),
     checklistCompletionPct:
-        (summary['checklist_completion_pct'] as num?)?.toDouble() ?? 100,
+        coerceToDoubleNullable(summary['checklist_completion_pct']) ?? 100,
   );
 });

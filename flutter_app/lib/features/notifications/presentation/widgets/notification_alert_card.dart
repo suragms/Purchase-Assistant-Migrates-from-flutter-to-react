@@ -14,6 +14,7 @@ class NotificationAlertCard extends StatelessWidget {
     this.onTap,
     this.onApprove,
     this.onReject,
+    this.onOrderNow,
   });
 
   final NotificationItem item;
@@ -21,6 +22,7 @@ class NotificationAlertCard extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onApprove;
   final VoidCallback? onReject;
+  final VoidCallback? onOrderNow;
 
   Color _priorityColor(BuildContext context) {
     switch (item.priority) {
@@ -37,6 +39,9 @@ class NotificationAlertCard extends StatelessWidget {
 
   IconData _icon() {
     final kind = item.serverKind ?? '';
+    if (kind == 'reorder_request') {
+      return Icons.campaign_outlined;
+    }
     if (kind == 'low_stock' || kind == 'stock_variance') {
       return Icons.inventory_2_outlined;
     }
@@ -141,6 +146,21 @@ class NotificationAlertCard extends StatelessWidget {
                                         child: const Text('Review'),
                                       ),
                                   ],
+                                ),
+                              ],
+                              if (onOrderNow != null) ...[
+                                const SizedBox(height: 8),
+                                FilledButton.icon(
+                                  style: FilledButton.styleFrom(
+                                    backgroundColor: HexaColors.brandPrimary,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  onPressed: onOrderNow,
+                                  icon: const Icon(Icons.add_shopping_cart_rounded, size: 16),
+                                  label: const Text(
+                                    'Order now',
+                                    style: TextStyle(fontWeight: FontWeight.w900),
+                                  ),
                                 ),
                               ],
                             ],

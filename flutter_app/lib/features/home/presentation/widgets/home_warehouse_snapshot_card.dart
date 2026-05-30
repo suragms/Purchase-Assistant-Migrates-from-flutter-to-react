@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/providers/stock_providers.dart';
@@ -54,11 +55,11 @@ class HomeWarehouseSnapshotCard extends ConsumerWidget {
         if (inv.boxes > 0.001) units.add('${_qty(inv.boxes)} Boxes');
         if (inv.tins > 0.001) units.add('${_qty(inv.tins)} Tins');
 
-        final low = (statusMap['low'] as num?)?.toInt() ?? 0;
-        final critical = (statusMap['critical'] as num?)?.toInt() ?? 0;
+        final low = coerceToInt(statusMap['low']);
+        final critical = coerceToInt(statusMap['critical']);
         final mismatch = wh?.pendingVerifications ?? 0;
         final pendingDel = dash.pendingDeliveryCount;
-        final outN = (statusMap['out'] as num?)?.toInt() ?? 0;
+        final outN = coerceToInt(statusMap['out']);
 
         final ops = <String>[
           if (low + critical > 0) 'Low: ${low + critical}',

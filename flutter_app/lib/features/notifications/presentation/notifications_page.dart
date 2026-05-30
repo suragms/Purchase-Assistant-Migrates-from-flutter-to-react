@@ -520,11 +520,31 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     }
 
     final time = NotificationAlertCard.relativeTime(n.createdAt, rel);
+    final isReorder = n.serverKind == 'reorder_request';
+    String? itemIdFromRoute;
+    final route = n.actionRoute;
+    if (route != null && route.contains('/catalog/item/')) {
+      itemIdFromRoute = route.split('/catalog/item/').last.split('?').first;
+    }
+
     return NotificationAlertCard(
       key: ValueKey(n.id),
       item: n,
       timeLabel: time,
       onTap: handleTap,
+      onOrderNow: isReorder && itemIdFromRoute != null && itemIdFromRoute.isNotEmpty
+          ? () {
+              handleTap();
+              if (context.mounted) {
+                context.push('/purchase/new?itemId=$itemIdFromRoute');
+              }
+            }
+          : isReorder
+              ? () {
+                  handleTap();
+                  if (context.mounted) context.push('/purchase/new');
+                }
+              : null,
     );
   }
 }

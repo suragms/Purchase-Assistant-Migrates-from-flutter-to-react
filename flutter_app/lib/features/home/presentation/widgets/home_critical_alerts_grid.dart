@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../../core/json_coerce.dart';
 import '../../../../core/auth/session_notifier.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/notifications_provider.dart'
@@ -70,7 +71,7 @@ class HomeCriticalAlertsGrid extends ConsumerWidget {
     }
     if (openingN == 0) {
       final opening = ref.watch(openingStockMissingProvider).valueOrNull;
-      openingN = (opening?['missing_count'] as num?)?.toInt() ?? 0;
+      openingN = coerceToInt(opening?['missing_count']);
     }
 
     final cards = <_AlertCardSpec>[];

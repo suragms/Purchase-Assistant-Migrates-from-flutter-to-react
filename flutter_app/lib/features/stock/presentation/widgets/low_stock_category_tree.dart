@@ -183,6 +183,7 @@ class LowStockCategoryTree extends StatefulWidget {
     this.searchScope = LowStockSearchScope.all,
     this.subcategoryFilter,
     this.staffMode = false,
+    this.informedOwnerIds = const {},
     this.onOrderNow,
     this.onNotifyOwner,
     this.onEditReorder,
@@ -196,6 +197,7 @@ class LowStockCategoryTree extends StatefulWidget {
   final LowStockSearchScope searchScope;
   final String? subcategoryFilter;
   final bool staffMode;
+  final Set<String> informedOwnerIds;
   final void Function(Map<String, dynamic> item)? onOrderNow;
   final void Function(Map<String, dynamic> item)? onNotifyOwner;
   final void Function(Map<String, dynamic> item)? onEditReorder;
@@ -331,6 +333,11 @@ class _LowStockCategoryTreeState extends State<LowStockCategoryTree> {
                     LowStockCompactItemRow(
                       item: item,
                       staffMode: widget.staffMode,
+                      hideSubcategory: subEntry.key.trim().isNotEmpty &&
+                          subEntry.key != '—' &&
+                          subEntry.key != 'Uncategorized',
+                      ownerInformed: widget.informedOwnerIds
+                          .contains(item['id']?.toString()),
                       onOrderNow: widget.onOrderNow,
                       onNotifyOwner: widget.onNotifyOwner,
                       onEditReorder: widget.onEditReorder,

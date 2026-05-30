@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/delivery_pipeline_provider.dart';
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../../core/widgets/section_inline_error.dart';
@@ -34,14 +35,12 @@ class HomeDeliveryPipelineCard extends ConsumerWidget {
       ),
       data: (p) {
         final dispatched =
-            ((p['dispatched'] as num?)?.toInt() ?? 0) +
-            ((p['in_transit'] as num?)?.toInt() ?? 0);
-        final arrived = ((p['arrived'] as num?)?.toInt() ?? 0) +
-            ((p['staff_verifying'] as num?)?.toInt() ?? 0);
+            coerceToInt(p['dispatched']) + coerceToInt(p['in_transit']);
+        final arrived = coerceToInt(p['arrived']) +
+            coerceToInt(p['staff_verifying']);
         final readyCommit =
-            ((p['staff_verified'] as num?)?.toInt() ?? 0) +
-            ((p['partial'] as num?)?.toInt() ?? 0);
-        final pendingAmt = (p['total_pending_amount'] as num?)?.toDouble() ?? 0;
+            coerceToInt(p['staff_verified']) + coerceToInt(p['partial']);
+        final pendingAmt = coerceToDouble(p['total_pending_amount']);
 
         if (dispatched == 0 &&
             arrived == 0 &&
