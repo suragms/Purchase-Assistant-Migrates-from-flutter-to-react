@@ -294,6 +294,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Widget _embeddedSearchTextField(ColorScheme cs) {
+    final hint = widget.staffShellEmbedded
+        ? 'Item name, code, barcode, category…'
+        : 'Search purchases, suppliers, items…';
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: TextField(
@@ -302,7 +305,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         autofocus: true,
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
-          hintText: 'Search purchases, suppliers, items…',
+          hintText: hint,
           prefixIcon: const Icon(Icons.search_rounded),
           isDense: false,
           contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
@@ -337,15 +340,21 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Widget _embeddedCategoryChips() {
-    const meta = <(String id, String label)>[
-      ('all', 'All'),
-      ('bills', 'Purchases'),
-      ('items', 'Items'),
-      ('suppliers', 'Suppliers'),
-      ('brokers', 'Brokers'),
-      ('types', 'Types'),
-      ('contacts', 'Contacts'),
-    ];
+    final meta = widget.staffShellEmbedded
+        ? const <(String, String)>[
+            ('items', 'Items'),
+            ('types', 'Subcategories'),
+            ('bills', 'Purchases'),
+          ]
+        : const <(String, String)>[
+            ('all', 'All'),
+            ('bills', 'Purchases'),
+            ('items', 'Items'),
+            ('suppliers', 'Suppliers'),
+            ('brokers', 'Brokers'),
+            ('types', 'Types'),
+            ('contacts', 'Contacts'),
+          ];
     return SizedBox(
       height: 52,
       child: ListView.separated(
@@ -414,6 +423,19 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         if (next == ShellBranch.search) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) _focus.requestFocus();
+          });
+        }
+      });
+    }
+    if (widget.staffShellEmbedded) {
+      ref.listen<int>(staffShellCurrentBranchProvider, (prev, next) {
+        if (next == StaffShellBranch.search) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if (ref.read(searchFocusRequestedProvider)) {
+              ref.read(searchFocusRequestedProvider.notifier).state = false;
+            }
+            _focus.requestFocus();
           });
         }
       });
@@ -508,34 +530,74 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             spacing: 8,
             runSpacing: 8,
             children: [
+              if (widget.staffShellEmbedded) ...[
+                ActionChip(
+                  avatar: const Icon(Icons.grid_view_rounded, size: 18),
+                  label: const Text('Item gallery'),
+                  onPressed: () => context.push('/staff/items'),
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.qr_code_2_outlined, size: 18),
+                  label: const Text('Missing barcode'),
+                  onPressed: () => context.push(
+                    '/staff/items?filter=missing_barcode',
+                  ),
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.tag_outlined, size: 18),
+                  label: const Text('Missing item code'),
+                  onPressed: () => context.push(
+                    '/staff/items?filter=missing_code',
+                  ),
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.inventory_outlined, size: 18),
+                  label: const Text('Opening stock'),
+                  onPressed: () => context.push('/stock/opening-setup'),
+                ),
+              ],
               ActionChip(
                 avatar: const Icon(Icons.warning_amber_rounded, size: 18),
                 label: const Text('Low stock'),
-                onPressed: () => context.push('/stock'),
+                onPressed: () => context.push(
+                  widget.staffShellEmbedded
+                      ? '/staff/low-stock'
+                      : '/stock',
+                ),
               ),
-              ActionChip(
-                avatar: const Icon(Icons.qr_code_2_rounded, size: 18),
-                label: const Text('Missing barcode'),
-                onPressed: () => context.push('/barcode/print'),
-              ),
-              ActionChip(
-                avatar: const Icon(Icons.edit_note_rounded, size: 18),
-                label: const Text('Recently updated'),
-                onPressed: () => context.push('/stock'),
-              ),
-              ActionChip(
-                avatar: const Icon(Icons.history_rounded, size: 18),
-                label: const Text('Recent scans'),
-                onPressed: () => context.push('/barcode/scan?return=search'),
-              ),
+              if (!widget.staffShellEmbedded) ...[
+                ActionChip(
+                  avatar: const Icon(Icons.qr_code_2_rounded, size: 18),
+                  label: const Text('Missing barcode'),
+                  onPressed: () => context.push('/barcode/print'),
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.edit_note_rounded, size: 18),
+                  label: const Text('Recently updated'),
+                  onPressed: () => context.push('/stock'),
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.history_rounded, size: 18),
+                  label: const Text('Recent scans'),
+                  onPressed: () => context.push('/barcode/scan?return=search'),
+                ),
+              ] else
+                ActionChip(
+                  avatar: const Icon(Icons.qr_code_scanner_rounded, size: 18),
+                  label: const Text('Scan barcode'),
+                  onPressed: () => context.go('/staff/scan'),
+                ),
             ],
           ),
           const SizedBox(height: 20),
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              'Search catalog items (name, HSN, code, category, catalog type), '
-              'recent purchase bills, suppliers, and brokers.',
+              widget.staffShellEmbedded
+                  ? 'Search items by name, item code, category, or subcategory. '
+                      'Use quick filters for missing labels and opening stock.'
+                  : 'Search catalog items (name, HSN, code, category, catalog type), '
+                      'recent purchase bills, suppliers, and brokers.',
               style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
               textAlign: TextAlign.center,
             ),

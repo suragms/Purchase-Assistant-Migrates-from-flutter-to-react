@@ -82,6 +82,7 @@ import '../../features/staff/presentation/staff_quick_purchase_page.dart';
 import '../../features/staff/presentation/staff_purchase_order_detail_page.dart';
 import '../../features/staff/presentation/staff_pending_deliveries_page.dart';
 import '../../features/staff/presentation/staff_purchase_history_page.dart';
+import '../../features/staff/presentation/staff_item_gallery_page.dart';
 import '../../features/staff/presentation/staff_receive_shipment_page.dart';
 import '../../features/shell/shell_screen.dart';
 import '../../features/splash/presentation/splash_page.dart';
@@ -130,7 +131,7 @@ bool _isStaffAllowedRoute(String loc) {
 String _staffRedirectForBlockedRoute(String loc) {
   if (loc.startsWith('/purchase')) return '/staff/deliveries';
   if (loc.startsWith('/stock')) return '/staff/stock';
-  if (loc.startsWith('/search')) return '/staff/home';
+  if (loc.startsWith('/search')) return '/staff/search';
   if (loc.startsWith('/home')) return '/staff/home';
   if (loc.startsWith('/reports') || loc.startsWith('/analytics')) {
     return '/staff/home';
@@ -214,7 +215,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         if (_isStaffAllowedRoute(loc)) return null;
         if (_isOwnerShellTab(loc)) {
           if (loc == '/stock') return '/staff/stock';
-          if (loc == '/search') return '/staff/home';
+          if (loc == '/search') return '/staff/search';
           if (loc == '/home' || loc.startsWith('/home/')) return '/staff/home';
           return '/staff/home';
         }
@@ -739,6 +740,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/staff/items',
+        name: 'staff_items',
+        pageBuilder: (context, state) => iosPushPage(
+          key: state.pageKey,
+          child: StaffItemGalleryPage(
+            initialFilter: state.uri.queryParameters['filter'],
+          ),
+        ),
+      ),
+      GoRoute(
         path: '/staff/settings',
         name: 'staff_settings',
         pageBuilder: (context, state) => iosPushPage(
@@ -1185,6 +1196,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/staff/scan',
                 name: 'staff_scan',
                 builder: (context, state) => const BarcodeScanPage(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/staff/search',
+                name: 'staff_search',
+                builder: (context, state) => const SearchPage(
+                  staffShellEmbedded: true,
+                ),
               ),
             ],
           ),

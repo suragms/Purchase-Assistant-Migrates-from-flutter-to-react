@@ -329,7 +329,7 @@ class StaffHomePage extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(16),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(16),
-                  onTap: () => context.push('/barcode/scan'),
+                  onTap: () => context.go('/staff/scan'),
                   child: Ink(
                     height: 52,
                     decoration: BoxDecoration(

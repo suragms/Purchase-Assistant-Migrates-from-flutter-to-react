@@ -850,8 +850,14 @@ class StaffHomeToolsGrid extends ConsumerWidget {
         HexaColors.brandPrimary,
         () {
           ref.read(searchFocusRequestedProvider.notifier).state = true;
-          context.go('/staff/scan');
+          context.go('/staff/search');
         },
+      ),
+      _ToolSpec(
+        'Gallery',
+        Icons.grid_view_rounded,
+        const Color(0xFF7C3AED),
+        () => context.push('/staff/items'),
       ),
       _ToolSpec(
         'Stock',

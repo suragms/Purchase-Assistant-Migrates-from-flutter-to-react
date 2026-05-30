@@ -551,6 +551,36 @@ final missingCodeItemsProvider =
   return missing;
 });
 
+/// Full stock rows for staff item gallery (category / code / barcode filters).
+final staffGalleryStockProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  _providerKeepAlive(ref, const Duration(minutes: 3));
+  final session = await _waitForSession(ref);
+  if (session == null) return [];
+  final api = ref.read(hexaApiProvider);
+  const pageSize = 500;
+  var page = 1;
+  final rows = <Map<String, dynamic>>[];
+  while (page <= 40) {
+    final res = await api.listStock(
+      businessId: session.primaryBusiness.id,
+      page: page,
+      perPage: pageSize,
+      status: 'all',
+      sort: 'name',
+    );
+    final total = (res['total'] as num?)?.toInt() ?? 0;
+    final raw = (res['items'] as List?) ?? const [];
+    if (raw.isEmpty) break;
+    for (final e in raw) {
+      if (e is Map) rows.add(Map<String, dynamic>.from(e));
+    }
+    if (page * pageSize >= total) break;
+    page++;
+  }
+  return rows;
+});
+
 final staffMissingCodeCountProvider = Provider.autoDispose<int>((ref) {
   return ref.watch(missingCodeItemsProvider).valueOrNull?.length ?? 0;
 });

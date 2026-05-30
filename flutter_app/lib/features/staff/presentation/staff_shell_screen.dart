@@ -40,9 +40,7 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _syncStaffBranch(widget.navigationShell.currentIndex);
-    });
+    _syncStaffBranch(widget.navigationShell.currentIndex);
   }
 
   @override
@@ -50,9 +48,7 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
     super.didUpdateWidget(oldWidget);
     final idx = widget.navigationShell.currentIndex;
     if (oldWidget.navigationShell.currentIndex != idx) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _syncStaffBranch(idx);
-      });
+      _syncStaffBranch(idx);
     }
   }
 
@@ -141,6 +137,11 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
                         selectedIcon: Icon(Icons.qr_code_scanner_rounded),
                         label: Text('Scan'),
                       ),
+                      const NavigationRailDestination(
+                        icon: Icon(Icons.search_rounded),
+                        selectedIcon: Icon(Icons.manage_search_rounded),
+                        label: Text('Search'),
+                      ),
                       NavigationRailDestination(
                         icon: Badge(
                           isLabelVisible: pendingDel > 0,
@@ -216,6 +217,7 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
             ),
             if (idx != StaffShellBranch.home &&
                 idx != StaffShellBranch.scan &&
+                idx != StaffShellBranch.search &&
                 idx != StaffShellBranch.stock &&
                 routePath != '/notifications' &&
                 !routePath.startsWith('/catalog/item/'))
@@ -298,8 +300,20 @@ class _StaffShellBottomBar extends StatelessWidget {
                         icon: Icons.qr_code_scanner_outlined,
                         selectedIcon: Icons.qr_code_scanner_rounded,
                         label: 'Scan',
+                        compact: true,
                         onTap: () =>
                             onDestinationSelected(StaffShellBranch.scan),
+                      ),
+                    ),
+                    Expanded(
+                      child: _StaffNavTile(
+                        selected: selectedIndex == StaffShellBranch.search,
+                        icon: Icons.search_rounded,
+                        selectedIcon: Icons.manage_search_rounded,
+                        label: 'Search',
+                        compact: true,
+                        onTap: () =>
+                            onDestinationSelected(StaffShellBranch.search),
                       ),
                     ),
                     Expanded(
@@ -307,7 +321,8 @@ class _StaffShellBottomBar extends StatelessWidget {
                         selected: selectedIndex == StaffShellBranch.deliveries,
                         icon: Icons.local_shipping_outlined,
                         selectedIcon: Icons.local_shipping_rounded,
-                        label: 'Deliveries',
+                        label: 'Deliver',
+                        compact: true,
                         badge: pendingDeliveryCount,
                         badgeColor: const Color(0xFFEA580C),
                         onTap: () => onDestinationSelected(
@@ -320,6 +335,7 @@ class _StaffShellBottomBar extends StatelessWidget {
                         icon: Icons.checklist_outlined,
                         selectedIcon: Icons.checklist_rounded,
                         label: 'Tasks',
+                        compact: true,
                         onTap: () =>
                             onDestinationSelected(StaffShellBranch.tasks),
                       ),
@@ -344,6 +360,7 @@ class _StaffNavTile extends StatelessWidget {
     required this.onTap,
     this.badge,
     this.badgeColor,
+    this.compact = false,
   });
 
   final bool selected;
@@ -353,6 +370,7 @@ class _StaffNavTile extends StatelessWidget {
   final VoidCallback onTap;
   final int? badge;
   final Color? badgeColor;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -385,7 +403,7 @@ class _StaffNavTile extends StatelessWidget {
                   backgroundColor: badgeColor ?? const Color(0xFFDC2626),
                   child: Icon(
                     ic,
-                    size: 24,
+                    size: compact ? 22 : 24,
                     color:
                         selected ? HexaColors.brandPrimary : cs.onSurfaceVariant,
                   ),
@@ -397,7 +415,7 @@ class _StaffNavTile extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: compact ? 10 : 11,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                   color:
                       selected ? HexaColors.brandPrimary : cs.onSurfaceVariant,
