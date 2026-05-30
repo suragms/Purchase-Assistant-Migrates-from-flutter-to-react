@@ -1,22 +1,28 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 
+import '../../../core/auth/auth_error_messages.dart';
+import '../../../core/auth/auth_failure_policy.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/json_coerce.dart';
 import '../../../core/models/trade_purchase_models.dart';
 import '../../../core/providers/staff_home_providers.dart';
-import '../../../core/providers/trade_purchases_provider.dart';
 import '../../../core/theme/hexa_colors.dart';
-import '../../../core/utils/line_display.dart';
 import '../../../core/utils/unit_utils.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/list_skeleton.dart';
+import '../../purchase/presentation/widgets/purchase_history_grouping.dart';
+import 'widgets/staff_purchase_history_row.dart';
 
-/// Staff purchase list — Today / Week / All time / Low stock items tabs.
+enum _PurchaseStatusFilter { all, pending, delivered }
+
+enum _LowStockFilter { all, critical }
+
+/// Staff purchase list — same layout as owner history, no prices.
 class StaffPurchaseHistoryPage extends ConsumerStatefulWidget {
   const StaffPurchaseHistoryPage({super.key});
 
@@ -31,6 +37,8 @@ class _StaffPurchaseHistoryPageState extends ConsumerState<StaffPurchaseHistoryP
   Timer? _debounce;
   late final TabController _tabs;
   String _query = '';
+  _PurchaseStatusFilter _statusFilter = _PurchaseStatusFilter.all;
+  _LowStockFilter _lowFilter = _LowStockFilter.all;
 
   @override
   void initState() {
@@ -55,26 +63,21 @@ class _StaffPurchaseHistoryPageState extends ConsumerState<StaffPurchaseHistoryP
     });
   }
 
-  bool _inPeriod(TradePurchase p, int tabIndex) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final d = DateTime(
-      p.purchaseDate.year,
-      p.purchaseDate.month,
-      p.purchaseDate.day,
-    );
-    return switch (tabIndex) {
-      0 => d == today,
-      1 => !d.isBefore(today.subtract(Duration(days: now.weekday - 1))),
-      2 => true,
-      _ => true,
-    };
-  }
+  StaffPurchaseHistoryPeriod get _period => switch (_tabs.index) {
+        0 => StaffPurchaseHistoryPeriod.today,
+        1 => StaffPurchaseHistoryPeriod.week,
+        2 => StaffPurchaseHistoryPeriod.allTime,
+        _ => StaffPurchaseHistoryPeriod.allTime,
+      };
 
   List<TradePurchase> _filterPurchases(List<TradePurchase> all) {
-    final tab = _tabs.index;
     return all.where((p) {
-      if (tab < 3 && !_inPeriod(p, tab)) return false;
+      if (_statusFilter == _PurchaseStatusFilter.pending && p.isDelivered) {
+        return false;
+      }
+      if (_statusFilter == _PurchaseStatusFilter.delivered && !p.isDelivered) {
+        return false;
+      }
       if (_query.isEmpty) return true;
       final hay = [
         p.humanId,
@@ -85,11 +88,34 @@ class _StaffPurchaseHistoryPageState extends ConsumerState<StaffPurchaseHistoryP
     }).toList();
   }
 
+  List<Map<String, dynamic>> _filterLowStock(List<Map<String, dynamic>> rows) {
+    return rows.where((item) {
+      if (_lowFilter == _LowStockFilter.critical) {
+        final cur = coerceToDouble(item['current_stock']);
+        final reorder = coerceToDouble(item['reorder_level']);
+        if (reorder <= 0 || cur > reorder * 0.5) return false;
+      }
+      if (_query.isEmpty) return true;
+      final name = item['name']?.toString().toLowerCase() ?? '';
+      return name.contains(_query);
+    }).toList();
+  }
+
+  String _loadErrorMessage(Object error) {
+    if (ref.read(authSessionExpiredProvider)) {
+      return 'Session expired — sign in again';
+    }
+    if (error is DioException) return friendlyApiError(error);
+    return 'Could not load purchase history';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final listAsync = ref.watch(tradePurchasesParsedProvider);
-    final lowAsync = ref.watch(staffLowStockAlertsProvider);
     final tab = _tabs.index;
+    final lowAsync = ref.watch(staffLowStockAlertsProvider);
+    final purchasesAsync = tab < 3
+        ? ref.watch(staffTradePurchasesHistoryProvider(_period))
+        : null;
 
     return Scaffold(
       backgroundColor: HexaColors.brandBackground,
@@ -117,31 +143,88 @@ class _StaffPurchaseHistoryPageState extends ConsumerState<StaffPurchaseHistoryP
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (tab < 3) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: TextField(
-                controller: _searchCtrl,
-                decoration: InputDecoration(
-                  hintText: 'Search supplier, order no., item…',
-                  isDense: true,
-                  prefixIcon: const Icon(Icons.search, size: 20),
-                  suffixIcon: _query.isEmpty
-                      ? null
-                      : IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: () => _searchCtrl.clear(),
-                        ),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    borderSide: const BorderSide(color: Color(0xFFE0DDD8)),
-                  ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: tab == 3
+                    ? 'Search low stock items…'
+                    : 'Search supplier, ID, items…',
+                isDense: true,
+                prefixIcon: const Icon(Icons.search, size: 20),
+                suffixIcon: _query.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () => _searchCtrl.clear(),
+                      ),
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: HexaColors.brandBorder),
                 ),
               ),
             ),
-          ],
+          ),
+          if (tab < 3)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  FilterChip(
+                    label: const Text('All', style: TextStyle(fontSize: 11)),
+                    selected: _statusFilter == _PurchaseStatusFilter.all,
+                    onSelected: (_) => setState(
+                      () => _statusFilter = _PurchaseStatusFilter.all,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  FilterChip(
+                    label: const Text('Undelivered', style: TextStyle(fontSize: 11)),
+                    selected: _statusFilter == _PurchaseStatusFilter.pending,
+                    onSelected: (_) => setState(
+                      () => _statusFilter = _PurchaseStatusFilter.pending,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  FilterChip(
+                    label: const Text('Delivered', style: TextStyle(fontSize: 11)),
+                    selected: _statusFilter == _PurchaseStatusFilter.delivered,
+                    onSelected: (_) => setState(
+                      () => _statusFilter = _PurchaseStatusFilter.delivered,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Wrap(
+                spacing: 6,
+                children: [
+                  FilterChip(
+                    label: const Text('All low', style: TextStyle(fontSize: 11)),
+                    selected: _lowFilter == _LowStockFilter.all,
+                    onSelected: (_) =>
+                        setState(() => _lowFilter = _LowStockFilter.all),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  FilterChip(
+                    label: const Text('Critical', style: TextStyle(fontSize: 11)),
+                    selected: _lowFilter == _LowStockFilter.critical,
+                    onSelected: (_) =>
+                        setState(() => _lowFilter = _LowStockFilter.critical),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: tab == 3
                 ? lowAsync.when(
@@ -153,93 +236,69 @@ class _StaffPurchaseHistoryPageState extends ConsumerState<StaffPurchaseHistoryP
                           ref.invalidate(staffLowStockAlertsProvider),
                     ),
                     data: (rows) {
-                      if (rows.isEmpty) {
-                        return Center(
-                          child: Text(
-                            'No low stock items',
-                            style: HexaDsType.body(
-                              14,
-                              color: HexaDsColors.textMuted,
-                            ),
-                          ),
+                      final filtered = _filterLowStock(rows);
+                      if (filtered.isEmpty) {
+                        return _emptyMessage(
+                          _query.isEmpty
+                              ? 'No low stock items'
+                              : 'No items match your search',
                         );
                       }
                       return ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
-                        itemCount: rows.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (ctx, i) {
-                          final item = rows[i];
-                          final name = item['name']?.toString() ?? '—';
-                          final cur = coerceToDouble(item['current_stock']);
-                          final reorder =
-                              coerceToDouble(item['reorder_level']);
-                          final unit = item['unit']?.toString() ?? '';
-                          return Material(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            child: ListTile(
-                              title: Text(
-                                name,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              subtitle: Text(
-                                '${formatStockQtyNumber(cur)} / '
-                                '${formatStockQtyNumber(reorder)} $unit',
-                              ),
-                              trailing: const Icon(
-                                Icons.warning_amber_rounded,
-                                color: Color(0xFFDC2626),
-                              ),
-                              onTap: () {
-                                final id = item['id']?.toString();
-                                if (id != null && id.isNotEmpty) {
-                                  context.push('/catalog/item/$id');
-                                }
-                              },
-                            ),
-                          );
-                        },
+                        padding: const EdgeInsets.fromLTRB(0, 8, 0, 88),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 0),
+                        itemBuilder: (ctx, i) =>
+                            _StaffLowStockRow(item: filtered[i]),
                       );
                     },
                   )
-                : listAsync.when(
+                : purchasesAsync!.when(
                     loading: () =>
-                        const ListSkeleton(rowCount: 8, rowHeight: 72),
-                    error: (_, __) => FriendlyLoadError(
-                      message: 'Could not load purchase history',
-                      onRetry: () => ref.invalidate(tradePurchasesListProvider),
+                        const ListSkeleton(rowCount: 10, rowHeight: 88),
+                    error: (e, _) => FriendlyLoadError(
+                      message: _loadErrorMessage(e),
+                      onRetry: () => ref.invalidate(
+                        staffTradePurchasesHistoryProvider(_period),
+                      ),
                     ),
                     data: (rows) {
                       final filtered = _filterPurchases(rows);
                       if (filtered.isEmpty) {
-                        return Center(
-                          child: Text(
-                            _query.isEmpty
-                                ? 'No purchase orders in this period'
-                                : 'No orders match your search',
-                            style: HexaDsType.body(
-                              14,
-                              color: HexaDsColors.textMuted,
-                            ),
-                          ),
+                        return _emptyMessage(
+                          _query.isEmpty
+                              ? 'No purchase orders in this period'
+                              : 'No orders match your search',
                         );
                       }
-                      return ListView.separated(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 8),
-                        itemBuilder: (ctx, i) {
-                          final p = filtered[i];
-                          return _StaffPurchaseRow(
-                            purchase: p,
-                            onTap: () => context.push(
-                              '/staff/purchase-history/${p.id}',
-                            ),
+                      final grouped = buildGroupedPurchaseHistory(filtered);
+                      return RefreshIndicator(
+                        onRefresh: () async {
+                          ref.invalidate(
+                            staffTradePurchasesHistoryProvider(_period),
+                          );
+                          await ref.read(
+                            staffTradePurchasesHistoryProvider(_period).future,
                           );
                         },
+                        child: ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(0, 8, 0, 88),
+                          itemCount: grouped.length,
+                          itemBuilder: (ctx, i) {
+                            final entry = grouped[i];
+                            return switch (entry) {
+                              PurchaseHistoryDateHeader(:final label) =>
+                                _DateHeader(label: label),
+                              PurchaseHistoryPurchaseRow(:final purchase) =>
+                                StaffPurchaseHistoryRow(
+                                  purchase: purchase,
+                                  onTap: () => context.push(
+                                    '/staff/purchase-history/${purchase.id}',
+                                  ),
+                                ),
+                            };
+                          },
+                        ),
                       );
                     },
                   ),
@@ -248,99 +307,91 @@ class _StaffPurchaseHistoryPageState extends ConsumerState<StaffPurchaseHistoryP
       ),
     );
   }
+
+  Widget _emptyMessage(String text) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          text,
+          style: HexaDsType.body(14, color: HexaDsColors.textMuted),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
 }
 
-class _StaffPurchaseRow extends StatelessWidget {
-  const _StaffPurchaseRow({required this.purchase, required this.onTap});
+class _DateHeader extends StatelessWidget {
+  const _DateHeader({required this.label});
 
-  final TradePurchase purchase;
-  final VoidCallback onTap;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    final sup = purchase.supplierName ?? 'Supplier';
-    final initials = sup.isNotEmpty ? sup[0].toUpperCase() : '?';
-    final date = purchase.purchaseDate;
-    final ago = _relativeAge(date);
-    final summary = purchase.lines
-        .take(3)
-        .map((l) {
-          final q = formatLineQtyWeightFromTradeLine(l);
-          return '${l.itemName} · $q';
-        })
-        .join(' · ');
-    final statusLabel = purchase.isDelivered ? 'Delivered' : 'Pending';
-    final statusColor =
-        purchase.isDelivered ? const Color(0xFF0F766E) : const Color(0xFFD97706);
+    return Container(
+      color: HexaColors.brandBackground,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+          color: Color(0xFF64748B),
+        ),
+      ),
+    );
+  }
+}
+
+class _StaffLowStockRow extends StatelessWidget {
+  const _StaffLowStockRow({required this.item});
+
+  final Map<String, dynamic> item;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = item['name']?.toString() ?? '—';
+    final cur = coerceToDouble(item['current_stock']);
+    final reorder = coerceToDouble(item['reorder_level']);
+    final unit = item['unit']?.toString() ?? '';
+    final critical = reorder > 0 && cur <= reorder * 0.5;
 
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(12),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: onTap,
+        onTap: () => context.push('/staff/low-stock'),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              CircleAvatar(
-                radius: 22,
-                backgroundColor: const Color(0xFF0D9488).withValues(alpha: 0.15),
-                child: Text(
-                  initials,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF0F766E),
-                  ),
-                ),
+              Icon(
+                critical ? Icons.error_outline : Icons.warning_amber_rounded,
+                color: critical ? const Color(0xFFDC2626) : HexaColors.warning,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      purchase.humanId,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 14,
-                      ),
+                      name,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     Text(
-                      '$sup · ${DateFormat('dd MMM').format(date)} · $ago',
+                      '${formatStockQtyNumber(cur)} / '
+                      '${formatStockQtyNumber(reorder)} $unit',
                       style: const TextStyle(
                         fontSize: 12,
                         color: Color(0xFF64748B),
                       ),
                     ),
-                    if (summary.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text(
-                          summary,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                      ),
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  statusLabel,
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    color: statusColor,
-                  ),
-                ),
+              TextButton(
+                onPressed: () => context.push('/staff/low-stock'),
+                child: const Text('Inform owner'),
               ),
             ],
           ),
@@ -348,14 +399,4 @@ class _StaffPurchaseRow extends StatelessWidget {
       ),
     );
   }
-}
-
-String _relativeAge(DateTime date) {
-  final now = DateTime.now();
-  final d = DateTime(date.year, date.month, date.day);
-  final today = DateTime(now.year, now.month, now.day);
-  final diff = today.difference(d).inDays;
-  if (diff == 0) return 'Today';
-  if (diff == 1) return 'Yesterday';
-  return '$diff d ago';
 }

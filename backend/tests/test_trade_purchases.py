@@ -52,6 +52,40 @@ def _staff_headers(owner_h, bid):
     return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
+def _arrive_verify_commit(h, bid, purchase: dict):
+    """Delivery pipeline: arrive → verify → commit-stock (replaces legacy delivery PATCH)."""
+    pid = purchase["id"]
+    line_id = purchase["lines"][0]["id"]
+    qty = str(purchase["lines"][0].get("qty", 10))
+    arr = client.post(
+        f"/v1/businesses/{bid}/trade-purchases/{pid}/arrive",
+        headers=h,
+        json={},
+    )
+    assert arr.status_code == 200, arr.text
+    ver = client.post(
+        f"/v1/businesses/{bid}/trade-purchases/{pid}/verify",
+        headers=h,
+        json={
+            "lines": [
+                {
+                    "line_id": line_id,
+                    "received_qty": qty,
+                    "damaged_qty": "0",
+                    "return_qty": "0",
+                }
+            ],
+        },
+    )
+    assert ver.status_code == 200, ver.text
+    commit = client.post(
+        f"/v1/businesses/{bid}/trade-purchases/{pid}/commit-stock",
+        headers=h,
+    )
+    assert commit.status_code == 200, commit.text
+    return commit.json()
+
+
 def _line_body(catalog_item_id: str | None = None):
     body = {
         "item_name": "Rice",
@@ -850,16 +884,38 @@ def test_staff_cannot_edit_payment_but_can_receive_delivery_without_financials()
     )
     assert pay.status_code == 403, pay.text
 
-    delivery = client.patch(
-        f"/v1/businesses/{bid}/trade-purchases/{pid}/delivery",
+    arr = client.post(
+        f"/v1/businesses/{bid}/trade-purchases/{pid}/arrive",
         headers=staff_h,
-        json={"is_delivered": True},
+        json={},
     )
-    assert delivery.status_code == 200, delivery.text
-    body = delivery.json()
-    assert body["is_delivered"] is True
+    assert arr.status_code == 200, arr.text
+    line_id = cr.json()["lines"][0]["id"]
+    verify = client.post(
+        f"/v1/businesses/{bid}/trade-purchases/{pid}/verify",
+        headers=staff_h,
+        json={
+            "lines": [
+                {
+                    "line_id": line_id,
+                    "received_qty": "10",
+                    "damaged_qty": "0",
+                    "return_qty": "0",
+                }
+            ],
+        },
+    )
+    assert verify.status_code == 200, verify.text
+    body = verify.json()
+    assert body["delivery_status"] in ("staff_verified", "partial")
     assert "total_amount" not in body
     assert "landing_cost" not in body["lines"][0]
+
+    commit = client.post(
+        f"/v1/businesses/{bid}/trade-purchases/{pid}/commit-stock",
+        headers=staff_h,
+    )
+    assert commit.status_code == 403, commit.text
 
 
 def test_stock_period_purchased_counts_only_delivered_purchase_lines():
@@ -887,12 +943,9 @@ def test_stock_period_purchased_counts_only_delivered_purchase_lines():
         },
     )
     assert second.status_code == 201, second.text
-    delivered = client.patch(
-        f"/v1/businesses/{bid}/trade-purchases/{first.json()['id']}/delivery",
-        headers=h,
-        json={"is_delivered": True},
-    )
-    assert delivered.status_code == 200, delivered.text
+    delivered_body = _arrive_verify_commit(h, bid, first.json())
+    assert delivered_body["is_delivered"] is True
+    assert delivered_body["delivery_status"] == "stock_committed"
 
     stock = client.get(
         f"/v1/businesses/{bid}/stock/list",

@@ -16,6 +16,9 @@ import '../../../core/providers/notifications_provider.dart';
 import '../../../core/providers/api_degraded_provider.dart';
 import '../../../core/providers/home_dashboard_provider.dart';
 import '../../../core/providers/home_owner_dashboard_providers.dart';
+import '../../../core/providers/operations_providers.dart';
+import '../../../core/providers/staff_home_providers.dart'
+    show staffPendingDeliveryCountProvider;
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../shell/app_shell.dart';
@@ -65,6 +68,9 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
         ref.invalidate(stockListProvider);
         ref.invalidate(stockLowCountProvider);
         break;
+      case StaffShellBranch.tasks:
+        ref.invalidate(checklistTodayProvider);
+        break;
       default:
         break;
     }
@@ -84,6 +90,7 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
     final session = ref.watch(sessionProvider);
     final biz = session?.primaryBusiness;
     final notifN = ref.watch(notificationsUnreadCountProvider);
+    final pendingDel = ref.watch(staffPendingDeliveryCountProvider);
 
     void go(int branch) {
       HapticFeedback.selectionClick();
@@ -117,28 +124,42 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
                                 context.push('/notifications'),
                           )
                         : null,
-                    destinations: const [
-                      NavigationRailDestination(
+                    destinations: [
+                      const NavigationRailDestination(
                         icon: Icon(Icons.home_outlined),
                         selectedIcon: Icon(Icons.home_rounded),
                         label: Text('Home'),
                       ),
-                      NavigationRailDestination(
+                      const NavigationRailDestination(
                         icon: Icon(Icons.inventory_2_outlined),
                         selectedIcon: Icon(Icons.inventory_2_rounded),
                         label: Text('Stock'),
                       ),
-                      NavigationRailDestination(
+                      const NavigationRailDestination(
                         icon: Icon(Icons.qr_code_scanner_outlined),
                         selectedIcon: Icon(Icons.qr_code_scanner_rounded),
                         label: Text('Scan'),
                       ),
                       NavigationRailDestination(
-                        icon: Icon(Icons.local_shipping_outlined),
-                        selectedIcon: Icon(Icons.local_shipping_rounded),
-                        label: Text('Deliveries'),
+                        icon: Badge(
+                          isLabelVisible: pendingDel > 0,
+                          label: Text(
+                            pendingDel > 99 ? '99+' : '$pendingDel',
+                          ),
+                          backgroundColor: const Color(0xFFEA580C),
+                          child: const Icon(Icons.local_shipping_outlined),
+                        ),
+                        selectedIcon: Badge(
+                          isLabelVisible: pendingDel > 0,
+                          label: Text(
+                            pendingDel > 99 ? '99+' : '$pendingDel',
+                          ),
+                          backgroundColor: const Color(0xFFEA580C),
+                          child: const Icon(Icons.local_shipping_rounded),
+                        ),
+                        label: const Text('Deliveries'),
                       ),
-                      NavigationRailDestination(
+                      const NavigationRailDestination(
                         icon: Icon(Icons.checklist_outlined),
                         selectedIcon: Icon(Icons.checklist_rounded),
                         label: Text('Tasks'),
@@ -185,6 +206,7 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
                         ? null
                         : _StaffShellBottomBar(
                             selectedIndex: idx,
+                            pendingDeliveryCount: pendingDel,
                             onDestinationSelected: go,
                           ),
                   ),
@@ -220,10 +242,12 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
 class _StaffShellBottomBar extends StatelessWidget {
   const _StaffShellBottomBar({
     required this.selectedIndex,
+    required this.pendingDeliveryCount,
     required this.onDestinationSelected,
   });
 
   final int selectedIndex;
+  final int pendingDeliveryCount;
   final ValueChanged<int> onDestinationSelected;
 
   @override
@@ -283,6 +307,8 @@ class _StaffShellBottomBar extends StatelessWidget {
                         icon: Icons.local_shipping_outlined,
                         selectedIcon: Icons.local_shipping_rounded,
                         label: 'Deliveries',
+                        badge: pendingDeliveryCount,
+                        badgeColor: const Color(0xFFEA580C),
                         onTap: () => onDestinationSelected(
                             StaffShellBranch.deliveries),
                       ),
@@ -315,6 +341,8 @@ class _StaffNavTile extends StatelessWidget {
     required this.selectedIcon,
     required this.label,
     required this.onTap,
+    this.badge,
+    this.badgeColor,
   });
 
   final bool selected;
@@ -322,6 +350,8 @@ class _StaffNavTile extends StatelessWidget {
   final IconData selectedIcon;
   final String label;
   final VoidCallback onTap;
+  final int? badge;
+  final Color? badgeColor;
 
   @override
   Widget build(BuildContext context) {
@@ -349,11 +379,16 @@ class _StaffNavTile extends StatelessWidget {
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Icon(
-                  ic,
-                  size: 24,
-                  color:
-                      selected ? HexaColors.brandPrimary : cs.onSurfaceVariant,
+                child: Badge(
+                  isLabelVisible: badge != null && badge! > 0,
+                  label: Text(badge! > 99 ? '99+' : '$badge'),
+                  backgroundColor: badgeColor ?? const Color(0xFFDC2626),
+                  child: Icon(
+                    ic,
+                    size: 24,
+                    color:
+                        selected ? HexaColors.brandPrimary : cs.onSurfaceVariant,
+                  ),
                 ),
               ),
               const SizedBox(height: 2),

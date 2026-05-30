@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/providers/stock_providers.dart' show StockDeliveryFilter;
 import '../../../../core/json_coerce.dart';
 import '../../../../core/utils/unit_utils.dart';
 import '../../../../shared/widgets/stock_number_display.dart';
 import '../../../../shared/widgets/stock_summary_widget.dart';
 
 /// Warehouse table metric formatting (system / purchased / physical / diff / pending).
+enum StockDeliveryIndicator { none, pending, delivered }
+
 abstract final class StockRowMetrics {
   static double? purchasedQty(Map<String, dynamic> item) =>
       coerceToDoubleNullable(item['period_purchased_qty']);
@@ -49,6 +52,61 @@ abstract final class StockRowMetrics {
     if (opening == null) return '';
     final u = unit(item);
     return 'Open ${formatStockQtyNumber(opening)}${u.isNotEmpty ? ' $u' : ''}';
+  }
+
+  static StockDeliveryIndicator deliveryIndicator(Map<String, dynamic> item) {
+    final pendingDel = pendingDeliveryQty(item) ?? 0;
+    final hasPending = item['has_pending_order'] == true;
+    final po = item['last_purchase_human_id']?.toString().trim() ?? '';
+    final deliveredFlag = item['last_purchase_delivered'] == true;
+    final undeliveredFlag = item['last_purchase_delivered'] == false;
+
+    if (hasPending || pendingDel > 0.001 || (po.isNotEmpty && undeliveredFlag)) {
+      return StockDeliveryIndicator.pending;
+    }
+    if (po.isNotEmpty && deliveredFlag) {
+      return StockDeliveryIndicator.delivered;
+    }
+    return StockDeliveryIndicator.none;
+  }
+
+  static bool matchesDeliveryFilter(
+    Map<String, dynamic> item,
+    StockDeliveryFilter filter,
+  ) {
+    if (filter == StockDeliveryFilter.all) return true;
+    final ind = deliveryIndicator(item);
+    return filter == StockDeliveryFilter.pending
+        ? ind == StockDeliveryIndicator.pending
+        : ind == StockDeliveryIndicator.delivered;
+  }
+
+  static ({int pending, int delivered}) countDeliveryIndicators(
+    List<Map<String, dynamic>> items,
+  ) {
+    var pending = 0;
+    var delivered = 0;
+    for (final it in items) {
+      switch (deliveryIndicator(it)) {
+        case StockDeliveryIndicator.pending:
+          pending++;
+        case StockDeliveryIndicator.delivered:
+          delivered++;
+        case StockDeliveryIndicator.none:
+          break;
+      }
+    }
+    return (pending: pending, delivered: delivered);
+  }
+
+  static String deliveryQtyBadge(Map<String, dynamic> item) {
+    final pendingDel = pendingDeliveryQty(item) ?? 0;
+    if (pendingDel > 0.001) return formatStockQtyNumber(pendingDel);
+    final purchased = purchasedQty(item);
+    if (purchased != null && purchased > 0.001) {
+      return formatStockQtyNumber(purchased);
+    }
+    return '';
   }
 
   static String deliveryMetaLine(Map<String, dynamic> item) {

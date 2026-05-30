@@ -24,6 +24,7 @@ import 'core/providers/trade_purchases_provider.dart'
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/hexa_colors.dart';
+import 'core/widgets/hexa_page_error_boundary.dart';
 
 String _n0(double v) =>
     (v - v.roundToDouble()).abs() < 1e-6 ? '${v.round()}' : v.toStringAsFixed(1);
@@ -160,40 +161,8 @@ class _LauncherShortcutsBootstrapState
 }
 
 /// Heuristic: transient layout / lifecycle issues should not replace the entire app.
-/// Applied in **all** modes so debug/profile builds match production UX (operators
-/// often run profile builds in the field).
-bool _hexaFlutterErrorLikelyNonFatal(FlutterErrorDetails details) {
-  if (details.silent) return true;
-  final s = details.exceptionAsString();
-  return s.contains('RenderFlex') ||
-      s.contains('overflowed') ||
-      s.contains('BoxConstraints') ||
-      s.contains('viewport') ||
-      s.contains('RenderViewport') ||
-      s.contains('ParentDataWidget') ||
-      s.contains('Incorrect use of ParentDataWidget') ||
-      s.contains('Cannot hit test a render box that has never been laid out') ||
-      s.contains('Looking up a deactivated widget') ||
-      s.contains('setState() or markNeedsBuild() called during build') ||
-      s.contains('wrong build scope') ||
-      s.contains('Cannot get renderObject of inactive element') ||
-      s.contains('inactive element') ||
-      s.contains('setState() called after dispose()') ||
-      s.contains('UnmountedRefException') ||
-      s.contains('Bad state: Cannot use') ||
-      s.contains('TickerFuture') ||
-      s.contains('AnimationController.dispose() called more than once') ||
-      s.contains('DioException') ||
-      s.contains('SocketException') ||
-      s.contains('TimeoutException') ||
-      s.contains('FormatException') ||
-      s.contains('type \'Null\' is not') ||
-      s.contains('is not a subtype of type') ||
-      s.contains('NoSuchMethodError') ||
-      s.contains('PlatformException') ||
-      s.contains('StaleHomeDashboardFetch') ||
-      s.contains('ProviderException');
-}
+bool _hexaFlutterErrorLikelyNonFatal(FlutterErrorDetails details) =>
+    hexaErrorLikelyNonFatal(details);
 
 /// Catches framework errors so the web build can show recovery UI instead of a blank screen.
 class _HexaErrorBoundary extends StatefulWidget {

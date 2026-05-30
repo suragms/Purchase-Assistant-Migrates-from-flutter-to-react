@@ -218,12 +218,24 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
     } else {
       if (!mounted) return;
       notifier.reset();
+      _supplierCtrl.clear();
+      _brokerCtrl.clear();
+      _paymentDaysCtrl.clear();
+      _headerDiscCtrl.clear();
+      _commissionCtrl.clear();
+      _deliveredRateCtrl.clear();
+      _billtyRateCtrl.clear();
+      _freightCtrl.clear();
+      _invoiceCtrl.clear();
       if (widget.initialDraft != null) {
         ref
             .read(purchaseDraftProvider.notifier)
             .replaceDraft(widget.initialDraft!);
       } else if (widget.resumeDraft) {
         await _maybeRestoreDraft();
+      } else {
+        // Fresh new purchase — never carry over party/terms from prefs/Hive.
+        await _clearDraftInPrefs();
       }
       if (!mounted) return;
       _syncControllersFromDraft();
@@ -248,8 +260,6 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
       await _ensureCatalogSeedIfEmpty();
       if (!mounted) return;
       await _prefetchSupplierLastPurchasesMap();
-      if (!mounted) return;
-      await _applyLastSupplierFromPrefsIfNeeded();
     }));
   }
 
@@ -278,49 +288,6 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
     } catch (_) {
       return const [];
     }
-  }
-
-  Future<void> _applyLastSupplierFromPrefsIfNeeded() async {
-    if (_isEditMode() ||
-        widget.initialDraft != null ||
-        widget.resumeDraft ||
-        widget.aiScanToken?.trim().isNotEmpty == true) {
-      return;
-    }
-    final draft = ref.read(purchaseDraftProvider);
-    if (draft.supplierId != null && draft.supplierId!.trim().isNotEmpty) {
-      return;
-    }
-    final lastId = await PurchaseSmartDefaults.loadLastSupplierId();
-    if (lastId == null || lastId.isEmpty || !mounted) return;
-
-    List<Map<String, dynamic>> list =
-        ref.read(suppliersListProvider).valueOrNull ??
-            _lastGoodSuppliers ??
-            const [];
-    if (list.isEmpty) {
-      try {
-        list = await ref.read(suppliersListProvider.future);
-      } catch (_) {
-        return;
-      }
-    }
-    if (!mounted || list.isEmpty) return;
-
-    Map<String, dynamic>? row;
-    for (final m in list) {
-      if (_supplierRowId(m) == lastId) {
-        row = Map<String, dynamic>.from(m);
-        break;
-      }
-    }
-    if (row == null) return;
-
-    final label = _supplierMapLabel(row);
-    await _applySupplierSelectionAsync(
-      list,
-      InlineSearchItem(id: lastId, label: label),
-    );
   }
 
   void _maybeAutoFocusPartyForAiScan() {
@@ -1377,18 +1344,18 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
         actions: [
           CupertinoDialogAction(
             onPressed: () =>
-                ctx.pop(_WizardExitDraftChoice.keepEditing),
+                popOverlay(ctx, _WizardExitDraftChoice.keepEditing),
             child: const Text('Keep editing'),
           ),
           CupertinoDialogAction(
             onPressed: () =>
-                ctx.pop(_WizardExitDraftChoice.saveDraft),
+                popOverlay(ctx, _WizardExitDraftChoice.saveDraft),
             child: const Text('Save draft'),
           ),
           CupertinoDialogAction(
             isDestructiveAction: true,
             onPressed: () =>
-                ctx.pop(_WizardExitDraftChoice.discard),
+                popOverlay(ctx, _WizardExitDraftChoice.discard),
             child: const Text('Discard'),
           ),
         ],
@@ -1407,7 +1374,10 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
   Future<void> _wizBack() async {
     FocusScope.of(context).unfocus();
     if (_wizStep > 0) {
-      setState(() => _wizStep -= 1);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() => _wizStep -= 1);
+      });
       return;
     }
     if (!mounted) return;
@@ -1472,7 +1442,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => ctx.pop(false),
+                    onPressed: () => popOverlay(ctx, false),
                     child: const Text('Not Yet'),
                   ),
                 ),
@@ -1481,7 +1451,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
                   child: FilledButton.icon(
                     icon: const Icon(Icons.check_circle_outline, size: 18),
                     label: const Text('Yes, Received'),
-                    onPressed: () => ctx.pop(true),
+                    onPressed: () => popOverlay(ctx, true),
                     style: FilledButton.styleFrom(backgroundColor: Colors.green),
                   ),
                 ),
@@ -1559,11 +1529,11 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
         ),
         actions: [
           TextButton(
-            onPressed: () => ctx.pop(false),
+            onPressed: () => popOverlay(ctx, false),
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => ctx.pop(true),
+            onPressed: () => popOverlay(ctx, true),
             child: const Text('Save'),
           ),
         ],
@@ -1808,7 +1778,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
           await _scheduleDeliveryPrompt(pid);
         }
         if (!mounted) return;
-        if (context.canPop()) context.pop();
+        context.popOrGo('/purchase');
       } else {
         final where = await showPurchaseSavedSheet(
           context,
@@ -1848,13 +1818,13 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
           final id = saved['id']?.toString();
           if (id != null && id.isNotEmpty) {
             context.push('/purchase/edit/$id');
-          } else if (context.canPop()) {
-            context.pop();
+          } else {
+            context.popOrGo('/purchase');
           }
           return;
         }
         if (where == 'later_missing') {
-          if (context.canPop()) context.pop();
+          context.popOrGo('/purchase');
           return;
         }
         if (where == 'detail') {
@@ -1867,7 +1837,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
             context.go('/purchase/detail/$id', extra: seed);
           }
         } else {
-          if (context.canPop()) context.pop();
+          context.popOrGo('/purchase');
         }
       }
     } on DioException catch (e) {
@@ -1906,7 +1876,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
               backgroundColor: Colors.blueGrey[700],
             ),
           );
-          if (context.canPop()) context.pop();
+          context.popOrGo('/purchase');
         }
         return;
       }
@@ -1925,11 +1895,11 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
             ),
             actions: [
               TextButton(
-                onPressed: () => ctx.pop(false),
+                onPressed: () => popOverlay(ctx, false),
                 child: const Text('Cancel'),
               ),
               FilledButton(
-                onPressed: () => ctx.pop(true),
+                onPressed: () => popOverlay(ctx, true),
                 child: const Text('Save anyway'),
               ),
             ],
@@ -2556,7 +2526,10 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
         if (didPop) return;
         if (_wizStep > 0) {
           FocusScope.of(context).unfocus();
-          setState(() => _wizStep -= 1);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() => _wizStep -= 1);
+          });
           return;
         }
         await _handleWizardExitFromRoot();

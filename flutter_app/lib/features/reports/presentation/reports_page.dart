@@ -96,7 +96,10 @@ typedef FullReportsPage = ReportsPage;
 
 /// Purchase reports: full-viewport layout, compact rows, drill-down.
 class ReportsPage extends ConsumerStatefulWidget {
-  const ReportsPage({super.key});
+  const ReportsPage({super.key, this.initialTab});
+
+  /// Deep link / query param tab (`?tab=items`).
+  final ReportsBiTab? initialTab;
 
   @override
   ConsumerState<ReportsPage> createState() => _ReportsPageState();
@@ -125,16 +128,14 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   @override
   void initState() {
     super.initState();
+    _biTab = widget.initialTab ?? ReportsBiTab.overview;
     _searchCtl.addListener(_onSearchTyping);
-    _reportsSearchFocus.addListener(() => setState(() {}));
+    _reportsSearchFocus.addListener(() {
+      if (!mounted) return;
+      setState(() {});
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final tab = ReportsBiTabX.fromQuery(
-        GoRouterState.of(context).uri.queryParameters['tab'],
-      );
-      if (tab != null) {
-        setState(() => _biTab = tab);
-      }
       final appPeriod = ref.read(appSelectedPeriodProvider);
       _DatePreset synced = switch (appPeriod) {
         AppPeriod.today => _DatePreset.today,
@@ -162,6 +163,15 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         }
       });
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant ReportsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final next = widget.initialTab;
+    if (next != null && next != oldWidget.initialTab) {
+      _biTab = next;
+    }
   }
 
   @override
@@ -524,6 +534,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             for (final t in ReportsBiTabX.moreSheet)
               ListTile(
                 title: Text(t.shortLabel),
+                trailing: _biTab == t
+                    ? Icon(Icons.check_rounded, color: HexaColors.brandPrimary)
+                    : null,
+                selected: _biTab == t,
                 onTap: () {
                   Navigator.pop(ctx);
                   _selectBiTab(t);
@@ -559,6 +573,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       );
     }
 
+    final moreSelected =
+        ReportsBiTabX.moreSheet.contains(_biTab) ? _biTab : null;
+
     return Row(
       children: [
         Expanded(
@@ -572,8 +589,14 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
           ),
         ),
         ActionChip(
-          label: Text('More',
-              style: tt.labelSmall?.copyWith(fontWeight: FontWeight.w800)),
+          label: Text(
+            moreSelected?.shortLabel ?? 'More',
+            style: tt.labelSmall?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          avatar: moreSelected != null
+              ? Icon(Icons.check_rounded,
+                  size: 16, color: HexaColors.brandPrimary)
+              : null,
           onPressed: _openMoreTabsSheet,
           visualDensity: VisualDensity.compact,
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1157,12 +1180,8 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       case ReportsBiTab.items:
       case ReportsBiTab.suppliers:
       case ReportsBiTab.brokers:
-        return ListView(
-          children: [
-            RepaintBoundary(
-              child: _listBody(aggList, aggAll, merged),
-            ),
-          ],
+        return RepaintBoundary(
+          child: _listBody(aggList, aggAll, merged),
         );
     }
   }
@@ -1263,11 +1282,22 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<ReportsPurchasePayload>>(
+      reportsPurchasesPayloadProvider,
+      (prev, next) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final merged = ref.read(reportsPurchasesMergedProvider);
+          _armStallBanner(next.isLoading, merged.isNotEmpty);
+        });
+      },
+    );
+
     final purchasesAsync = ref.watch(reportsPurchasesPayloadProvider);
-    final liveErr = purchasesAsync.value?.liveFetchError;
+    final payload = purchasesAsync.valueOrNull;
+    final liveErr = payload?.liveFetchError;
     final merged = ref.watch(reportsPurchasesMergedProvider);
-    final fromLive = purchasesAsync.value?.fromLiveFetch ?? false;
-    _armStallBanner(purchasesAsync.isLoading, merged.isNotEmpty);
+    final fromLive = payload?.fromLiveFetch ?? false;
 
     final range = ref.watch(analyticsDateRangeProvider);
     final rangeFmt =

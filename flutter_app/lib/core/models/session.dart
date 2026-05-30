@@ -3,6 +3,7 @@ class BusinessBrief {
     required this.id,
     required this.name,
     required this.role,
+    this.permissions,
     this.brandingTitle,
     this.brandingLogoUrl,
     this.gstNumber,
@@ -14,6 +15,9 @@ class BusinessBrief {
   final String id;
   final String name;
   final String role;
+
+  /// Effective permission flags from `/v1/me/businesses` (role + overrides).
+  final Map<String, bool>? permissions;
 
   /// Shown in-app instead of [name] when set (per-workspace white-label).
   final String? brandingTitle;
@@ -34,10 +38,19 @@ class BusinessBrief {
   }
 
   factory BusinessBrief.fromJson(Map<String, dynamic> j) {
+    Map<String, bool>? perms;
+    final raw = j['permissions'];
+    if (raw is Map) {
+      perms = {
+        for (final e in raw.entries)
+          if (e.value is bool) e.key.toString(): e.value as bool,
+      };
+    }
     return BusinessBrief(
       id: j['id'].toString(),
       name: j['name'] as String,
       role: j['role'] as String,
+      permissions: perms,
       brandingTitle: j['branding_title'] as String?,
       brandingLogoUrl: j['branding_logo_url'] as String?,
       gstNumber: j['gst_number'] as String?,
@@ -51,6 +64,7 @@ class BusinessBrief {
         'id': id,
         'name': name,
         'role': role,
+        if (permissions != null) 'permissions': permissions,
         if (brandingTitle != null) 'branding_title': brandingTitle,
         if (brandingLogoUrl != null) 'branding_logo_url': brandingLogoUrl,
         if (gstNumber != null) 'gst_number': gstNumber,

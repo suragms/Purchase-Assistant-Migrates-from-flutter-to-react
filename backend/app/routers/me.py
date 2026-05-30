@@ -21,6 +21,7 @@ from app.deps import (
 from app.models import Business, Membership, User
 from app.models.contacts import Broker, Supplier
 from app.services.default_workspace import bootstrap_user_workspace
+from app.services.permissions import membership_permissions
 from app.services.scanner_v2.types import ScanResult
 
 _MAX_LOGO_BYTES = 2 * 1024 * 1024
@@ -78,6 +79,7 @@ class BusinessBrief(BaseModel):
     id: uuid.UUID
     name: str
     role: str
+    permissions: dict[str, bool] = Field(default_factory=dict)
     branding_title: str | None = None
     branding_logo_url: str | None = None
     gst_number: str | None = None
@@ -117,20 +119,24 @@ async def my_businesses(
         .where(Membership.user_id == user.id)
     )
     rows = q.all()
-    return [
-        BusinessBrief(
-            id=b.id,
-            name=b.name,
-            role=m.role,
-            branding_title=b.branding_title,
-            branding_logo_url=b.branding_logo_url,
-            gst_number=b.gst_number,
-            address=b.address,
-            phone=b.phone,
-            contact_email=b.contact_email,
+    out: list[BusinessBrief] = []
+    for m, b in rows:
+        perms = await membership_permissions(m)
+        out.append(
+            BusinessBrief(
+                id=b.id,
+                name=b.name,
+                role=m.role,
+                permissions=perms,
+                branding_title=b.branding_title,
+                branding_logo_url=b.branding_logo_url,
+                gst_number=b.gst_number,
+                address=b.address,
+                phone=b.phone,
+                contact_email=b.contact_email,
+            )
         )
-        for m, b in rows
-    ]
+    return out
 
 
 class BusinessBrandingPatch(BaseModel):
@@ -193,10 +199,12 @@ async def patch_my_business_branding(
             b.contact_email = e.strip().lower()
     await db.commit()
     await db.refresh(b)
+    perms = await membership_permissions(_owner)
     return BusinessBrief(
         id=b.id,
         name=b.name,
-        role="owner",
+        role=_owner.role,
+        permissions=perms,
         branding_title=b.branding_title,
         branding_logo_url=b.branding_logo_url,
         gst_number=b.gst_number,
@@ -242,10 +250,12 @@ async def upload_business_logo(
     b.branding_logo_url = public_url
     await db.commit()
     await db.refresh(b)
+    perms = await membership_permissions(_owner)
     return BusinessBrief(
         id=b.id,
         name=b.name,
-        role="owner",
+        role=_owner.role,
+        permissions=perms,
         branding_title=b.branding_title,
         branding_logo_url=b.branding_logo_url,
         gst_number=b.gst_number,

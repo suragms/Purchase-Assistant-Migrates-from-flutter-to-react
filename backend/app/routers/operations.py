@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, or_, select
+from fastapi import APIRouter, Body, Depends, HTTPException, status
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +32,9 @@ from app.schemas.operations import (
     ChecklistCompleteIn,
     ChecklistSummaryOut,
     ChecklistTaskOut,
+    ChecklistTemplateItemIn,
+    ChecklistTemplateOut,
+    ChecklistTemplatesPutIn,
     ChecklistTodayOut,
     DailySnapshotOut,
     UsageLineIn,
@@ -57,16 +61,17 @@ _DEFAULT_TEMPLATES: list[tuple[str, str, str, int]] = [
 ]
 
 
+def _slug_task_key(label: str, fallback: str = "task") -> str:
+    s = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
+    return (s[:48] if s else fallback)
+
+
 async def _ensure_default_templates(db: AsyncSession, business_id: uuid.UUID) -> None:
+    """Seed six default tasks for this business only (not blocked by global rows)."""
     r = await db.execute(
         select(func.count())
         .select_from(StaffChecklistTemplate)
-        .where(
-            or_(
-                StaffChecklistTemplate.business_id == business_id,
-                StaffChecklistTemplate.business_id.is_(None),
-            )
-        )
+        .where(StaffChecklistTemplate.business_id == business_id)
     )
     if (r.scalar_one() or 0) > 0:
         return
@@ -81,6 +86,26 @@ async def _ensure_default_templates(db: AsyncSession, business_id: uuid.UUID) ->
             )
         )
     await db.flush()
+
+
+async def _templates_for_business(
+    db: AsyncSession, business_id: uuid.UUID
+) -> list[StaffChecklistTemplate]:
+    await _ensure_default_templates(db, business_id)
+    tr = await db.execute(
+        select(StaffChecklistTemplate)
+        .where(StaffChecklistTemplate.business_id == business_id)
+        .order_by(StaffChecklistTemplate.slot, StaffChecklistTemplate.sort_order)
+    )
+    rows = list(tr.scalars().all())
+    if rows:
+        return rows
+    tr2 = await db.execute(
+        select(StaffChecklistTemplate)
+        .where(StaffChecklistTemplate.business_id.is_(None))
+        .order_by(StaffChecklistTemplate.slot, StaffChecklistTemplate.sort_order)
+    )
+    return list(tr2.scalars().all())
 
 
 async def _purchased_today_map(
@@ -115,19 +140,8 @@ async def checklist_today(
     user: Annotated[User, Depends(get_current_user)],
     _m: Annotated[Membership, Depends(require_membership)],
 ):
-    await _ensure_default_templates(db, business_id)
     today = date.today()
-    tr = await db.execute(
-        select(StaffChecklistTemplate)
-        .where(
-            or_(
-                StaffChecklistTemplate.business_id == business_id,
-                StaffChecklistTemplate.business_id.is_(None),
-            )
-        )
-        .order_by(StaffChecklistTemplate.slot, StaffChecklistTemplate.sort_order)
-    )
-    templates = list(tr.scalars().all())
+    templates = await _templates_for_business(db, business_id)
     cr = await db.execute(
         select(StaffChecklistCompletion).where(
             StaffChecklistCompletion.business_id == business_id,
@@ -381,6 +395,80 @@ async def usage_submit(
     )
 
 
+@router.get("/checklist/templates", response_model=list[ChecklistTemplateOut])
+async def list_checklist_templates(
+    business_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _m: Annotated[Membership, Depends(require_membership)],
+):
+    del _m
+    templates = await _templates_for_business(db, business_id)
+    return [
+        ChecklistTemplateOut(
+            id=t.id,
+            slot=t.slot,
+            task_key=t.task_key,
+            label=t.label,
+            sort_order=t.sort_order,
+        )
+        for t in templates
+    ]
+
+
+@router.put("/checklist/templates", response_model=list[ChecklistTemplateOut])
+async def replace_checklist_templates(
+    business_id: uuid.UUID,
+    body: Annotated[ChecklistTemplatesPutIn, Body()],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    membership: Annotated[Membership, Depends(require_membership)],
+):
+    """Owner/manager: replace daily task list (morning / midday / evening)."""
+    if membership.role not in ("owner", "admin", "manager"):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="Owner, admin, or manager required to edit tasks",
+        )
+    seen_keys: set[tuple[str, str]] = set()
+    rows: list[StaffChecklistTemplate] = []
+    for i, item in enumerate(body.tasks):
+        slot = item.slot
+        key = (item.task_key or "").strip() or _slug_task_key(item.label, f"task_{i + 1}")
+        pair = (slot, key)
+        if pair in seen_keys:
+            key = f"{key}_{i + 1}"[:64]
+            pair = (slot, key)
+        seen_keys.add(pair)
+        rows.append(
+            StaffChecklistTemplate(
+                business_id=business_id,
+                slot=slot,
+                task_key=key,
+                label=item.label.strip(),
+                sort_order=item.sort_order if item.sort_order else i + 1,
+            )
+        )
+    await db.execute(
+        delete(StaffChecklistTemplate).where(
+            StaffChecklistTemplate.business_id == business_id
+        )
+    )
+    for row in rows:
+        db.add(row)
+    await db.commit()
+    for row in rows:
+        await db.refresh(row)
+    return [
+        ChecklistTemplateOut(
+            id=t.id,
+            slot=t.slot,
+            task_key=t.task_key,
+            label=t.label,
+            sort_order=t.sort_order,
+        )
+        for t in rows
+    ]
+
+
 @router.get("/checklist/summary", response_model=ChecklistSummaryOut)
 async def checklist_summary(
     business_id: uuid.UUID,
@@ -388,19 +476,9 @@ async def checklist_summary(
     _m: Annotated[Membership, Depends(require_membership)],
 ):
     """Business-wide checklist completion for today (all staff tasks)."""
-    await _ensure_default_templates(db, business_id)
     today = date.today()
-    tr = await db.execute(
-        select(func.count())
-        .select_from(StaffChecklistTemplate)
-        .where(
-            or_(
-                StaffChecklistTemplate.business_id == business_id,
-                StaffChecklistTemplate.business_id.is_(None),
-            )
-        )
-    )
-    total = int(tr.scalar_one() or 0)
+    templates = await _templates_for_business(db, business_id)
+    total = len(templates)
     cr = await db.execute(
         select(func.count(func.distinct(StaffChecklistCompletion.task_key))).where(
             StaffChecklistCompletion.business_id == business_id,

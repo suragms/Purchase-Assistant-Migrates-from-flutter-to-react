@@ -27,10 +27,28 @@ class HomePurchaseControlCenter extends ConsumerWidget {
     final showProfit = session != null && sessionHasOwnerDashboard(session);
 
     if (dashState.refreshing && dashState.snapshot.data == HomeDashboardData.empty) {
-      return const Card(
+      return Card(
         child: Padding(
-          padding: EdgeInsets.all(HexaOp.cardPadding),
-          child: HomeSectionSkeleton(rows: 3),
+          padding: const EdgeInsets.all(HexaOp.cardPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const HomeSectionSkeleton(rows: 2),
+              const SizedBox(height: 8),
+              Text(
+                'Loading purchase totals…',
+                style: HexaOp.caption(context),
+                textAlign: TextAlign.center,
+              ),
+              TextButton(
+                onPressed: () {
+                  ref.invalidate(homeDashboardDataProvider);
+                  ref.read(homeDashboardDataProvider.notifier).forceStopRefreshing();
+                },
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
         ),
       );
     }

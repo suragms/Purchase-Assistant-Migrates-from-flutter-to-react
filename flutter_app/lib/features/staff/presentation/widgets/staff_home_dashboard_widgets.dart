@@ -821,11 +821,12 @@ class StaffHomeActionGroup extends StatelessWidget {
 }
 
 class _ToolSpec {
-  const _ToolSpec(this.label, this.icon, this.color, this.onTap);
+  const _ToolSpec(this.label, this.icon, this.color, this.onTap, {this.badge});
   final String label;
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
+  final int? badge;
 }
 
 /// Compact 3×2 tools grid (~96px) for staff home.
@@ -864,18 +865,18 @@ class StaffHomeToolsGrid extends ConsumerWidget {
           const Color(0xFF455A64),
           () => context.push('/barcode/bulk-print'),
         ),
-      if (staffHomeShowsPurchaseTools(focus))
-        _ToolSpec(
-          'History',
-          Icons.receipt_long_outlined,
-          const Color(0xFF0D9488),
-          () => context.go('/staff/deliveries'),
-        ),
+      _ToolSpec(
+        'Purchases',
+        Icons.receipt_long_outlined,
+        const Color(0xFF0D9488),
+        () => context.push('/staff/purchase-history'),
+      ),
       _ToolSpec(
         'Low stock',
         Icons.warning_amber_rounded,
         lowCount > 0 ? HexaColors.warning : const Color(0xFF455A64),
         () => context.push('/staff/low-stock'),
+        badge: lowCount,
       ),
       if (staffHomeShowsPurchaseTools(focus))
         _ToolSpec(
@@ -906,7 +907,11 @@ class StaffHomeToolsGrid extends ConsumerWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(t.icon, color: t.color, size: 22),
+                    Badge(
+                      isLabelVisible: t.badge != null && t.badge! > 0,
+                      label: Text('${t.badge}'),
+                      child: Icon(t.icon, color: t.color, size: 22),
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       t.label,
@@ -924,6 +929,82 @@ class StaffHomeToolsGrid extends ConsumerWidget {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+/// Prominent shortcuts above the scan CTA — purchase history + low stock.
+class StaffHomeQuickLinksRow extends StatelessWidget {
+  const StaffHomeQuickLinksRow({
+    super.key,
+    required this.lowCount,
+  });
+
+  final int lowCount;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget tile({
+      required IconData icon,
+      required String label,
+      required Color color,
+      required VoidCallback onTap,
+      int? badge,
+    }) {
+      return Expanded(
+        child: Material(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+              child: Row(
+                children: [
+                  Badge(
+                    isLabelVisible: badge != null && badge > 0,
+                    label: Text('$badge'),
+                    child: Icon(icon, color: color, size: 24),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                        height: 1.15,
+                      ),
+                    ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: color, size: 20),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      children: [
+        tile(
+          icon: Icons.receipt_long_outlined,
+          label: 'Purchase\nhistory',
+          color: const Color(0xFF0D9488),
+          onTap: () => context.push('/staff/purchase-history'),
+        ),
+        const SizedBox(width: 10),
+        tile(
+          icon: Icons.warning_amber_rounded,
+          label: 'Low stock\n& inform owner',
+          color: lowCount > 0 ? HexaColors.warning : const Color(0xFF64748B),
+          badge: lowCount,
+          onTap: () => context.push('/staff/low-stock'),
+        ),
       ],
     );
   }

@@ -41,7 +41,13 @@ String barcodeMessageForUser(
   BarcodeOperationContext ctx = BarcodeOperationContext.bulkPrint,
 }) {
   if (error is BarcodeOperationException) return error.message;
-  if (error is DioException) return friendlyApiError(error);
+  if (error is DioException) {
+    if (ctx == BarcodeOperationContext.scanner &&
+        error.response?.statusCode == 404) {
+      return 'Unknown barcode — not in your catalog. Assign it or create a new item.';
+    }
+    return friendlyApiError(error);
+  }
   final s = error.toString().toLowerCase();
   if (s.contains('printing') || s.contains('print')) {
     return 'Print is not available on this device. Download the PDF instead.';

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/utils/unit_utils.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
+import 'stock_delivery_truck_badge.dart';
 import 'stock_row_metrics.dart';
 import 'stock_status_badge.dart' show formatStockRelativeTime;
 import 'stock_table_layout.dart';
@@ -46,6 +47,8 @@ class StockWarehouseRow extends StatelessWidget {
     final openingLabel = StockRowMetrics.openingLabel(item);
     final delivery = StockRowMetrics.deliveryMetaLine(item);
 
+    final deliveryKind = StockRowMetrics.deliveryIndicator(item);
+
     final metaParts = <String>[
       if (codeRaw.isNotEmpty) '#$codeRaw',
       if (cat.isNotEmpty) cat,
@@ -76,7 +79,21 @@ class StockWarehouseRow extends StatelessWidget {
                   ? const Border(
                       left: BorderSide(color: Color(0xFFDC2626), width: 3),
                     )
-                  : null,
+                  : deliveryKind == StockDeliveryIndicator.pending
+                      ? const Border(
+                          left: BorderSide(
+                            color: Color(0xFFEA580C),
+                            width: 3,
+                          ),
+                        )
+                      : deliveryKind == StockDeliveryIndicator.delivered
+                          ? const Border(
+                              left: BorderSide(
+                                color: Color(0xFF16A34A),
+                                width: 3,
+                              ),
+                            )
+                          : null,
             ),
             child: IntrinsicHeight(
               child: Row(
@@ -95,16 +112,28 @@ class StockWarehouseRow extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(
-                            name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF1A1A1A),
-                              height: 1.2,
-                            ),
+                          Row(
+                            children: [
+                              StockDeliveryTruckBadge(
+                                item: item,
+                                compact: true,
+                              ),
+                              if (deliveryKind != StockDeliveryIndicator.none)
+                                const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  name,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF1A1A1A),
+                                    height: 1.2,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           if (metaParts.isNotEmpty)
                             Padding(

@@ -30,8 +30,7 @@ void invalidateStaffHomeCaches(Ref ref) {
   ref.invalidate(staffRecentActivityProvider);
   ref.invalidate(staffStockMismatchCountProvider);
   ref.invalidate(missingCodeItemsProvider);
-  ref.invalidate(tradePurchasesListProvider);
-  ref.invalidate(tradePurchasesForAlertsProvider);
+  ref.invalidate(staffTradePurchasesHistoryProvider);
   ref.invalidate(deliveryPipelineProvider);
   ref.invalidate(openingStockMissingProvider);
   ref.invalidate(stockStatusCountsProvider);
@@ -226,15 +225,8 @@ class StaffFloorKpis {
   final int lowStock;
 }
 
-int _pipelinePendingCount(Map<String, dynamic> p) {
-  return ((p['pending'] as num?)?.toInt() ?? 0) +
-      ((p['dispatched'] as num?)?.toInt() ?? 0) +
-      ((p['in_transit'] as num?)?.toInt() ?? 0) +
-      ((p['arrived'] as num?)?.toInt() ?? 0) +
-      ((p['staff_verifying'] as num?)?.toInt() ?? 0) +
-      ((p['staff_verified'] as num?)?.toInt() ?? 0) +
-      ((p['partial'] as num?)?.toInt() ?? 0);
-}
+int _pipelinePendingCount(Map<String, dynamic> p) =>
+    deliveryPipelinePendingCount(p);
 
 final staffDeliveryPipelineKpisProvider =
     Provider.autoDispose<AsyncValue<StaffFloorKpis>>((ref) {
@@ -438,21 +430,92 @@ final staffTodaySummaryProvider =
 
 final staffTodayPurchasesProvider = FutureProvider.autoDispose<List<TradePurchase>>((ref) async {
   _providerKeepAlive(ref, const Duration(minutes: 2));
+  if (!_staffSessionActive(ref)) return [];
   final session = await _waitForSession(ref);
   if (session == null) return [];
-  final today = _todayApiDate();
-  final rows = await ref.read(hexaApiProvider).listTradePurchases(
-        businessId: session.primaryBusiness.id,
-        limit: 20,
-        offset: 0,
-        status: 'all',
-        purchaseFrom: today,
-        purchaseTo: today,
-      );
-  return [
-    for (final e in rows)
-      TradePurchase.fromJson(Map<String, dynamic>.from(e)),
-  ];
+  try {
+    final today = _todayApiDate();
+    final rows = await ref.read(hexaApiProvider).listTradePurchases(
+          businessId: session.primaryBusiness.id,
+          limit: 20,
+          offset: 0,
+          status: 'all',
+          purchaseFrom: today,
+          purchaseTo: today,
+        );
+    return [
+      for (final e in rows)
+        TradePurchase.fromJson(Map<String, dynamic>.from(e)),
+    ];
+  } catch (e) {
+    _rethrowAuthFailure(e);
+    rethrow;
+  }
+});
+
+enum StaffPurchaseHistoryPeriod { today, week, allTime }
+
+/// Staff purchase history — no financial fields (API redacts for staff role).
+final staffTradePurchasesHistoryProvider = FutureProvider.autoDispose
+    .family<List<TradePurchase>, StaffPurchaseHistoryPeriod>((ref, period) async {
+  _providerKeepAlive(ref, const Duration(minutes: 2));
+  if (!_staffSessionActive(ref)) {
+    throw StateError('Session expired — sign in again');
+  }
+  final session = await _waitForSession(ref);
+  if (session == null) {
+    throw StateError('Session expired — sign in again');
+  }
+
+  String? from;
+  String? to;
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  switch (period) {
+    case StaffPurchaseHistoryPeriod.today:
+      from = _todayApiDate();
+      to = from;
+    case StaffPurchaseHistoryPeriod.week:
+      final weekStart = today.subtract(Duration(days: today.weekday - 1));
+      from = '${weekStart.year.toString().padLeft(4, '0')}-'
+          '${weekStart.month.toString().padLeft(2, '0')}-'
+          '${weekStart.day.toString().padLeft(2, '0')}';
+      to = _todayApiDate();
+    case StaffPurchaseHistoryPeriod.allTime:
+      from = null;
+      to = null;
+  }
+
+  try {
+    const pageSize = 50;
+    var offset = 0;
+    const maxRows = 500;
+    final raw = <Map<String, dynamic>>[];
+    while (raw.length < maxRows) {
+      final page = await ref.read(hexaApiProvider).listTradePurchases(
+            businessId: session.primaryBusiness.id,
+            limit: pageSize,
+            offset: offset,
+            purchaseFrom: from,
+            purchaseTo: to,
+          );
+      if (page.isEmpty) break;
+      raw.addAll(page);
+      if (page.length < pageSize) break;
+      offset += pageSize;
+    }
+    final parsed = <TradePurchase>[];
+    for (final e in raw) {
+      try {
+        parsed.add(TradePurchase.fromJson(Map<String, dynamic>.from(e)));
+      } catch (_) {}
+    }
+    parsed.sort((a, b) => b.purchaseDate.compareTo(a.purchaseDate));
+    return parsed;
+  } catch (e) {
+    _rethrowAuthFailure(e);
+    rethrow;
+  }
 });
 
 /// All catalog stock rows with empty item_code (paged load).

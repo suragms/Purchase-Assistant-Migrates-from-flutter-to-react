@@ -16,6 +16,7 @@ import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/errors/barcode_operation_errors.dart';
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/auth/session_permissions.dart';
 import '../../../core/providers/barcode_recent_scans.dart';
 import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/providers/stock_audit_providers.dart';
@@ -31,15 +32,14 @@ import 'barcode_scan_web_stub.dart'
     if (dart.library.html) 'barcode_scan_web.dart';
 
 const _kMaxRecent = 10;
-const _kDebounceMs = 800;
+const _kDebounceMs = 1200;
+const _kManualSearchDebounceMs = 400;
+/// Retail + warehouse linear formats (fewer = faster camera decode).
 const _kWarehouseBarcodeFormats = <BarcodeFormat>[
   BarcodeFormat.code128,
   BarcodeFormat.code39,
-  BarcodeFormat.code93,
-  BarcodeFormat.codabar,
   BarcodeFormat.ean13,
   BarcodeFormat.ean8,
-  BarcodeFormat.itf,
   BarcodeFormat.upcA,
   BarcodeFormat.upcE,
   BarcodeFormat.qrCode,
@@ -64,6 +64,9 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   String? _lastCode;
   DateTime? _lastAt;
   List<BarcodeRecentScan> _recent = [];
+  List<Map<String, dynamic>> _manualMatches = const [];
+  bool _manualSearching = false;
+  Timer? _manualSearchDebounce;
   late final AnimationController _scanLineCtrl;
   bool _cameraDenied = false;
   bool _cameraPermanent = false;
@@ -83,7 +86,49 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   void _onManualChanged() {
     final next = _manualCtrl.text.toLowerCase().trim();
     if (next == _manualQuery) return;
-    setState(() => _manualQuery = next);
+    setState(() {
+      _manualQuery = next;
+      if (next.length < 2) {
+        _manualMatches = const [];
+        _manualSearching = false;
+      }
+    });
+    _manualSearchDebounce?.cancel();
+    if (next.length < 2) return;
+    _manualSearchDebounce = Timer(
+      const Duration(milliseconds: _kManualSearchDebounceMs),
+      () => unawaited(_searchManualItems(next)),
+    );
+  }
+
+  Future<void> _searchManualItems(String q) async {
+    final session = ref.read(sessionProvider);
+    if (session == null || !mounted) return;
+    setState(() => _manualSearching = true);
+    try {
+      final blob = await ref.read(hexaApiProvider).listStock(
+            businessId: session.primaryBusiness.id,
+            q: q,
+            perPage: 8,
+            page: 1,
+          );
+      if (!mounted || _manualQuery != q) return;
+      final items = [
+        for (final row in (blob['items'] as List? ?? []))
+          if (row is Map) Map<String, dynamic>.from(row),
+      ];
+      setState(() {
+        _manualMatches = items;
+        _manualSearching = false;
+      });
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _manualMatches = const [];
+          _manualSearching = false;
+        });
+      }
+    }
   }
 
   Future<void> _scanFromImage() async {
@@ -193,12 +238,13 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   }
 
   Future<void> _resumeScan() async {
+    _busy = false;
     if (!kIsWeb && _camera != null) {
       try {
         await _camera!.start();
       } catch (_) {}
     }
-    if (mounted) setState(() => _busy = false);
+    if (mounted) setState(() {});
   }
 
   Future<void> _assignBarcodeToExisting(String code) async {
@@ -281,6 +327,9 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
 
   Future<void> _showNotFoundSheet(String code) async {
     if (!mounted) return;
+    final session = ref.read(sessionProvider);
+    final canEdit =
+        session != null && !sessionIsStockReadOnly(session);
     await showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
@@ -292,38 +341,51 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Item not found',
+                'Unknown barcode',
                 style: Theme.of(ctx).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w800,
                     ),
               ),
               const SizedBox(height: 6),
               Text(
-                'Code: $code',
+                'Scanned: $code\nNot linked to any item in this business.',
                 style: Theme.of(ctx).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(ctx).colorScheme.onSurfaceVariant,
                     ),
               ),
+              if (!canEdit) ...[
+                const SizedBox(height: 12),
+                Text(
+                  'Read-only account — ask owner/manager to assign this barcode.',
+                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(ctx).colorScheme.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ],
               const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  context.push(
-                    '/catalog/quick-add-from-scan?barcode=${Uri.encodeComponent(code)}',
-                  );
-                },
-                icon: const Icon(Icons.add_box_outlined),
-                label: const Text('Create new item'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  unawaited(_assignBarcodeToExisting(code));
-                },
-                icon: const Icon(Icons.link),
-                label: const Text('Assign to existing item'),
-              ),
+              if (canEdit) ...[
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    context.push(
+                      '/catalog/quick-add-from-scan?barcode=${Uri.encodeComponent(code)}',
+                    );
+                  },
+                  icon: const Icon(Icons.add_box_outlined),
+                  label: const Text('Create new item'),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    unawaited(_assignBarcodeToExisting(code));
+                  },
+                  icon: const Icon(Icons.link),
+                  label: const Text('Assign to existing item'),
+                ),
+                const SizedBox(height: 8),
+              ],
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: () {
@@ -358,9 +420,16 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     if (code.isEmpty) return;
     final session = ref.read(sessionProvider);
     if (session == null) return;
-    if (_busy) return;
-    setState(() => _busy = true);
+    if (!_busy) {
+      _busy = true;
+      if (mounted) setState(() {});
+    }
     try {
+      if (_camera != null) {
+        try {
+          await _camera!.stop();
+        } catch (_) {}
+      }
       final row = await ref
           .read(hexaApiProvider)
           .barcodeStockLookup(
@@ -425,8 +494,6 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                 ctx: BarcodeOperationContext.scanner))),
       );
       await _resumeScan();
-    } finally {
-      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -436,6 +503,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     final v = first?.rawValue?.trim();
     if (v == null || v.isEmpty) return;
     if (!_debouncePass(v)) return;
+    _busy = true;
     unawaited(_lookupAndNavigate(v));
   }
 
@@ -485,6 +553,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
 
   @override
   void dispose() {
+    _manualSearchDebounce?.cancel();
     _scanLineCtrl.dispose();
     _manualCtrl.removeListener(_onManualChanged);
     _manualCtrl.dispose();
@@ -502,24 +571,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
         .clamp(landscape ? 150.0 : 220.0, landscape ? 240.0 : 380.0)
         .toDouble();
     final pendingSync = ref.watch(stockOfflinePendingCountProvider);
-    final catalog = ref.watch(catalogItemsListProvider).valueOrNull ??
-        const <Map<String, dynamic>>[];
-    final manualMatches = _manualQuery.isEmpty
-        ? const <Map<String, dynamic>>[]
-        : catalog
-            .where((item) {
-              final haystack = [
-                item['name'],
-                item['item_code'],
-                item['barcode'],
-                item['category_name'],
-                item['type_name'],
-                item['subcategory_name'],
-              ].map((v) => v?.toString().toLowerCase() ?? '').join(' ');
-              return haystack.contains(_manualQuery);
-            })
-            .take(6)
-            .toList();
+    final manualMatches = _manualMatches;
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
@@ -682,6 +734,15 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                           ),
                           borderRadius: BorderRadius.circular(10),
                         ),
+                        child: Center(
+                          child: Text(
+                            'Align barcode here',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: HexaColors.brandPrimary,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                     LayoutBuilder(
@@ -815,6 +876,10 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                       ),
                     ],
                   ),
+                  if (_manualSearching) ...[
+                    const SizedBox(height: 8),
+                    const LinearProgressIndicator(minHeight: 2),
+                  ],
                   if (manualMatches.isNotEmpty) ...[
                     const SizedBox(height: 10),
                     Expanded(

@@ -14,6 +14,7 @@ class HomeOwnerQuickActions extends StatelessWidget {
     required this.onUsers,
     required this.onBarcode,
     required this.onReorder,
+    this.lowStockCount = 0,
   });
 
   final VoidCallback onStock;
@@ -24,13 +25,14 @@ class HomeOwnerQuickActions extends StatelessWidget {
   final VoidCallback onUsers;
   final VoidCallback onBarcode;
   final VoidCallback onReorder;
+  final int lowStockCount;
 
   @override
   Widget build(BuildContext context) {
     final actions = [
       _Spec('Purchase', Icons.add_shopping_cart_rounded, HexaColors.brandPrimary, onPurchase),
       _Spec('Stock', Icons.inventory_2_rounded, const Color(0xFF1565C0), onStock),
-      _Spec('Low stock', Icons.warning_amber_rounded, HexaColors.warning, onLowStock),
+      _Spec('Low stock', Icons.warning_amber_rounded, HexaColors.warning, onLowStock, badge: lowStockCount),
       _Spec('Deliveries', Icons.local_shipping_outlined, HexaColors.profit, onPendingDeliveries),
       _Spec('Reports', Icons.bar_chart_rounded, const Color(0xFF0D9488), onReports),
       _Spec('Users', Icons.group_rounded, const Color(0xFF5D4037), onUsers),
@@ -53,11 +55,12 @@ class HomeOwnerQuickActions extends StatelessWidget {
 }
 
 class _Spec {
-  const _Spec(this.label, this.icon, this.color, this.onTap);
+  const _Spec(this.label, this.icon, this.color, this.onTap, {this.badge});
   final String label;
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
+  final int? badge;
 }
 
 class _Tile extends StatelessWidget {
@@ -77,7 +80,14 @@ class _Tile extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(spec.icon, color: spec.color, size: 22),
+              Badge(
+                isLabelVisible: spec.badge != null && spec.badge! > 0,
+                label: Text(
+                  spec.badge! > 999 ? '999+' : '${spec.badge}',
+                  style: const TextStyle(fontSize: 10),
+                ),
+                child: Icon(spec.icon, color: spec.color, size: 22),
+              ),
               const SizedBox(height: 4),
               Text(
                 spec.label,

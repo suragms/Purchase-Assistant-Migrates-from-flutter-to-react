@@ -40,7 +40,12 @@ bool _hexaAsyncErrorLikelyBenign(Object error) {
       s.contains('ERR_NETWORK') ||
       s.contains('ERR_QUIC') ||
       s.contains('network changed') ||
-      s.contains('QUIC_PROTOCOL');
+      s.contains('QUIC_PROTOCOL') ||
+      s.contains('GoError') ||
+      s.contains('nothing to pop') ||
+      s.contains('HiveError') ||
+      s.contains('Box not found') ||
+      s.contains('StateError');
 }
 
 void _installHexaPlatformAsyncErrorHook() {

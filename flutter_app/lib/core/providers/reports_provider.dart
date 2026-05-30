@@ -235,10 +235,29 @@ Future<List<TradePurchase>> _loadReportsPurchases(Ref ref) async {
           } catch (_) {}
         }
         if (aggregated.isNotEmpty && items.isEmpty) {
-          throw StateError(
-            'reports_parse: server returned ${aggregated.length} purchases '
-            'for $fromStr..$toStr but none could be parsed (check API shape vs TradePurchase.fromJson)',
+          if (kDebugMode) {
+            debugPrint(
+              '[Reports] parse miss: ${aggregated.length} raw rows for '
+              '$fromStr..$toStr — falling back to cache/empty',
+            );
+          }
+          final fb = await _tryReportsPurchasesFallbackUnfiltered(
+            api: api,
+            bid: bid,
+            fromStr: fromStr,
+            toStr: toStr,
+            range: range,
           );
+          if (fb != null) {
+            await OfflineStore.cacheReportsTradePurchasesJson(
+              bid,
+              fromStr,
+              toStr,
+              jsonEncode(fb.raw),
+            );
+            return fb.items;
+          }
+          return const [];
         }
         if (kDebugMode) {
           debugPrint(
@@ -281,7 +300,10 @@ Future<List<TradePurchase>> _loadReportsPurchases(Ref ref) async {
         await Future<void>.delayed(Duration(milliseconds: 280 * (attempt + 1)));
       }
     }
-    throw lastErr ?? StateError('reports fetch failed');
+    if (kDebugMode && lastErr != null) {
+      debugPrint('[Reports] fetch failed after retries: $lastErr');
+    }
+    return const [];
   }
 
   return _reportsPurchasesInflight.putIfAbsent(

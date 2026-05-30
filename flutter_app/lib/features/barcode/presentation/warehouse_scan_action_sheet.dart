@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/auth/session_permissions.dart';
 import '../../../core/services/offline_store.dart';
 import '../../../core/errors/errors.dart';
 import '../../../core/json_coerce.dart';
@@ -113,6 +114,14 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
     if (_saving) return;
     final session = ref.read(sessionProvider);
     if (session == null) return;
+    if (sessionIsStockReadOnly(session)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Read-only account — cannot update stock from scan.'),
+        ),
+      );
+      return;
+    }
     final counted = _countedQty;
     if (counted == null || counted < 0) {
       ScaffoldMessenger.of(context).showSnackBar(

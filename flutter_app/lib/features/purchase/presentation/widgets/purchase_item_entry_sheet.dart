@@ -6,10 +6,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../../core/router/navigation_ext.dart';
 import '../../../../core/calc_engine.dart';
 import '../../../../core/pricing/tax_mode.dart';
 import '../../../../core/widgets/form_field_scroll.dart';
@@ -1529,6 +1529,15 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     return false;
   }
 
+  void _popSheet<T extends Object?>([T? result]) {
+    if (!mounted) return;
+    popImperativeOrGo(
+      context,
+      fallbackGo: '/purchase/new',
+      result: result,
+    );
+  }
+
   Future<void> _confirmDiscardAndPop() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -1537,25 +1546,25 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
         content: const Text('You will lose edits to this line.'),
         actions: [
           TextButton(
-            onPressed: () => ctx.pop(false),
+            onPressed: () => popOverlay(ctx, false),
             child: const Text('Keep editing'),
           ),
           FilledButton(
-            onPressed: () => ctx.pop(true),
+            onPressed: () => popOverlay(ctx, true),
             child: const Text('Leave'),
           ),
         ],
       ),
     );
-    if (ok == true && mounted) context.pop();
+    if (ok == true && mounted) _popSheet();
   }
 
   Future<void> _handleLeadingBack() async {
-    if (!_isDirtySheet()) {
-      if (mounted && context.canPop()) context.pop();
+    if (_isDirtySheet()) {
+      await _confirmDiscardAndPop();
       return;
     }
-    await _confirmDiscardAndPop();
+    _popSheet();
   }
 
   bool _showHsnFooterMeta() {
@@ -1998,18 +2007,14 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     }
     if (!widget.fullPage) {
       if (closeSheet) {
-        if (context.canPop()) {
-          context.pop();
-        }
+        _popSheet();
       } else {
         _resetAfterAdd();
       }
       return;
     }
     // Full-screen page: caller may chain another add via pop result.
-    if (context.canPop()) {
-      context.pop<bool>(!closeSheet);
-    }
+    _popSheet<bool>(!closeSheet);
   }
 
   String _purchaseRateLabel(bool _) {

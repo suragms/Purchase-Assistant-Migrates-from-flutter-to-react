@@ -11,6 +11,7 @@ import '../../widgets/bi/reports_bi_slice.dart';
 import '../../widgets/bi/warehouse_ring_section.dart';
 import '../reports_category_drill_page.dart';
 import '../reports_subcategory_drill_page.dart';
+import 'reports_nested_scroll.dart';
 
 List<ReportsBiSlice> _filterSlices(
   List<ReportsBiSlice> slices,
@@ -136,8 +137,7 @@ class ReportsBreakdownTab extends ConsumerWidget {
     }
     final centerLabel =
         subcategories ? 'subcategory spend' : 'category spend';
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
+    return reportsNestedListBody(
       children: [
         WarehouseRingSection(
           slices: slices,
@@ -180,6 +180,7 @@ class ReportsBreakdownTab extends ConsumerWidget {
           icon: const Icon(Icons.open_in_new_rounded, size: 18),
           label: const Text('View full breakdown'),
         ),
+        const SizedBox(height: 24),
       ],
     );
   }

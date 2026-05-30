@@ -5,9 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/shell/shell_branch_provider.dart';
 import '../auth/session_notifier.dart';
 import '../json_coerce.dart';
-import 'stock_providers.dart' show stockStatusCountsProvider;
+import 'stock_providers.dart'
+    show lowStockByCategoryProvider, stockStatusCountsProvider;
 import 'home_breakdown_tab_providers.dart';
 import 'home_dashboard_provider.dart';
+import '../../features/stock/presentation/widgets/low_stock_category_tree.dart';
+import 'delivery_pipeline_provider.dart';
+import 'notifications_provider.dart' show mergedNotificationFeedProvider;
+import 'warehouse_alerts_provider.dart';
 
 void _providerKeepAlive(Ref ref, Duration ttl) {
   final keepAlive = ref.keepAlive();
@@ -84,10 +89,17 @@ final homeInventorySummaryProvider =
   }
   final session = ref.watch(sessionProvider);
   if (session == null) return HomeInventorySummary.empty;
-  final raw = await ref.read(hexaApiProvider).stockInventorySummary(
-        businessId: session.primaryBusiness.id,
-      );
-  return HomeInventorySummary.fromJson(raw);
+  try {
+    final raw = await ref
+        .read(hexaApiProvider)
+        .stockInventorySummary(
+          businessId: session.primaryBusiness.id,
+        )
+        .timeout(const Duration(seconds: 12));
+    return HomeInventorySummary.fromJson(raw);
+  } catch (_) {
+    return HomeInventorySummary.empty;
+  }
 });
 
 /// Today-only dashboard row for the owner home stats strip (not tied to [homePeriodProvider]).
@@ -144,6 +156,43 @@ final homeStockAttentionCountProvider =
   final critical = coerceToInt(counts['critical']);
   return out + low + critical;
 });
+
+/// Low-stock attention count aligned with [/stock/low-stock] grouped API.
+final homeLowStockAttentionCountProvider = Provider.autoDispose<int>((ref) {
+  final grouped = ref.watch(lowStockByCategoryProvider);
+  return grouped.when(
+    data: (g) => countLowStockForTab(g, LowStockTreeTab.allLow),
+    loading: () => ref.watch(homeStockAttentionCountProvider).valueOrNull ?? 0,
+    error: (_, __) =>
+        ref.watch(homeStockAttentionCountProvider).valueOrNull ?? 0,
+  );
+});
+
+/// Pending delivery: warehouse summary + delivery pipeline (max of both).
+final homePendingDeliveryCountProvider = Provider.autoDispose<int>((ref) {
+  final fromWarehouse =
+      ref.watch(warehouseAlertsProvider).valueOrNull?.pendingDeliveries ?? 0;
+  final fromPipeline = deliveryPipelinePendingCount(
+    ref.watch(deliveryPipelineProvider).valueOrNull,
+  );
+  return fromWarehouse > fromPipeline ? fromWarehouse : fromPipeline;
+});
+
+/// Unread staff reorder requests (inform-owner flow).
+final homeStaffReorderRequestCountProvider = Provider.autoDispose<int>((ref) {
+  final feed = ref.watch(mergedNotificationFeedProvider);
+  return feed
+      .where((n) => !n.isRead && (n.serverKind ?? '') == 'reorder_request')
+      .length;
+});
+
+/// Bust home stock status sheet sources (call before opening sheet).
+void invalidateHomeStockStatusCounts(Ref ref) {
+  ref.invalidate(warehouseAlertsProvider);
+  ref.invalidate(lowStockByCategoryProvider);
+  ref.invalidate(deliveryPipelineProvider);
+  ref.invalidate(homeStockAttentionCountProvider);
+}
 
 /// Top low-stock rows (server sorts by stock vs reorder).
 final stockLowTopHomeProvider =

@@ -123,10 +123,13 @@ bool notificationPassesKindToggles(
 }
 
 NotificationCategoryFilter notificationCategoryForItem(NotificationItem n) {
+  final kind = n.serverKind ?? '';
+  if (kind == 'reorder_request') {
+    return NotificationCategoryFilter.staff;
+  }
+
   final fromWire = NotificationCategoryFilterX.fromWire(n.category);
   if (fromWire != null) return fromWire;
-
-  final kind = n.serverKind ?? '';
   if (n.id.startsWith('wh_')) {
     if (n.priority == 'critical' || n.priority == 'high') {
       return NotificationCategoryFilter.critical;

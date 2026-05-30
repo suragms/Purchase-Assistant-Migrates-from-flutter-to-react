@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../auth/auth_failure_policy.dart';
 import '../auth/session_notifier.dart';
 import '../models/trade_purchase_models.dart';
 import '../../features/shell/shell_branch_provider.dart';
@@ -121,6 +122,7 @@ final tradePurchasesForAlertsProvider =
   final link = ref.keepAlive();
   final t = Timer(const Duration(minutes: 8), link.close);
   ref.onDispose(t.cancel);
+  if (ref.watch(authSessionExpiredProvider)) return [];
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   return ref.read(hexaApiProvider).listTradePurchases(
@@ -154,6 +156,17 @@ class TradePurchasesListNotifier extends AutoDisposeAsyncNotifier<TradePurchases
     final link = ref.keepAlive();
     final t = Timer(const Duration(minutes: 2), link.close);
     ref.onDispose(t.cancel);
+
+    if (ref.watch(authSessionExpiredProvider)) {
+      return const TradePurchasesListView(rows: [], hasMore: false);
+    }
+
+    final branch = ref.watch(shellCurrentBranchProvider);
+    final fullscreenSearch =
+        ref.watch(purchaseHistoryFullscreenSearchActiveProvider);
+    if (branch != ShellBranch.history && !fullscreenSearch) {
+      return const TradePurchasesListView(rows: [], hasMore: false);
+    }
 
     final session = ref.watch(sessionProvider);
     if (session == null) {

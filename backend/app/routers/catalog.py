@@ -16,7 +16,7 @@ from sqlalchemy.orm import load_only
 from app.database import get_db
 from app.db_resilience import execute_with_retry
 from app.db_schema_compat import catalog_items_has_type_id_column
-from app.deps import require_membership, require_owner_membership
+from app.deps import require_membership, require_owner_membership, require_permission
 from app.models import (
     CatalogItem,
     CatalogVariant,
@@ -1888,7 +1888,7 @@ async def patch_catalog_item_code(
 async def patch_catalog_item_barcode(
     business_id: uuid.UUID,
     item_id: uuid.UUID,
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("stock_edit"))],
     db: Annotated[AsyncSession, Depends(get_db)],
     body: BarcodePatchIn,
 ):

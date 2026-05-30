@@ -30,6 +30,8 @@ import 'widgets/operational_stock_filter_sheet.dart'
     show showOperationalStockFilter, stockActiveFilterSummary;
 import 'widgets/stock_warehouse_filter_sheet.dart'
     show countWarehouseActiveFilters;
+import 'widgets/stock_delivery_filter_chips.dart';
+import 'widgets/stock_row_metrics.dart';
 
 enum StockPageMode { auto, staff, owner }
 
@@ -185,7 +187,15 @@ class _StockPageState extends ConsumerState<StockPage>
   List<Map<String, dynamic>> _prepareItems(List<Map<String, dynamic>> raw) {
     final op = ref.read(stockOperationalFiltersProvider);
     final q = ref.read(stockListQueryProvider);
+    final deliveryFilter = ref.read(stockDeliveryFilterProvider);
     var items = filterStockListClient(raw, op);
+    if (deliveryFilter != StockDeliveryFilter.all) {
+      items = items
+          .where(
+            (it) => StockRowMetrics.matchesDeliveryFilter(it, deliveryFilter),
+          )
+          .toList();
+    }
     final search = _instantSearch.isNotEmpty
         ? _instantSearch.toLowerCase()
         : q.q.trim().toLowerCase();
@@ -352,6 +362,8 @@ class _StockPageState extends ConsumerState<StockPage>
         if (e is Map) Map<String, dynamic>.from(e),
     ];
     final items = _prepareItems(raw);
+    final deliveryCounts = StockRowMetrics.countDeliveryIndicators(raw);
+    final deliveryFilter = ref.watch(stockDeliveryFilterProvider);
     final listQ = ref.watch(stockListQueryProvider);
     final total = coerceToInt(data['total']);
     final maxPage = stockListMaxPage(total, listQ.perPage);
@@ -380,6 +392,16 @@ class _StockPageState extends ConsumerState<StockPage>
           child: StockInlineSearchBar(
             controller: _searchCtrl,
             onClear: _clearSearch,
+          ),
+        ),
+      if (deliveryCounts.pending > 0 || deliveryCounts.delivered > 0)
+        SliverToBoxAdapter(
+          child: StockDeliveryFilterChips(
+            selected: deliveryFilter,
+            pendingCount: deliveryCounts.pending,
+            deliveredCount: deliveryCounts.delivered,
+            onSelected: (f) =>
+                ref.read(stockDeliveryFilterProvider.notifier).state = f,
           ),
         ),
       if (items.isNotEmpty) ...[

@@ -162,6 +162,12 @@ final stockPagePeriodProvider =
 /// Tablet/desktop split pane selection.
 final stockSelectedItemIdProvider = StateProvider<String?>((ref) => null);
 
+enum StockDeliveryFilter { all, pending, delivered }
+
+/// Client-side delivery truck filter on stock list.
+final stockDeliveryFilterProvider =
+    StateProvider<StockDeliveryFilter>((ref) => StockDeliveryFilter.all);
+
 /// Client-side filters shared by stock + bulk print.
 class StockOperationalFilters {
   const StockOperationalFilters({

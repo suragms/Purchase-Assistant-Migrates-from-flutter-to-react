@@ -2,6 +2,40 @@
 
 **Last updated:** 2026-05-29 (final release gate — all automated checks green)
 
+## Staff tasks + owner arrange (2026-05-29)
+
+- [x] Fix checkbox: optimistic state no longer cleared on success (tasks stay checked)
+- [x] Per-business default seed (6 tasks); templates API `GET/PUT /operations/checklist/templates`
+- [x] Owner: **Settings → Owner tasks** — Arrange list + Check today tabs
+- [x] Staff tasks: pull-to-refresh, auth-aware provider, clearer 401 retry copy
+- [x] Backend test: `test_checklist_operations.py`
+
+**DB:** ensure migration `029_stockease_operations.sql` applied (`staff_checklist_templates`, `staff_checklist_completions`).
+
+**Manual QA:**
+
+| Check | Pass |
+|-------|------|
+| Staff Tasks → tick Opening stock → stays checked | [ ] |
+| Midday / Evening tabs show 2 tasks each (6 total) | [ ] |
+| Owner → Arrange → add task → Save → staff sees new task | [ ] |
+| After stale session: Retry or sign out/in (no 401 loop) | [ ] |
+
+---
+
+## Barcode scan + missing labels + roles (2026-05-29)
+
+- [x] Scanner: stop camera on detect, 1.2s debounce, fewer symbologies, no full-catalog load (server search)
+- [x] Unknown barcode: clear copy + read-only gate on assign/create
+- [x] Missing labels: scan shortcut, bulk print, staff **Inform owner** (`missing_barcode` alert)
+- [x] Permissions: `/v1/me/businesses` returns `permissions`; Flutter `session_permissions.dart`
+- [x] API: `stock_edit` for barcode/item-code patch; `barcode_print` for label batch
+- [x] Guide: `docs/harisree/BARCODE_WORKFLOW.md`
+
+**Manual QA:** see BARCODE_WORKFLOW.md table.
+
+---
+
 ## Ship now (automated ✅ — you run deploy)
 
 1. **Prod DB:** `cd backend && alembic upgrade head` (migrations **040**, **041**, **042**).
@@ -12,7 +46,83 @@
 
 ---
 
-## Auth 401 storm + item create (2026-05-29)
+## Home dashboard blank + purchase party prefill (2026-05-29)
+
+- [x] **Home gray blank:** opaque `ColoredBox` on shell + home body; `AlwaysScrollableScrollPhysics` for pull-to-refresh; sync `shellCurrentBranchProvider` on Home mount + force refresh
+- [x] **Home slow/stuck load:** inventory summary 12s timeout → empty fallback; purchase card skeleton shows Retry + `forceStopRefreshing`; refresh throttle 8s
+- [x] **New purchase party fields:** removed auto last-supplier pref fill; fresh `/purchase/new` clears Hive/prefs draft + all party/terms controllers; no broker/commission carry-over
+
+**Manual QA:**
+
+| Check | Pass |
+|-------|------|
+| Owner `/home` shows dashboard cards (not gray blank) after load | [ ] |
+| Pull-to-refresh on home reloads totals | [ ] |
+| **New purchase** → supplier + broker fields empty; commission blank | [ ] |
+| Resume draft banner still works via `?resumeDraft=true` | [ ] |
+
+---
+
+## Item entry back buttons + web pop crash (2026-05-29)
+
+- [x] **Root cause:** purchase item entry opened via `Navigator.push(MaterialPageRoute)` but back/close used `GoRouter.pop` → empty stack throws on web (`main.dart.js Uncaught Error`)
+- [x] `navigation_ext.dart`: `popOverlay` (dialogs) + `popImperativeOrGo` (imperative routes + deep-link fallback)
+- [x] `PurchaseItemEntrySheet`: `_popSheet()` uses `popImperativeOrGo(fallbackGo: '/purchase/new')`; discard dialog uses `popOverlay`
+- [x] `PurchaseEntryWizardV2`: all dialog dismissals → `popOverlay`; post-save exit → `popOrGo('/purchase')`; PopScope step-back uses post-frame `setState`
+- [x] `CatalogItemCreatePage`: `_popPage()` with purchase/catalog fallback
+
+**Manual QA (item entry back — web + mobile):**
+
+| Check | Pass |
+|-------|------|
+| Purchase wizard → Add item → back (clean) returns to wizard | [ ] |
+| Purchase wizard → Add item → edit fields → back → discard dialog → Leave | [ ] |
+| Purchase wizard → Add item → **New catalog item** → back on step 1 exits | [ ] |
+| Catalog quick-add from purchase → save → returns item to line | [ ] |
+| Browser back on item entry (no console `Uncaught Error`) | [ ] |
+
+---
+
+## Staff purchase history + owner reorder alerts (2026-05-29)
+
+- [x] **`/staff/purchase-history`** route wired (was redirecting to deliveries)
+- [x] Purchase list: Today / Week / All + search + Pending/Delivered filters — **no prices** (supplier, qty, status only)
+- [x] Low stock tab: search + Critical filter + **Inform owner** → `/staff/low-stock`
+- [x] Staff purchase history: owner-style grouped rows, no ₹; dedicated `staffTradePurchasesHistoryProvider` (fixes 401 spam from owner list provider)
+- [x] Owner home alerts: **Staff reorder requests** card (`reorder_request` notifications)
+- [x] Backend `notify-owner`: `category=staff`, `priority=high`, `triggered_by_user_id`, targets owner/manager/admin
+- [x] Notifications: `reorder_request` maps to **Staff** category (not hidden under System)
+
+**Manual QA:**
+
+| Check | Pass |
+|-------|------|
+| Staff home → **Purchase history** opens list | [ ] |
+| Search + Pending filter works; no ₹ on rows | [ ] |
+| Low stock tab → Inform owner → low stock dashboard | [ ] |
+| Staff informs owner → owner sees alert on home + notifications | [ ] |
+
+---
+
+- [x] **Root cause (API/Hive fail):** `purchasesAsync.value` on errored provider threw `StateError` in build → global “Could not load the app”; use `valueOrNull`
+- [x] **Root cause (cold web):** `OfflineStore` Hive reads threw `HiveError: Box not found` before init — safe `_openBox()` no-op reads
+- [x] Nested scroll: tab bodies use `reportsNestedListBody` (shrinkWrap) inside `CustomScrollView`; removed redundant ListView wrapper on items/suppliers/brokers
+- [x] Mobile tabs: **4 primary** (Overview, Categories, Items, Suppliers) + **More** sheet (Stock intel, Subcat, Brokers, Dead, Usage, Stock mvmt)
+- [x] Route passes `initialTab` from `?tab=` query (no `GoRouterState.of` in initState)
+- [x] Reports parse miss: soft fallback instead of throwing `StateError`
+- [x] Smoke test: `test/reports_page_smoke_test.dart` (+ provider error survival)
+- [x] `HexaPageErrorBoundary` wraps `/reports` route (page-scoped retry, not whole-app crash)
+
+**Manual QA (Reports):**
+
+| Check | Pass |
+|-------|------|
+| Direct URL `/reports` loads (no global error card) | [ ] |
+| Overview + Categories + Items tabs scroll as one page | [ ] |
+| More sheet opens Stock intel / Dead / Movement | [ ] |
+| `/reports?tab=items` deep link selects Items | [ ] |
+
+---
 
 - [x] Central `auth_failure_policy.dart`: `authSessionExpiredProvider` + refresh failure cap (2 in 60s)
 - [x] Dio: 401/403 on business routes → refresh; second 401 after retry → terminal logout
@@ -261,6 +371,10 @@
 - [x] Category tree: dual LOW/OUT badges, 5 tabs (incl. pending delivery), scoped search
 - [x] Item tile: BAG/TIN/BOX/KG grid, stock progress, inform owner / reorder / stock update / receive
 - [x] Data: `lowStockByCategoryProvider` includes critical + pending delivery rows
+- [x] **Compact row UI** (`LowStockCompactItemRow`): stock · reorder · bought · pending + icon actions (less scroll)
+- [x] Search row: inline scope icons + **subcategory filter** menu/chip; search matches item names in all scopes
+- [x] Tab badges: red counts on icon tabs; PDF + CSV export from filtered view
+- [x] Owner/staff home: red badge on Low stock quick action (owner grid + staff tools/quick links)
 
 ## Staff / stock / reports sprint (2026-05-28)
 

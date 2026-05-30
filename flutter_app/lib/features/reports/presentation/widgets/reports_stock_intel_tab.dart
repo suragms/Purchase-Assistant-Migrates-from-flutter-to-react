@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/providers/operations_providers.dart';
 import '../../../../core/widgets/friendly_load_error.dart';
+import 'reports_nested_scroll.dart';
 import 'slow_moving_row.dart';
 
 /// Slow or dead stock tab inside Reports.
@@ -39,13 +40,17 @@ class ReportsStockIntelTab extends ConsumerWidget {
             ),
           );
         }
-        return ListView.separated(
-          itemCount: items.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
-          itemBuilder: (_, i) => SlowMovingRow(
-            item: items[i],
-            deadStyle: dead,
-          ),
+        return reportsNestedListBody(
+          children: [
+            for (var i = 0; i < items.length; i++) ...[
+              if (i > 0) const Divider(height: 1),
+              SlowMovingRow(
+                item: items[i],
+                deadStyle: dead,
+              ),
+            ],
+            const SizedBox(height: 24),
+          ],
         );
       },
     );

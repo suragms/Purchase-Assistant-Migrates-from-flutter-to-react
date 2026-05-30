@@ -11,3 +11,15 @@ final deliveryPipelineProvider =
         businessId: session.primaryBusiness.id,
       );
 });
+
+/// Undelivered PUR bills across pipeline stages (same as staff home KPI).
+int deliveryPipelinePendingCount(Map<String, dynamic>? pipeline) {
+  if (pipeline == null || pipeline.isEmpty) return 0;
+  return ((pipeline['pending'] as num?)?.toInt() ?? 0) +
+      ((pipeline['dispatched'] as num?)?.toInt() ?? 0) +
+      ((pipeline['in_transit'] as num?)?.toInt() ?? 0) +
+      ((pipeline['arrived'] as num?)?.toInt() ?? 0) +
+      ((pipeline['staff_verifying'] as num?)?.toInt() ?? 0) +
+      ((pipeline['staff_verified'] as num?)?.toInt() ?? 0) +
+      ((pipeline['partial'] as num?)?.toInt() ?? 0);
+}

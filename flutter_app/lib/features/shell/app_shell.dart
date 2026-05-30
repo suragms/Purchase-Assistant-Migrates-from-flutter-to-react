@@ -5,6 +5,7 @@ export 'app_shell_banners.dart';
 
 import 'package:flutter/material.dart';
 
+import '../../core/theme/hexa_colors.dart';
 import 'app_shell_banners.dart';
 
 enum AppShellRole { owner, staff }
@@ -31,7 +32,12 @@ class AppShellBody extends StatelessWidget {
       children: [
         ...topBanners,
         if (showConnectivityBanner) const AppShellConnectivityBanners(),
-        Expanded(child: navigationShell),
+        Expanded(
+          child: ColoredBox(
+            color: HexaColors.brandBackground,
+            child: navigationShell,
+          ),
+        ),
         if (bottomBar != null) bottomBar!,
       ],
     );

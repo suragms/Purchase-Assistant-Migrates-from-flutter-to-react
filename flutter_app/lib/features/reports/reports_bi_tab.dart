@@ -57,16 +57,16 @@ extension ReportsBiTabX on ReportsBiTab {
     };
   }
 
-  /// Primary row on phone; rest open via More sheet.
+  /// Primary row on phone (4 chips max); rest open via More sheet.
   static const primaryRow = [
     ReportsBiTab.overview,
     ReportsBiTab.categories,
     ReportsBiTab.items,
     ReportsBiTab.suppliers,
-    ReportsBiTab.slowMoving,
   ];
 
   static const moreSheet = [
+    ReportsBiTab.slowMoving,
     ReportsBiTab.subcategories,
     ReportsBiTab.brokers,
     ReportsBiTab.deadStock,

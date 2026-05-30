@@ -11,7 +11,6 @@ import '../../../core/providers/delivery_pipeline_provider.dart';
 import '../../../core/providers/notifications_provider.dart';
 import '../../../core/providers/staff_home_providers.dart';
 import '../../../core/providers/stock_providers.dart';
-import '../../../core/providers/trade_purchases_provider.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import 'widgets/staff_home_dashboard_widgets.dart';
@@ -175,8 +174,7 @@ void _invalidateStaffHomeRefresh(WidgetRef ref) {
   ref.invalidate(staffStockMismatchCountProvider);
   ref.invalidate(missingCodeItemsProvider);
   ref.invalidate(openingStockMissingProvider);
-  ref.invalidate(tradePurchasesListProvider);
-  ref.invalidate(tradePurchasesForAlertsProvider);
+  ref.invalidate(staffTradePurchasesHistoryProvider);
   ref.invalidate(deliveryPipelineProvider);
   ref.invalidate(stockOnHandTotalsProvider);
   ref.invalidate(stockTotalsProvider(AppPeriod.month));
@@ -320,6 +318,8 @@ class StaffHomePage extends ConsumerWidget {
                 subtitle: 'Search, stock, labels, and low stock',
               ),
               StaffHomeToolsGrid(lowCount: lowCount, focus: focus),
+              const SizedBox(height: HexaOp.cardGap),
+              StaffHomeQuickLinksRow(lowCount: lowCount),
               const SizedBox(height: HexaOp.cardGap),
               const StaffHomeSectionHeader(
                 title: 'Start here',

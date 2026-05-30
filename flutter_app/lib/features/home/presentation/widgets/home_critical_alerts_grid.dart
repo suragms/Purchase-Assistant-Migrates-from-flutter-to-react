@@ -30,9 +30,14 @@ class HomeCriticalAlertsGrid extends ConsumerWidget {
     var variances = 0;
     var exportFail = 0;
     var syncFail = 0;
+    var staffReorder = 0;
 
     for (final n in unread) {
       final kind = n.serverKind ?? '';
+      if (kind == 'reorder_request') {
+        staffReorder++;
+        continue;
+      }
       if (n.id == 'wh_pending_delivery' ||
           kind == 'delivery_pending' ||
           n.title.toLowerCase().contains('pending deliver')) {
@@ -89,6 +94,16 @@ class HomeCriticalAlertsGrid extends ConsumerWidget {
         color: HexaColors.warning,
         onTap: () => context.push('/stock/low-stock'),
         actionLabel: 'Open stock',
+      ));
+    }
+    if (staffReorder > 0 && !isStaff) {
+      cards.add(_AlertCardSpec(
+        title: 'Staff reorder requests',
+        count: staffReorder,
+        subtitle: 'Floor team asked to reorder items',
+        color: const Color(0xFF0D9488),
+        onTap: () => context.push('/notifications'),
+        actionLabel: 'View alerts',
       ));
     }
     if (openingN > 0) {

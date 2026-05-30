@@ -1015,47 +1015,65 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
     final undeliveredSort = ref.watch(purchaseHistoryUndeliveredSortProvider);
     final searchQ = ref.watch(purchaseHistorySearchProvider);
     final localWip = ref.watch(purchaseLocalWipDraftForHistoryProvider);
+    final narrowHeader = MediaQuery.sizeOf(context).width < 520;
 
     return Scaffold(
       backgroundColor: HexaColors.brandBackground,
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leading: IconButton(
-          tooltip: _selectMode ? 'Cancel selection' : 'Home',
-          icon: Icon(_selectMode ? Icons.close_rounded : Icons.home_outlined),
-          onPressed: () {
-            if (_selectMode) {
-              setState(() {
-                _selectMode = false;
-                _selected.clear();
-              });
-            } else {
-              final s = ref.read(sessionProvider);
-              if (s != null) context.go(authenticatedHomePath(s));
-            }
-          },
-        ),
+        leadingWidth: 0,
+        titleSpacing: 0,
+        toolbarHeight: 52,
         backgroundColor: HexaColors.brandBackground,
         surfaceTintColor: Colors.transparent,
         scrolledUnderElevation: 0,
         title: _selectMode
             ? Text('${_selected.length} selected',
                 style: const TextStyle(fontWeight: FontWeight.w800))
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+            : Row(
                 children: [
-                  const Text('Purchase History',
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: HexaColors.brandPrimary)),
-                  Text(
-                    '${DateFormat('d MMM').format(range.from)} → ${DateFormat('d MMM').format(range.to)}',
-                    style: const TextStyle(
-                        fontSize: 11,
-                        color: HexaColors.neutral,
-                        fontWeight: FontWeight.w500),
+                  IconButton(
+                    tooltip: 'Home',
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.all(8),
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    icon: const Icon(Icons.home_outlined, size: 22),
+                    onPressed: () {
+                      final s = ref.read(sessionProvider);
+                      if (s != null) context.go(authenticatedHomePath(s));
+                    },
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Purchase History',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            color: HexaColors.brandPrimary,
+                          ),
+                        ),
+                        Text(
+                          '${DateFormat('d MMM').format(range.from)} → ${DateFormat('d MMM').format(range.to)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: HexaColors.neutral,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1102,28 +1120,12 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
               icon: const Icon(Icons.close_rounded),
             ),
           ] else ...[
-            // Delivery-age sort toggle: truck icon glows when active.
-            IconButton(
-              tooltip: undeliveredSort
-                  ? 'Sort: most waiting days first (tap to reset)'
-                  : 'Sort by undelivered days (oldest first)',
-              icon: Icon(
-                undeliveredSort
-                    ? Icons.local_shipping_rounded
-                    : Icons.local_shipping_outlined,
-                color: undeliveredSort ? const Color(0xFF0D9488) : null,
+            if (!narrowHeader)
+              IconButton(
+                tooltip: 'Filter by period',
+                icon: const Icon(Icons.calendar_today_outlined),
+                onPressed: () => unawaited(_openPeriodPicker()),
               ),
-              onPressed: () {
-                ref
-                    .read(purchaseHistoryUndeliveredSortProvider.notifier)
-                    .state = !undeliveredSort;
-              },
-            ),
-            IconButton(
-              tooltip: 'Filter by period',
-              icon: const Icon(Icons.calendar_today_outlined),
-              onPressed: () => unawaited(_openPeriodPicker()),
-            ),
             IconButton(
               tooltip: 'More filters',
               icon: Badge(
@@ -1135,6 +1137,15 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
             PopupMenuButton<String>(
               tooltip: 'More',
               itemBuilder: (ctx) => [
+                if (narrowHeader)
+                  const PopupMenuItem(
+                    value: 'period',
+                    child: ListTile(
+                      leading: Icon(Icons.calendar_today_outlined),
+                      title: Text('Change period'),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ),
                 const PopupMenuItem(
                   value: 'refresh',
                   child: ListTile(
@@ -1161,7 +1172,9 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
                 ),
               ],
               onSelected: (v) {
-                if (v == 'refresh') {
+                if (v == 'period') {
+                  unawaited(_openPeriodPicker());
+                } else if (v == 'refresh') {
                   unawaited(_refreshHistory());
                 } else if (v == 'select') {
                   setState(() => _selectMode = true);
@@ -1172,16 +1185,27 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
             ),
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: FilledButton.icon(
-                onPressed: () => context.push('/purchase/new'),
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('New purchase'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: HexaColors.brandPrimary,
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(0, 36),
-                ),
-              ),
+              child: narrowHeader
+                  ? IconButton.filled(
+                      tooltip: 'New purchase',
+                      onPressed: () => context.push('/purchase/new'),
+                      icon: const Icon(Icons.add_rounded, size: 22),
+                      style: IconButton.styleFrom(
+                        backgroundColor: HexaColors.brandPrimary,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(40, 40),
+                      ),
+                    )
+                  : FilledButton.icon(
+                      onPressed: () => context.push('/purchase/new'),
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('New purchase'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: HexaColors.brandPrimary,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(0, 36),
+                      ),
+                    ),
             ),
           ],
         ],
@@ -1257,7 +1281,7 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 4),
+                          const SizedBox(width: 8),
                           IconButton.filledTonal(
                             visualDensity: VisualDensity.compact,
                             tooltip: 'Scanner',
@@ -1357,6 +1381,46 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
                           scrollDirection: Axis.horizontal,
                           padding: const EdgeInsets.symmetric(horizontal: 10),
                           children: [
+                            Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: FilterChip(
+                                padding: EdgeInsets.zero,
+                                labelPadding:
+                                    const EdgeInsets.symmetric(horizontal: 6),
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                                avatar: Icon(
+                                  undeliveredSort
+                                      ? Icons.local_shipping_rounded
+                                      : Icons.local_shipping_outlined,
+                                  size: 14,
+                                  color: undeliveredSort
+                                      ? const Color(0xFFEA580C)
+                                      : const Color(0xFF64748B),
+                                ),
+                                label: Text(
+                                  'Wait ↑',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: undeliveredSort
+                                        ? const Color(0xFF0D9488)
+                                        : null,
+                                  ),
+                                ),
+                                selected: undeliveredSort,
+                                showCheckmark: false,
+                                onSelected: (on) {
+                                  ref
+                                      .read(
+                                        purchaseHistoryUndeliveredSortProvider
+                                            .notifier,
+                                      )
+                                      .state = on;
+                                },
+                              ),
+                            ),
                             for (final e in const [
                               ('all', null, 'All'),
                               ('due', null, 'Due'),

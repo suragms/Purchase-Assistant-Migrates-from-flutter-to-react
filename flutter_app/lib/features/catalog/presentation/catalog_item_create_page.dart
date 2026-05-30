@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
+import '../../../core/router/navigation_ext.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/providers/brokers_list_provider.dart';
@@ -239,8 +239,17 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
     }
   }
 
+  void _popPage<T extends Object?>([T? result]) {
+    if (!mounted) return;
+    popImperativeOrGo(
+      context,
+      fallbackGo: widget.returnResultOnSave ? '/purchase/new' : '/catalog',
+      result: result,
+    );
+  }
+
   Future<void> _exit() async {
-    if (mounted) context.pop(false);
+    _popPage(false);
   }
 
   Future<void> _submit({required bool addMore}) async {
@@ -327,11 +336,11 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
           SnackBar(content: Text('Saved "$name". Add another.')),
         );
       } else if (widget.returnResultOnSave && newId.isNotEmpty) {
-        context.pop(<String, dynamic>{'id': newId, 'name': name});
+        _popPage(<String, dynamic>{'id': newId, 'name': name});
       } else if (newId.isNotEmpty) {
-        context.pop(<String, dynamic>{'id': newId, 'name': name});
+        _popPage(<String, dynamic>{'id': newId, 'name': name});
       } else {
-        context.pop();
+        _popPage();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Item "$name" created')),
         );

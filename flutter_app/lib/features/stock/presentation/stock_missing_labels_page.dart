@@ -2,15 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/session_notifier.dart';
+import '../../../core/auth/session_permissions.dart';
 import '../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/json_coerce.dart';
 import '../../../core/providers/stock_providers.dart';
+import '../../../core/router/post_auth_route.dart';
 import '../../../core/utils/unit_utils.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/list_skeleton.dart';
 import 'widgets/assign_barcode_sheet.dart';
 import 'widgets/edit_item_code_sheet.dart';
 
+/// Missing packaging barcodes / internal item codes — assign, print, inform owner.
 class StockMissingLabelsPage extends ConsumerStatefulWidget {
   const StockMissingLabelsPage({super.key});
 
@@ -35,12 +40,52 @@ class _StockMissingLabelsPageState extends ConsumerState<StockMissingLabelsPage>
     super.dispose();
   }
 
+  Future<void> _notifyOwnerMissingBarcode(String itemId, String name) async {
+    final session = ref.read(sessionProvider);
+    if (session == null) return;
+    try {
+      await ref.read(hexaApiProvider).notifyOwnerStockItem(
+            businessId: session.primaryBusiness.id,
+            itemId: itemId,
+            alert: 'missing_barcode',
+          );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Owner notified about $name')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(userFacingError(e))),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final session = ref.watch(sessionProvider);
+    final canEdit =
+        session != null && sessionCanStockEdit(session);
+    final canPrint =
+        session != null && sessionCanBarcodePrint(session);
+    final isStaff = session != null && sessionIsStaff(session);
     final listAsync = ref.watch(bulkStockListProvider);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Missing labels'),
+        actions: [
+          IconButton(
+            tooltip: 'Scan barcode',
+            icon: const Icon(Icons.qr_code_scanner_rounded),
+            onPressed: () => context.push('/barcode/scan'),
+          ),
+          if (canPrint)
+            IconButton(
+              tooltip: 'Bulk print labels',
+              icon: const Icon(Icons.print_outlined),
+              onPressed: () => context.push('/barcode/bulk-print'),
+            ),
+        ],
         bottom: TabBar(
           controller: _tabs,
           tabs: const [
@@ -70,11 +115,51 @@ class _StockMissingLabelsPageState extends ConsumerState<StockMissingLabelsPage>
               .where((it) => it['missing_item_code'] == true)
               .toList()
             ..sort(byStockDesc);
-          return TabBarView(
-            controller: _tabs,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _list(context, ref, missingBarcode, isBarcodeTab: true),
-              _list(context, ref, missingCode, isBarcodeTab: false),
+              if (!canEdit)
+                Material(
+                  color: const Color(0xFFFFF8E1),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: HexaOp.pageGutter,
+                      vertical: 8,
+                    ),
+                    child: Text(
+                      'Read-only: you can scan and view items. '
+                      'Ask owner/manager to assign barcodes and print labels.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabs,
+                  children: [
+                    _list(
+                      context,
+                      ref,
+                      missingBarcode,
+                      isBarcodeTab: true,
+                      canEdit: canEdit,
+                      canPrint: canPrint,
+                      showInformOwner: isStaff,
+                    ),
+                    _list(
+                      context,
+                      ref,
+                      missingCode,
+                      isBarcodeTab: false,
+                      canEdit: canEdit,
+                      canPrint: canPrint,
+                      showInformOwner: false,
+                    ),
+                  ],
+                ),
+              ),
             ],
           );
         },
@@ -87,6 +172,9 @@ class _StockMissingLabelsPageState extends ConsumerState<StockMissingLabelsPage>
     WidgetRef ref,
     List<Map<String, dynamic>> rows, {
     required bool isBarcodeTab,
+    required bool canEdit,
+    required bool canPrint,
+    required bool showInformOwner,
   }) {
     if (rows.isEmpty) {
       return Center(
@@ -153,41 +241,54 @@ class _StockMissingLabelsPageState extends ConsumerState<StockMissingLabelsPage>
                         ],
                       ),
                     ),
-                    IconButton(
-                      tooltip: isBarcodeTab ? 'Assign barcode' : 'Edit item code',
-                      icon: Icon(isBarcodeTab ? Icons.link : Icons.edit_outlined),
-                      onPressed: id.isEmpty
-                          ? null
-                          : () async {
-                              if (isBarcodeTab) {
-                                await showAssignBarcodeSheet(
-                                  context: context,
-                                  ref: ref,
-                                  itemId: id,
-                                  itemName: name,
-                                );
-                              } else {
-                                await showEditItemCodeSheet(
-                                  context: context,
-                                  ref: ref,
-                                  itemId: id,
-                                  itemName: name,
-                                  currentCode: it['item_code']?.toString(),
-                                );
-                              }
-                              ref.invalidate(bulkStockListProvider);
-                              ref.invalidate(stockListProvider);
-                            },
-                    ),
-                    IconButton(
-                      tooltip: 'Print label',
-                      icon: const Icon(Icons.print_outlined),
-                      onPressed: id.isEmpty
-                          ? null
-                          : () => context.push(
-                                '/barcode/print/${Uri.encodeComponent(id)}',
-                              ),
-                    ),
+                    if (showInformOwner && isBarcodeTab && id.isNotEmpty)
+                      IconButton(
+                        tooltip: 'Inform owner',
+                        icon: const Icon(Icons.campaign_outlined),
+                        onPressed: () =>
+                            _notifyOwnerMissingBarcode(id, name),
+                      ),
+                    if (canEdit)
+                      IconButton(
+                        tooltip: isBarcodeTab
+                            ? 'Assign barcode'
+                            : 'Edit item code',
+                        icon: Icon(
+                          isBarcodeTab ? Icons.link : Icons.edit_outlined,
+                        ),
+                        onPressed: id.isEmpty
+                            ? null
+                            : () async {
+                                if (isBarcodeTab) {
+                                  await showAssignBarcodeSheet(
+                                    context: context,
+                                    ref: ref,
+                                    itemId: id,
+                                    itemName: name,
+                                  );
+                                } else {
+                                  await showEditItemCodeSheet(
+                                    context: context,
+                                    ref: ref,
+                                    itemId: id,
+                                    itemName: name,
+                                    currentCode: it['item_code']?.toString(),
+                                  );
+                                }
+                                ref.invalidate(bulkStockListProvider);
+                                ref.invalidate(stockListProvider);
+                              },
+                      ),
+                    if (canPrint)
+                      IconButton(
+                        tooltip: 'Print label',
+                        icon: const Icon(Icons.print_outlined),
+                        onPressed: id.isEmpty
+                            ? null
+                            : () => context.push(
+                                  '/barcode/print/${Uri.encodeComponent(id)}',
+                                ),
+                      ),
                   ],
                 ),
               ),

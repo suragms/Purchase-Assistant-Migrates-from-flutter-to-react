@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/reports_bi_providers.dart';
 import '../../../../core/widgets/friendly_load_error.dart';
+import 'reports_nested_scroll.dart';
 
 /// Stock movement summary from adjustment logs.
 class ReportsMovementTab extends ConsumerWidget {
@@ -44,8 +45,7 @@ class ReportsMovementTab extends ConsumerWidget {
         });
         final timeline = m['timeline'];
         final days = timeline is List ? timeline.length : 0;
-        return ListView(
-          padding: const EdgeInsets.all(12),
+        return reportsNestedListBody(
           children: [
             Text(
               'Movement summary',
@@ -79,6 +79,7 @@ class ReportsMovementTab extends ConsumerWidget {
                       ),
                     ),
                   ),
+            const SizedBox(height: 24),
           ],
         );
       },

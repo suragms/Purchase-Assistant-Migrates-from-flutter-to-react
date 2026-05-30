@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/auth/session_notifier.dart';
+import '../../../../core/auth/session_permissions.dart';
 import '../../../../core/errors/user_facing_errors.dart';
 import '../../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../../core/providers/catalog_providers.dart';
@@ -16,6 +18,18 @@ Future<bool> showAssignBarcodeSheet({
   required String itemName,
   String? suggestedBarcode,
 }) async {
+  final session = ref.read(sessionProvider);
+  if (session == null) return false;
+  if (sessionIsStockReadOnly(session)) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Read-only account — cannot assign barcodes. Ask owner/manager.',
+        ),
+      ),
+    );
+    return false;
+  }
   final ctrl = TextEditingController(text: suggestedBarcode ?? '');
   final result = await showModalBottomSheet<bool>(
     context: context,
@@ -33,6 +47,15 @@ Future<bool> showAssignBarcodeSheet({
                 ),
           ),
           Text(itemName, maxLines: 1, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.push('/barcode/scan');
+            },
+            icon: const Icon(Icons.qr_code_scanner_rounded),
+            label: const Text('Scan packaging barcode'),
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: ctrl,

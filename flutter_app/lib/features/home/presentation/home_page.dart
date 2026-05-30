@@ -13,10 +13,12 @@ import '../../../core/providers/app_period_provider.dart'
     show homePeriodSyncListenerProvider;
 import '../../../core/providers/home_dashboard_provider.dart'
     show bustHomeDashboardVolatileCaches, homeDashboardDataProvider;
+import '../../../core/providers/delivery_pipeline_provider.dart';
 import '../../../core/providers/home_owner_dashboard_providers.dart'
     show
         homeInventorySummaryProvider,
         homeRecentActivityFeedProvider,
+        homeStockAttentionCountProvider,
         stockAlertCountsProvider,
         stockAuditPeriodProvider,
         stockLowTopHomeProvider,
@@ -50,6 +52,8 @@ import 'widgets/home_session_data_banner.dart';
 import 'widgets/home_quick_actions_grid.dart';
 import 'widgets/home_live_status_bar.dart';
 import 'widgets/home_warehouse_activity_feed.dart';
+import '../../stock/presentation/widgets/low_stock_category_tree.dart'
+    show countLowStockForTab, LowStockTreeTab;
 import 'widgets/home_owner_quick_actions.dart';
 import 'widgets/home_desktop_dashboard_grid.dart';
 import 'widgets/home_sticky_period_header.dart';
@@ -82,7 +86,7 @@ class _HomePageState extends ConsumerState<HomePage>
     }
     final now = DateTime.now();
     if (_lastThrottledInvalidate != null &&
-        now.difference(_lastThrottledInvalidate!).inSeconds < 12) {
+        now.difference(_lastThrottledInvalidate!).inSeconds < 8) {
       return true;
     }
     _lastThrottledInvalidate = now;
@@ -92,7 +96,11 @@ class _HomePageState extends ConsumerState<HomePage>
   void _invalidateAlertProviders() {
     ref.invalidate(warehouseAlertsProvider);
     ref.invalidate(stockStatusCountsProvider);
+    ref.invalidate(lowStockByCategoryProvider);
+    ref.invalidate(deliveryPipelineProvider);
+    ref.invalidate(homeStockAttentionCountProvider);
     ref.invalidate(appNotificationsListProvider);
+    ref.invalidate(notificationCenterCoordinatorProvider);
   }
 
   void _scheduleRefresh({bool alertsOnly = false, bool force = false}) {
@@ -152,10 +160,11 @@ class _HomePageState extends ConsumerState<HomePage>
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      // HomePage only mounts on shell branch 0 — keep branch + fetches aligned.
+      ref.read(shellCurrentBranchProvider.notifier).state = ShellBranch.home;
       _lastUnread = ref.read(notificationsUnreadCountProvider);
-      _setHomePollingActive(
-        ref.read(shellCurrentBranchProvider) == ShellBranch.home,
-      );
+      _setHomePollingActive(true);
+      _scheduleRefresh(force: true);
     });
   }
 
@@ -298,7 +307,8 @@ class _HomePageState extends ConsumerState<HomePage>
       }
     });
 
-    if (ref.watch(shellCurrentBranchProvider) != ShellBranch.home) {
+    if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) {
+      // IndexedStack keeps this widget mounted off-tab — avoid network work only.
       return const SizedBox.shrink();
     }
 
@@ -355,10 +365,15 @@ class _HomePageState extends ConsumerState<HomePage>
 
     return Scaffold(
       backgroundColor: HexaColors.brandBackground,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _refresh,
-          child: CustomScrollView(
+      body: ColoredBox(
+        color: HexaColors.brandBackground,
+        child: SafeArea(
+          child: RefreshIndicator(
+            onRefresh: _refresh,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
             slivers: [
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(gutter, 8, gutter, 0),
@@ -412,6 +427,15 @@ class _HomePageState extends ConsumerState<HomePage>
                           const HomeDesktopDashboardGrid(),
                           SizedBox(height: HexaResponsive.sectionGap(context)),
                           HomeOwnerQuickActions(
+                            lowStockCount: ref
+                                .watch(lowStockByCategoryProvider)
+                                .maybeWhen(
+                              data: (g) => countLowStockForTab(
+                                g,
+                                LowStockTreeTab.allLow,
+                              ),
+                              orElse: () => 0,
+                            ),
                             onPurchase: () => context.push('/purchase/new'),
                             onStock: () => context.go('/stock'),
                             onLowStock: () => context.push('/stock/low-stock'),
@@ -443,6 +467,7 @@ class _HomePageState extends ConsumerState<HomePage>
             ],
           ),
         ),
+      ),
       ),
     );
   }

@@ -9,7 +9,9 @@ import 'post_auth_route.dart'
     show authenticatedHomePath, sessionCanManageUsers, sessionIsStaff;
 import '../models/trade_purchase_models.dart';
 import 'page_transitions.dart';
+import '../widgets/hexa_page_error_boundary.dart';
 import '../../features/analytics/presentation/full_reports_page.dart';
+import '../../features/reports/reports_bi_tab.dart';
 import '../../features/catalog/presentation/item_analytics_redirect_page.dart';
 import '../../features/reports/presentation/reports_item_redirect_page.dart';
 import '../../features/catalog/presentation/catalog_add_category_page.dart';
@@ -78,6 +80,7 @@ import '../../features/staff/presentation/staff_activity_page.dart';
 import '../../features/staff/presentation/staff_quick_purchase_page.dart';
 import '../../features/staff/presentation/staff_purchase_order_detail_page.dart';
 import '../../features/staff/presentation/staff_pending_deliveries_page.dart';
+import '../../features/staff/presentation/staff_purchase_history_page.dart';
 import '../../features/staff/presentation/staff_receive_shipment_page.dart';
 import '../../features/shell/shell_screen.dart';
 import '../../features/splash/presentation/splash_page.dart';
@@ -751,6 +754,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/staff/purchase-history',
+        name: 'staff_purchase_history',
+        pageBuilder: (context, state) => iosPushPage(
+          key: state.pageKey,
+          child: const StaffPurchaseHistoryPage(),
+        ),
+      ),
+      GoRoute(
         path: '/staff/activity',
         name: 'staff_activity',
         pageBuilder: (context, state) => iosPushPage(
@@ -818,7 +829,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           }
           return iosPushPage(
             key: ValueKey(
-              'purchase_new_${seed != null ? 'seed' : resumeDraft ? 'resume' : ((cid != null && cid.isNotEmpty) ? cid : 'none')}_${aiScanToken ?? 'noai'}',
+              'purchase_new_${seed != null ? 'seed' : resumeDraft ? 'resume' : 'fresh'}_${(cid != null && cid.isNotEmpty) ? cid : 'none'}_${aiScanToken ?? 'noai'}',
             ),
             child: PurchaseEntryWizardV2(
               initialCatalogItemId:
@@ -1074,7 +1085,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               GoRoute(
                 path: '/reports',
                 name: 'reports_full',
-                builder: (context, state) => const FullReportsPage(),
+                builder: (context, state) => HexaPageErrorBoundary(
+                      title: 'Reports could not load',
+                      fallbackRoute: '/home',
+                      child: FullReportsPage(
+                        initialTab: ReportsBiTabX.fromQuery(
+                          state.uri.queryParameters['tab'],
+                        ),
+                      ),
+                    ),
               ),
             ],
           ),
@@ -1154,10 +1173,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: '/staff/deliveries',
                 name: 'staff_deliveries',
                 builder: (context, state) => const StaffPendingDeliveriesPage(),
-              ),
-              GoRoute(
-                path: '/staff/purchase-history',
-                redirect: (_, __) => '/staff/deliveries',
               ),
             ],
           ),

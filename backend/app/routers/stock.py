@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 from app.deps import get_current_user, require_membership, require_permission, require_role
 from app.services.staff_audit import log_staff_activity
+from app.services.notification_emitter import CATEGORY_STAFF
 from app.services.stock_inventory import (
     compute_expected_system_qty,
     movement_delivered_qty_map,
@@ -2339,7 +2340,7 @@ async def barcode_batch(
     business_id: uuid.UUID,
     body: BarcodeBatchIn,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _m: Annotated[Membership, Depends(require_membership)],
+    _m: Annotated[Membership, Depends(require_permission("barcode_print"))],
 ):
     r = await db.execute(
         select(CatalogItem).where(
@@ -3401,6 +3402,7 @@ async def notify_owner_about_item(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: Annotated[User, Depends(get_current_user)],
     _m: Annotated[Membership, Depends(require_membership)],
+    alert: str = Query("reorder", pattern="^(reorder|missing_barcode)$"),
 ):
     """Staff/manager alert: ping business owners about this catalog item."""
     r = await db.execute(
@@ -3417,7 +3419,7 @@ async def notify_owner_about_item(
     mems = await db.execute(
         select(Membership.user_id, Membership.role).where(
             Membership.business_id == business_id,
-            Membership.role.in_(("owner", "manager")),
+            Membership.role.in_(("owner", "manager", "admin")),
         )
     )
     targets = [(row[0], row[1]) for row in mems.all() if row[0] != user.id]
@@ -3428,9 +3430,21 @@ async def notify_owner_about_item(
     day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     cur = catalog_stock_qty(item)
     ro = catalog_reorder(item)
+    if alert == "missing_barcode":
+        kind = "missing_barcode"
+        title = "Missing barcode label"
+        body = f"{display} flagged {item.name} — needs packaging barcode + label print"
+        dedupe_prefix = "missing_barcode"
+        cta = "labels"
+    else:
+        kind = "reorder_request"
+        title = "Reorder requested"
+        body = f"{display} needs reorder for {item.name} ({cur} on hand, reorder {ro})"
+        dedupe_prefix = "reorder_request"
+        cta = "purchase"
     inserted = 0
     for uid, role in targets:
-        dedupe = f"reorder_request:{item_id}:{uid}:{day}"
+        dedupe = f"{dedupe_prefix}:{item_id}:{uid}:{day}"
         ex = await db.execute(
             select(AppNotification.id).where(
                 AppNotification.business_id == business_id,
@@ -3445,18 +3459,21 @@ async def notify_owner_about_item(
                 id=uuid.uuid4(),
                 business_id=business_id,
                 user_id=uid,
-                kind="reorder_request",
-                title="Reorder requested",
-                body=f"{display} needs reorder for {item.name} ({cur} on hand, reorder {ro})",
+                kind=kind,
+                title=title,
+                body=body,
                 payload={
                     "item_id": str(item_id),
                     "from_user_id": str(user.id),
                     "from_user_name": display,
                     "target_role": role,
-                    "cta": "purchase",
+                    "cta": cta,
                 },
                 action_route=item_route,
                 dedupe_key=dedupe,
+                category=CATEGORY_STAFF,
+                priority="high",
+                triggered_by_user_id=user.id,
             )
         )
         inserted += 1

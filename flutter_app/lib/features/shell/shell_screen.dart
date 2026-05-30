@@ -46,6 +46,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   @override
   void initState() {
     super.initState();
+    _syncShellBranch(widget.navigationShell.currentIndex);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncShellBranch(widget.navigationShell.currentIndex);
     });

@@ -2572,9 +2572,11 @@ class HexaApi {
   Future<void> notifyOwnerStockItem({
     required String businessId,
     required String itemId,
+    String alert = 'reorder',
   }) async {
     await _dio.post<void>(
       '/v1/businesses/$businessId/stock/$itemId/notify-owner',
+      queryParameters: {'alert': alert},
     );
   }
 
@@ -3416,6 +3418,26 @@ class HexaApi {
       '/v1/businesses/$businessId/operations/checklist/today',
     );
     return res.data ?? {};
+  }
+
+  Future<List<Map<String, dynamic>>> getChecklistTemplates({
+    required String businessId,
+  }) async {
+    final res = await _dio.get<List<dynamic>>(
+      '/v1/businesses/$businessId/operations/checklist/templates',
+    );
+    return _parseJsonMapList(res.data);
+  }
+
+  Future<List<Map<String, dynamic>>> putChecklistTemplates({
+    required String businessId,
+    required List<Map<String, dynamic>> tasks,
+  }) async {
+    final res = await _dio.put<List<dynamic>>(
+      '/v1/businesses/$businessId/operations/checklist/templates',
+      data: {'tasks': tasks},
+    );
+    return _parseJsonMapList(res.data);
   }
 
   Future<void> completeChecklistTask({

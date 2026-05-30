@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/json_coerce.dart';
-import 'low_stock_item_detail_tile.dart';
+import 'low_stock_compact_item_row.dart';
 import 'low_stock_tree_counts.dart';
 
 enum LowStockTreeTab {
@@ -74,40 +74,60 @@ Map<String, Map<String, List<Map<String, dynamic>>>> filterLowStockGrouped({
   required LowStockTreeTab tab,
   required String searchQuery,
   required LowStockSearchScope searchScope,
+  String? subcategoryFilter,
 }) {
   final q = searchQuery.trim().toLowerCase();
+  final subFilter = subcategoryFilter?.trim().toLowerCase() ?? '';
   final filtered = <String, Map<String, List<Map<String, dynamic>>>>{};
+
+  bool itemMatchesSearch(
+    Map<String, dynamic> it,
+    String cat,
+    String sub,
+  ) {
+    if (q.isEmpty) return true;
+    final itemHay = _itemSearchHay(it);
+    switch (searchScope) {
+      case LowStockSearchScope.category:
+        return cat.toLowerCase().contains(q) || itemHay.contains(q);
+      case LowStockSearchScope.subcategory:
+        return sub.toLowerCase().contains(q) || itemHay.contains(q);
+      case LowStockSearchScope.item:
+        return itemHay.contains(q);
+      case LowStockSearchScope.all:
+        return cat.toLowerCase().contains(q) ||
+            sub.toLowerCase().contains(q) ||
+            itemHay.contains(q);
+    }
+  }
 
   for (final catEntry in grouped.entries) {
     if (q.isNotEmpty &&
         searchScope == LowStockSearchScope.category &&
-        !catEntry.key.toLowerCase().contains(q)) {
+        !catEntry.key.toLowerCase().contains(q) &&
+        !catEntry.value.values.any(
+          (items) => items.any((it) => _itemSearchHay(it).contains(q)),
+        )) {
       continue;
     }
 
     final subMap = <String, List<Map<String, dynamic>>>{};
     for (final subEntry in catEntry.value.entries) {
+      if (subFilter.isNotEmpty &&
+          subEntry.key.toLowerCase() != subFilter &&
+          !subEntry.key.toLowerCase().contains(subFilter)) {
+        continue;
+      }
       if (q.isNotEmpty &&
           searchScope == LowStockSearchScope.subcategory &&
-          !subEntry.key.toLowerCase().contains(q)) {
+          !subEntry.key.toLowerCase().contains(q) &&
+          !subEntry.value.any((it) => _itemSearchHay(it).contains(q))) {
         continue;
       }
 
       final items = subEntry.value.where((it) {
         if (!lowStockMatchesTab(it, tab)) return false;
-        if (q.isEmpty) return true;
-        if (searchScope == LowStockSearchScope.category ||
-            searchScope == LowStockSearchScope.subcategory) {
-          return true;
-        }
-        final hay = [
-          it['name'],
-          it['category_name'],
-          it['subcategory_name'],
-          it['item_code'],
-          it['supplier_name'],
-        ].whereType<String>().join(' ').toLowerCase();
-        return hay.contains(q);
+        return itemMatchesSearch(it, catEntry.key, subEntry.key);
       }).toList();
 
       if (items.isNotEmpty) subMap[subEntry.key] = items;
@@ -115,6 +135,42 @@ Map<String, Map<String, List<Map<String, dynamic>>>> filterLowStockGrouped({
     if (subMap.isNotEmpty) filtered[catEntry.key] = subMap;
   }
   return filtered;
+}
+
+String _itemSearchHay(Map<String, dynamic> it) {
+  return [
+    it['name'],
+    it['category_name'],
+    it['subcategory_name'],
+    it['item_code'],
+    it['supplier_name'],
+    it['last_purchase_human_id'],
+  ].whereType<String>().join(' ').toLowerCase();
+}
+
+/// All subcategory names in grouped data (for filter chips).
+List<String> lowStockSubcategoryOptions(
+  Map<String, Map<String, List<Map<String, dynamic>>>> grouped,
+) {
+  final subs = <String>{};
+  for (final subMap in grouped.values) {
+    subs.addAll(subMap.keys);
+  }
+  final list = subs.toList()..sort();
+  return list;
+}
+
+/// Flatten filtered grouped map to item rows (PDF / export).
+List<Map<String, dynamic>> flattenLowStockGrouped(
+  Map<String, Map<String, List<Map<String, dynamic>>>> grouped,
+) {
+  final out = <Map<String, dynamic>>[];
+  for (final subMap in grouped.values) {
+    for (final items in subMap.values) {
+      out.addAll(items);
+    }
+  }
+  return out;
 }
 
 /// Expandable category → subcategory → item list for low-stock dashboards.
@@ -125,6 +181,7 @@ class LowStockCategoryTree extends StatefulWidget {
     required this.tab,
     this.searchQuery = '',
     this.searchScope = LowStockSearchScope.all,
+    this.subcategoryFilter,
     this.staffMode = false,
     this.onOrderNow,
     this.onNotifyOwner,
@@ -137,6 +194,7 @@ class LowStockCategoryTree extends StatefulWidget {
   final LowStockTreeTab tab;
   final String searchQuery;
   final LowStockSearchScope searchScope;
+  final String? subcategoryFilter;
   final bool staffMode;
   final void Function(Map<String, dynamic> item)? onOrderNow;
   final void Function(Map<String, dynamic> item)? onNotifyOwner;
@@ -165,18 +223,19 @@ class _LowStockCategoryTreeState extends State<LowStockCategoryTree> {
       tab: widget.tab,
       searchQuery: widget.searchQuery,
       searchScope: widget.searchScope,
+      subcategoryFilter: widget.subcategoryFilter,
     );
     final first = categoryWithHighestOut(filtered, widget.tab);
     if (first != null) _expandedCats.add(first);
     _lastFilterKey =
-        '${widget.tab}|${widget.searchQuery}|${widget.searchScope}|${widget.grouped.length}';
+        '${widget.tab}|${widget.searchQuery}|${widget.searchScope}|${widget.subcategoryFilter}|${widget.grouped.length}';
   }
 
   @override
   void didUpdateWidget(covariant LowStockCategoryTree oldWidget) {
     super.didUpdateWidget(oldWidget);
     final key =
-        '${widget.tab}|${widget.searchQuery}|${widget.searchScope}|${widget.grouped.length}';
+        '${widget.tab}|${widget.searchQuery}|${widget.searchScope}|${widget.subcategoryFilter}|${widget.grouped.length}';
     if (key != _lastFilterKey) {
       _resetExpandedForFilter();
     }
@@ -189,6 +248,7 @@ class _LowStockCategoryTreeState extends State<LowStockCategoryTree> {
       tab: widget.tab,
       searchQuery: widget.searchQuery,
       searchScope: widget.searchScope,
+      subcategoryFilter: widget.subcategoryFilter,
     );
 
     if (filtered.isEmpty) {
@@ -215,24 +275,31 @@ class _LowStockCategoryTreeState extends State<LowStockCategoryTree> {
         final counts = countLowOutForGrouped(filtered, cat, widget.tab);
         final expanded = _expandedCats.contains(cat);
         return Card(
-          margin: const EdgeInsets.only(bottom: 8),
+          margin: const EdgeInsets.only(bottom: 6),
           clipBehavior: Clip.antiAlias,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: const BorderSide(color: Color(0xFFE2E8E6)),
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               ListTile(
                 dense: true,
+                visualDensity: VisualDensity.compact,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                 title: Text(
                   cat,
-                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                 ),
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _DualBadge(label: 'LOW', count: counts.low),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 4),
                     _DualBadge(label: 'OUT', count: counts.out),
-                    Icon(expanded ? Icons.expand_less : Icons.expand_more),
+                    Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 20),
                   ],
                 ),
                 onTap: () => setState(() {
@@ -246,44 +313,22 @@ class _LowStockCategoryTreeState extends State<LowStockCategoryTree> {
               if (expanded)
                 for (final subEntry in subMap.entries.toList()
                   ..sort((a, b) => a.key.compareTo(b.key))) ...[
-                  Builder(
-                    builder: (context) {
-                      final subCounts = countLowOutForItems(
-                        subEntry.value,
-                        widget.tab,
-                      );
-                      return Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 12, 4),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                subEntry.key,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 12,
-                                  color: Color(0xFF64748B),
-                                ),
-                              ),
-                            ),
-                            _DualBadge(
-                              label: 'LOW',
-                              count: subCounts.low,
-                              compact: true,
-                            ),
-                            const SizedBox(width: 4),
-                            _DualBadge(
-                              label: 'OUT',
-                              count: subCounts.out,
-                              compact: true,
-                            ),
-                          ],
+                  if (subEntry.key.trim().isNotEmpty &&
+                      subEntry.key != '—' &&
+                      subEntry.key != 'Uncategorized')
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 2),
+                      child: Text(
+                        subEntry.key,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 11,
+                          color: Color(0xFF64748B),
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    ),
                   for (final item in subEntry.value)
-                    LowStockItemDetailTile(
+                    LowStockCompactItemRow(
                       item: item,
                       staffMode: widget.staffMode,
                       onOrderNow: widget.onOrderNow,
@@ -305,31 +350,26 @@ class _DualBadge extends StatelessWidget {
   const _DualBadge({
     required this.label,
     required this.count,
-    this.compact = false,
   });
 
   final String label;
   final int count;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     if (count <= 0) return const SizedBox.shrink();
     return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 6 : 8,
-        vertical: compact ? 2 : 3,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: const Color(0xFFDC2626),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        compact ? '$count' : '$label $count',
-        style: TextStyle(
+        '$label $count',
+        style: const TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w900,
-          fontSize: compact ? 11 : 12,
+          fontSize: 12,
         ),
       ),
     );

@@ -75,3 +75,22 @@ class ChecklistSummaryOut(BaseModel):
     completion_pct: float = 0.0
     tasks_total: int = 0
     tasks_completed: int = 0
+
+
+class ChecklistTemplateOut(BaseModel):
+    id: uuid.UUID
+    slot: str
+    task_key: str
+    label: str
+    sort_order: int = 0
+
+
+class ChecklistTemplateItemIn(BaseModel):
+    slot: str = Field(pattern="^(morning|midday|evening)$")
+    task_key: str | None = Field(default=None, max_length=64)
+    label: str = Field(min_length=1, max_length=255)
+    sort_order: int = 0
+
+
+class ChecklistTemplatesPutIn(BaseModel):
+    tasks: list[ChecklistTemplateItemIn] = Field(min_length=1, max_length=30)
