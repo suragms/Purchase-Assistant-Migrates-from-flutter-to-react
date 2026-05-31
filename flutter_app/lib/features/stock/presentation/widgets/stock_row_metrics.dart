@@ -271,7 +271,7 @@ abstract final class StockRowMetrics {
       return (
         primary: qty > 0.001 ? formatStockQtyForUnit(u, qty) : '!',
         secondary: 'sync SYS',
-        color: pendingColor,
+        color: const Color(0xFFDC2626),
       );
     }
 
@@ -322,8 +322,6 @@ abstract final class StockRowMetrics {
   }
 
   static StockDeliveryIndicator deliveryIndicator(Map<String, dynamic> item) {
-    if (needsStockSync(item)) return StockDeliveryIndicator.pending;
-
     final pendingDel = pendingDeliveryQty(item) ?? 0;
     final hasPending = item['has_pending_order'] == true;
     final po = item['last_purchase_human_id']?.toString().trim() ?? '';
@@ -342,6 +340,9 @@ abstract final class StockRowMetrics {
     return StockDeliveryIndicator.none;
   }
 
+  /// Ledger behind committed purchases — not an undelivered truck.
+  static bool syncRequired(Map<String, dynamic> item) => needsStockSync(item);
+
   static String? _pendingDaysLabel(int? days) {
     if (days == null) return null;
     if (days <= 0) return 'today';
@@ -353,18 +354,24 @@ abstract final class StockRowMetrics {
     StockDeliveryFilter filter,
   ) {
     if (filter == StockDeliveryFilter.all) return true;
+    if (filter == StockDeliveryFilter.syncRequired) {
+      return syncRequired(item);
+    }
     final ind = deliveryIndicator(item);
     return filter == StockDeliveryFilter.pending
         ? ind == StockDeliveryIndicator.pending
         : ind == StockDeliveryIndicator.delivered;
   }
 
-  static ({int pending, int delivered}) countDeliveryIndicators(
+  static ({int pending, int delivered, int syncRequired})
+      countDeliveryIndicators(
     List<Map<String, dynamic>> items,
   ) {
     var pending = 0;
     var delivered = 0;
+    var syncRequiredCount = 0;
     for (final it in items) {
+      if (syncRequired(it)) syncRequiredCount++;
       switch (deliveryIndicator(it)) {
         case StockDeliveryIndicator.pending:
           pending++;
@@ -374,7 +381,11 @@ abstract final class StockRowMetrics {
           break;
       }
     }
-    return (pending: pending, delivered: delivered);
+    return (
+      pending: pending,
+      delivered: delivered,
+      syncRequired: syncRequiredCount,
+    );
   }
 
   static String deliveryQtyBadge(Map<String, dynamic> item) {

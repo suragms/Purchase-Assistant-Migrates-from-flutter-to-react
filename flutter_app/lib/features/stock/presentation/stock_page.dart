@@ -456,12 +456,15 @@ class _StockPageState extends ConsumerState<StockPage>
             onClear: _clearSearch,
           ),
         ),
-      if (deliveryCounts.pending > 0 || deliveryCounts.delivered > 0)
+      if (deliveryCounts.pending > 0 ||
+          deliveryCounts.delivered > 0 ||
+          deliveryCounts.syncRequired > 0)
         SliverToBoxAdapter(
           child: StockDeliveryFilterChips(
             selected: deliveryFilter,
             pendingCount: deliveryCounts.pending,
             deliveredCount: deliveryCounts.delivered,
+            syncRequiredCount: deliveryCounts.syncRequired,
             onSelected: (f) =>
                 ref.read(stockDeliveryFilterProvider.notifier).state = f,
           ),

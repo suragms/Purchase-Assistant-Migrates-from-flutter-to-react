@@ -185,7 +185,7 @@ final stockSelectedItemIdProvider = StateProvider<String?>((ref) => null);
 /// Saved scroll offset for stock list — restored when returning from detail.
 final stockListScrollOffsetProvider = StateProvider<double>((ref) => 0);
 
-enum StockDeliveryFilter { all, pending, delivered }
+enum StockDeliveryFilter { all, pending, delivered, syncRequired }
 
 /// Client-side delivery truck filter on stock list.
 final stockDeliveryFilterProvider =

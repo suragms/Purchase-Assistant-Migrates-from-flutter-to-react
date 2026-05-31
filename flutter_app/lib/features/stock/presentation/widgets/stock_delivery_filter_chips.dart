@@ -9,17 +9,19 @@ class StockDeliveryFilterChips extends StatelessWidget {
     required this.selected,
     required this.pendingCount,
     required this.deliveredCount,
+    this.syncRequiredCount = 0,
     required this.onSelected,
   });
 
   final StockDeliveryFilter selected;
   final int pendingCount;
   final int deliveredCount;
+  final int syncRequiredCount;
   final ValueChanged<StockDeliveryFilter> onSelected;
 
   @override
   Widget build(BuildContext context) {
-    if (pendingCount == 0 && deliveredCount == 0) {
+    if (pendingCount == 0 && deliveredCount == 0 && syncRequiredCount == 0) {
       return const SizedBox.shrink();
     }
 
@@ -42,6 +44,15 @@ class StockDeliveryFilterChips extends StatelessWidget {
             selected: selected == StockDeliveryFilter.pending,
             onTap: () => onSelected(StockDeliveryFilter.pending),
           ),
+          if (syncRequiredCount > 0)
+            _chip(
+              label: 'Sync ledger',
+              count: syncRequiredCount,
+              countColor: const Color(0xFFDC2626),
+              icon: Icons.sync_problem_rounded,
+              selected: selected == StockDeliveryFilter.syncRequired,
+              onTap: () => onSelected(StockDeliveryFilter.syncRequired),
+            ),
           _chip(
             label: 'Delivered',
             count: deliveredCount,
