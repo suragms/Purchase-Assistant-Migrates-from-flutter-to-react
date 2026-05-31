@@ -97,31 +97,45 @@ class StockTableRow extends StatelessWidget {
                         children: [
                           Text(
                             name,
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
                               color: Color(0xFF1A1A1A),
+                              height: 1.12,
                             ),
                           ),
-                          if (sub.isNotEmpty &&
-                              sub.toLowerCase() != name.trim().toLowerCase())
-                            Text(
-                              sub,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: HexaDsType.label(11).copyWith(
-                                color: const Color(0xFF64748B),
-                              ),
-                            ),
-                          if (metaParts.isNotEmpty)
-                            Text(
-                              metaParts.join(' • '),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: HexaDsType.label(11).copyWith(
-                                color: const Color(0xFF94A3B8),
+                          if (StockRowMetrics.inlineDeliveryCue(item) != null ||
+                              (sub.isNotEmpty &&
+                                  sub.toLowerCase() != name.trim().toLowerCase()) ||
+                              metaParts.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Row(
+                                children: [
+                                  if (StockRowMetrics.inlineDeliveryCue(item) !=
+                                      null) ...[
+                                    StockRowMetrics.inlineDeliveryCue(item)!,
+                                    const SizedBox(width: 6),
+                                  ],
+                                  Expanded(
+                                    child: Text(
+                                      [
+                                        if (sub.isNotEmpty &&
+                                            sub.toLowerCase() !=
+                                                name.trim().toLowerCase())
+                                          sub,
+                                        ...metaParts,
+                                      ].join(' · '),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: HexaDsType.label(9).copyWith(
+                                        color: const Color(0xFF64748B),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                         ],
@@ -131,10 +145,6 @@ class StockTableRow extends StatelessWidget {
                   _metricCell(
                     StockRowMetrics.systemCellLabel(item),
                     StockRowMetrics.inlineStatusColor(item),
-                  ),
-                  _metricCell(
-                    StockRowMetrics.pendingCellDisplay(item).primary,
-                    StockRowMetrics.pendingCellDisplay(item).color,
                   ),
                   _metricCell(
                     StockRowMetrics.physicalCellLabel(item),

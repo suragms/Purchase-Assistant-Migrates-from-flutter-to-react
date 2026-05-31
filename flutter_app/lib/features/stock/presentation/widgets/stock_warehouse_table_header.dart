@@ -4,7 +4,7 @@ import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
 import 'stock_table_layout.dart';
 
-/// Warehouse table header: ITEM | SYSTEM | PHYS | DIFF (all roles).
+/// Warehouse table header: ITEM | SYS | PHYS | DIFF (all roles).
 class StockWarehouseTableHeader extends StatelessWidget {
   const StockWarehouseTableHeader({super.key});
 
@@ -43,7 +43,6 @@ class StockWarehouseTableHeader extends StatelessWidget {
                 ),
               ),
               _metricHeader('SYS', hdr),
-              _metricHeader('PEND', hdr),
               _metricHeader('PHYS', hdr),
               _metricHeader('DIFF', hdr),
             ],

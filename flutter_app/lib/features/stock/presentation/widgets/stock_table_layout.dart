@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Shared column geometry for warehouse stock table.
 abstract final class StockTableLayout {
-  static const double metricColWidth = 46;
+  static const double metricColWidth = 52;
   static const double stockColWidth = 54;
   static const double desktopMetricColWidth = 72;
   static const double statusColWidth = 56;

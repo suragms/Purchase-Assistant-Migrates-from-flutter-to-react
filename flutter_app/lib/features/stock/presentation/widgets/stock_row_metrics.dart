@@ -89,7 +89,49 @@ abstract final class StockRowMetrics {
     return '$sign${formatStockQtyForUnit(unit(item), diff)}';
   }
 
-  /// Pending truck qty (+ optional days) for warehouse PEND column.
+  /// Inline truck / delivered cue for item cell (qty + days, no extra column).
+  static Widget? inlineDeliveryCue(Map<String, dynamic> item) {
+    final cell = pendingCellDisplay(item);
+    if (cell.primary == '—') return null;
+
+    final kind = deliveryIndicator(item);
+    final icon = kind == StockDeliveryIndicator.delivered
+        ? Icons.check_circle_rounded
+        : Icons.local_shipping_rounded;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 11, color: cell.color),
+        if (cell.primary != '•' && cell.primary != '✓') ...[
+          const SizedBox(width: 2),
+          Text(
+            cell.primary,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              color: cell.color,
+              height: 1,
+            ),
+          ),
+        ],
+        if (cell.secondary != null) ...[
+          const SizedBox(width: 2),
+          Text(
+            cell.secondary!,
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              color: cell.color.withValues(alpha: 0.9),
+              height: 1,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Pending truck qty (+ optional days) for inline item-row cue.
   static ({String primary, String? secondary, Color color}) pendingCellDisplay(
     Map<String, dynamic> item,
   ) {

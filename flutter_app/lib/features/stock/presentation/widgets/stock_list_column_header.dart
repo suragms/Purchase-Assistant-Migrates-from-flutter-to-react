@@ -38,7 +38,6 @@ class StockListColumnHeader extends StatelessWidget {
                 ),
               ),
               _metricHeader('SYS', hdr),
-              _metricHeader('PEND', hdr),
               _metricHeader('PHYS', hdr),
               _metricHeader('DIFF', hdr),
             ],

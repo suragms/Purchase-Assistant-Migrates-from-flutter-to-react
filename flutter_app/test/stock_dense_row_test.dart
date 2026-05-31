@@ -73,9 +73,9 @@ void main() {
     );
 
     expect(find.text('SYS'), findsOneWidget);
-    expect(find.text('PEND'), findsOneWidget);
     expect(find.text('PHYS'), findsOneWidget);
     expect(find.text('DIFF'), findsOneWidget);
+    expect(find.text('PEND'), findsNothing);
     expect(find.text('STATUS'), findsNothing);
     expect(find.text('12'), findsOneWidget);
     expect(find.text('10'), findsOneWidget);
@@ -110,6 +110,38 @@ void main() {
     );
 
     expect(find.text('20'), findsOneWidget);
-    expect(find.text('—'), findsNWidgets(3));
+    expect(find.text('—'), findsNWidgets(2));
+  });
+
+  testWidgets('inline truck cue shows pending qty and days', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Consumer(
+            builder: (context, ref, _) {
+              return Scaffold(
+                body: StockWarehouseRow(
+                  ref: ref,
+                  item: const {
+                    'id': '1',
+                    'name': 'Basmati Rice',
+                    'current_stock': 10,
+                    'pending_delivery_qty': 5,
+                    'has_pending_order': true,
+                    'pending_order_days': 3,
+                  },
+                  onTap: () {},
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byIcon(Icons.local_shipping_rounded), findsOneWidget);
+    expect(find.text('5'), findsOneWidget);
+    expect(find.text('3d'), findsOneWidget);
+    expect(find.text('PEND'), findsNothing);
   });
 }

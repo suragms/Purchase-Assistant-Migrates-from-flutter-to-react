@@ -6,7 +6,7 @@ import '../../../../core/design_system/hexa_responsive.dart';
 import 'stock_row_metrics.dart';
 import 'stock_table_layout.dart';
 
-/// Warehouse operational row — tap row for actions sheet.
+/// Warehouse operational row — ITEM (inline truck) | SYS | PHYS | DIFF.
 class StockWarehouseRow extends StatelessWidget {
   const StockWarehouseRow({
     super.key,
@@ -37,13 +37,13 @@ class StockWarehouseRow extends StatelessWidget {
         status == 'low' || status == 'critical' || status == 'out';
     final deliveryKind = StockRowMetrics.deliveryIndicator(item);
     final diff = StockRowMetrics.diffQty(item);
+    final deliveryCue = StockRowMetrics.inlineDeliveryCue(item);
 
     final metaLine = sub.isNotEmpty
         ? sub
         : cat.isNotEmpty
             ? cat
             : '';
-    final updatedLabel = StockRowMetrics.relativeUpdatedLabel(item);
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -92,9 +92,9 @@ class StockWarehouseRow extends StatelessWidget {
                       decoration: StockTableLayout.itemCellDecoration(),
                       padding: const EdgeInsets.fromLTRB(
                         StockTableLayout.cellHPadding,
-                        6,
+                        5,
                         4,
-                        6,
+                        5,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,26 +105,35 @@ class StockWarehouseRow extends StatelessWidget {
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 13,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                               color: Color(0xFF1A1A1A),
-                              height: 1.15,
+                              height: 1.12,
                             ),
                           ),
-                          if (metaLine.isNotEmpty || updatedLabel != null)
+                          if (deliveryCue != null || metaLine.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 2),
-                              child: Text(
-                                [
-                                  if (metaLine.isNotEmpty) metaLine,
-                                  if (updatedLabel != null) updatedLabel,
-                                ].join(' · '),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: HexaDsType.label(10).copyWith(
-                                  color: const Color(0xFF64748B),
-                                  height: 1.15,
-                                ),
+                              child: Row(
+                                children: [
+                                  if (deliveryCue != null) ...[
+                                    deliveryCue,
+                                    if (metaLine.isNotEmpty)
+                                      const SizedBox(width: 6),
+                                  ],
+                                  if (metaLine.isNotEmpty)
+                                    Expanded(
+                                      child: Text(
+                                        metaLine,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: HexaDsType.label(9).copyWith(
+                                          color: const Color(0xFF64748B),
+                                          height: 1.1,
+                                        ),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                         ],
@@ -135,7 +144,6 @@ class StockWarehouseRow extends StatelessWidget {
                     StockRowMetrics.systemCellLabel(item),
                     StockRowMetrics.inlineStatusColor(item),
                   ),
-                  _pendingMetric(item),
                   _boxedMetric(
                     StockRowMetrics.physicalCellLabel(item),
                     const Color(0xFF0F766E),
@@ -148,45 +156,6 @@ class StockWarehouseRow extends StatelessWidget {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _pendingMetric(Map<String, dynamic> item) {
-    final cell = StockRowMetrics.pendingCellDisplay(item);
-    return Container(
-      width: StockTableLayout.metricColWidth,
-      decoration: StockTableLayout.cellDecoration(),
-      alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 1, vertical: 2),
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              cell.primary,
-              maxLines: 1,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                color: cell.color,
-                height: 1,
-              ),
-            ),
-            if (cell.secondary != null)
-              Text(
-                cell.secondary!,
-                maxLines: 1,
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w800,
-                  color: cell.color.withValues(alpha: 0.85),
-                  height: 1.1,
-                ),
-              ),
-          ],
         ),
       ),
     );
