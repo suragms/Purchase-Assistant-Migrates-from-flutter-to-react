@@ -4,9 +4,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:harisree_warehouse/features/stock/presentation/widgets/stock_warehouse_row.dart';
 import 'package:harisree_warehouse/features/stock/presentation/widgets/stock_warehouse_table_header.dart';
 import 'package:harisree_warehouse/features/stock/presentation/widgets/stock_table_layout.dart';
+import 'package:harisree_warehouse/features/stock/presentation/widgets/stock_status_badge.dart';
 
 void main() {
-  testWidgets('owner row shows stock qty and status chip only', (tester) async {
+  testWidgets('warehouse row shows SYSTEM PHYS DIFF metrics', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -21,7 +22,7 @@ void main() {
                     'category_name': 'Grocery',
                     'subcategory_name': 'Rice',
                     'current_stock': 42,
-                    'expected_system_qty': 99,
+                    'physical_stock_qty': 40,
                     'stock_status': 'low',
                   },
                   isStaffMode: false,
@@ -34,14 +35,14 @@ void main() {
       ),
     );
 
-    expect(find.text('SYSTEM'), findsNothing);
-    expect(find.text('PHYS'), findsNothing);
-    expect(find.text('DIFF'), findsNothing);
-    expect(find.text('LOW'), findsOneWidget);
-    expect(find.textContaining('42'), findsWidgets);
+    expect(find.text('42'), findsOneWidget);
+    expect(find.text('40'), findsOneWidget);
+    expect(find.text('-2'), findsOneWidget);
+    expect(find.byType(StockStatusBadge), findsNothing);
+    expect(find.text('LOW'), findsNothing);
   });
 
-  testWidgets('staff row shows PHYS column', (tester) async {
+  testWidgets('header and staff row use four-column layout', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -50,7 +51,7 @@ void main() {
               return Scaffold(
                 body: Column(
                   children: [
-                    const StockWarehouseTableHeader(isStaffMode: true),
+                    const StockWarehouseTableHeader(),
                     StockWarehouseRow(
                       ref: ref,
                       item: const {
@@ -71,11 +72,43 @@ void main() {
       ),
     );
 
+    expect(find.text('SYSTEM'), findsOneWidget);
     expect(find.text('PHYS'), findsOneWidget);
+    expect(find.text('DIFF'), findsOneWidget);
     expect(find.text('STATUS'), findsNothing);
+    expect(find.text('12'), findsOneWidget);
+    expect(find.text('10'), findsOneWidget);
+    expect(find.text('-2'), findsOneWidget);
     expect(
       tester.getSize(find.byType(StockWarehouseRow)).height,
       StockTableLayout.rowMinHeight,
     );
+  });
+
+  testWidgets('physical and diff show em dash when not counted', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Consumer(
+            builder: (context, ref, _) {
+              return Scaffold(
+                body: StockWarehouseRow(
+                  ref: ref,
+                  item: const {
+                    'id': '1',
+                    'name': 'Sugar',
+                    'current_stock': 20,
+                  },
+                  onTap: () {},
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('20'), findsOneWidget);
+    expect(find.text('—'), findsNWidgets(2));
   });
 }

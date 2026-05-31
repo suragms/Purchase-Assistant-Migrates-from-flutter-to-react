@@ -52,7 +52,10 @@ class _WarehouseRingSectionState extends State<WarehouseRingSection> {
     final scale = widget.expanded ? 0.68 : 0.52;
     final maxD = widget.expanded ? 280.0 : 200.0;
     final minD = widget.expanded ? 160.0 : 120.0;
-    final diameter = math.min(width * scale, maxD).clamp(minD, maxD);
+    final raw = math.min(width * scale, maxD);
+    final diameter = raw
+        .clamp(math.min(minD, maxD), math.max(minD, maxD))
+        .toDouble();
     final values = slices.map((s) => s.amount).where((a) => a > 0).toList();
     final colors =
         slices.where((s) => s.amount > 0).map((s) => s.color).toList();

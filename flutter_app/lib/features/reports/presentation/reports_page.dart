@@ -127,6 +127,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   bool _exportingCsv = false;
   bool _exportingPdf = false;
   bool _reportsSummaryCollapsed = true;
+  ProviderSubscription<AppPeriod>? _homePeriodSub;
 
   @override
   void initState() {
@@ -151,7 +152,47 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       if (_preset != synced) {
         setState(() => _preset = synced);
       }
+      _homePeriodSub?.close();
+      _homePeriodSub = ref.listenManual(
+        appSelectedPeriodProvider,
+        (prev, next) {
+          if (!mounted || prev == next) return;
+          _syncReportsPresetFromAppPeriod(next);
+        },
+      );
     });
+  }
+
+  void _syncReportsPresetFromAppPeriod(AppPeriod appPeriod) {
+    final synced = switch (appPeriod) {
+      AppPeriod.today => _DatePreset.today,
+      AppPeriod.week => _DatePreset.week,
+      AppPeriod.month => _DatePreset.month,
+      AppPeriod.year => _DatePreset.year,
+      AppPeriod.allTime => _DatePreset.year,
+      AppPeriod.custom => _DatePreset.custom,
+    };
+    if (_preset == synced) return;
+    final n = DateTime.now();
+    final today = DateTime(n.year, n.month, n.day);
+    ref.read(analyticsDateRangeProvider.notifier).state = switch (synced) {
+      _DatePreset.today => (from: today, to: today),
+      _DatePreset.week => (
+          from: today.subtract(const Duration(days: 6)),
+          to: today,
+        ),
+      _DatePreset.month => (
+          from: today.subtract(const Duration(days: 29)),
+          to: today,
+        ),
+      _DatePreset.year => (from: DateTime(n.year, 1, 1), to: today),
+      _DatePreset.custom => ref.read(analyticsDateRangeProvider),
+    };
+    setState(() {
+      _preset = synced;
+      _visibleCap = 40;
+    });
+    _scheduleReportsReloadForRange();
   }
 
   void _onSearchTyping() {
@@ -199,6 +240,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     _rangeInvalidateDebounce?.cancel();
     _periodPresetDebounce?.cancel();
     _stallTimer?.cancel();
+    _homePeriodSub?.close();
     super.dispose();
   }
 

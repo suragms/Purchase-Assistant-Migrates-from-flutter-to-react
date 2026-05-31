@@ -202,6 +202,7 @@ class HexaResponsiveSheetViewport extends StatelessWidget {
           top: false,
           child: Align(
             alignment: Alignment.bottomCenter,
+            heightFactor: 1,
             child: ConstrainedBox(
               constraints: BoxConstraints(maxWidth: maxWidth),
               child: padded,

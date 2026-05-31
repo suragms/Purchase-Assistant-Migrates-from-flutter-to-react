@@ -19,6 +19,17 @@ String _inr0(num n) =>
     NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 0)
         .format(n);
 
+/// Ring/pie diameter for overview charts. Safe when [viewportHeight] caps below 120dp.
+@visibleForTesting
+double reportsOverviewChartSize(double viewportHeight, double layoutWidth) {
+  final maxD = math.min(viewportHeight * 0.32, 200.0);
+  final raw = math.min(maxD, layoutWidth * 0.42);
+  const minPreferred = 120.0;
+  final lo = math.min(minPreferred, maxD);
+  final hi = math.max(minPreferred, maxD);
+  return raw.clamp(lo, hi);
+}
+
 /// Overview: stat cards, category pie, supplier donut (server breakdown APIs).
 class ReportsOverviewChartSection extends ConsumerWidget {
   const ReportsOverviewChartSection({
@@ -51,9 +62,10 @@ class ReportsOverviewChartSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final maxD = math.min(viewportHeight * 0.32, 200.0);
-    final chartSize = math.min(maxD, MediaQuery.sizeOf(context).width * 0.42)
-        .clamp(120.0, maxD);
+    final chartSize = reportsOverviewChartSize(
+      viewportHeight,
+      MediaQuery.sizeOf(context).width,
+    );
 
     if (isLoadingInitial) {
       return Padding(

@@ -13,6 +13,23 @@ import '../../../../core/providers/stock_providers.dart'
     show stockItemActivityProvider, stockItemAuditProvider;
 import '../../../../core/theme/hexa_colors.dart';
 
+String stockAdjustmentTypeLabel(String? raw) {
+  final type = (raw ?? '').toLowerCase().trim();
+  return switch (type) {
+    'purchase' || 'delivery_receive' => 'DELIVERED',
+    'quick_purchase' => 'PURCHASED',
+    'verification' || 'physical_count' => 'VERIFICATION',
+    'correction' => 'CORRECTION',
+    'damaged' || 'damage' => 'DAMAGE',
+    'opening_stock' || 'opening_stock_setup' => 'OPENING',
+    'sale' => 'SALE',
+    'undo' => 'UNDO',
+    _ => type.isEmpty
+        ? 'ADJUSTMENT'
+        : type.toUpperCase().replaceAll('_', ' '),
+  };
+}
+
 class ItemPhysicalVerificationCard extends ConsumerWidget {
   const ItemPhysicalVerificationCard({super.key, required this.itemId});
 
@@ -106,7 +123,7 @@ class ItemPhysicalVerificationCard extends ConsumerWidget {
     final at = atRaw != null ? DateTime.tryParse(atRaw)?.toLocal() : null;
     final df = DateFormat('dd MMM • h:mm a');
     final who = a['updated_by_name']?.toString();
-    final t = a['adjustment_type']?.toString() ?? 'adjustment';
+    final t = stockAdjustmentTypeLabel(a['adjustment_type']?.toString());
     final oldQ = _fmt(coerceToDouble(a['old_qty']));
     final newQ = _fmt(coerceToDouble(a['new_qty']));
     return Row(
@@ -114,7 +131,7 @@ class ItemPhysicalVerificationCard extends ConsumerWidget {
         Expanded(
           child: Text(
             [
-              t.toUpperCase(),
+              t,
               if (who != null && who.trim().isNotEmpty) who.trim(),
               if (at != null) df.format(at),
             ].join(' • '),

@@ -4,9 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/utils/unit_utils.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
-import 'stock_delivery_truck_badge.dart';
 import 'stock_row_metrics.dart';
-import 'stock_status_badge.dart';
 import 'stock_table_layout.dart';
 
 /// Warehouse operational row — tap row for actions sheet.
@@ -35,20 +33,11 @@ class StockWarehouseRow extends StatelessWidget {
     final name = item['name']?.toString() ?? '—';
     final cat = item['category_name']?.toString().trim() ?? '';
     final sub = item['subcategory_name']?.toString().trim() ?? '';
-    final ledger = StockRowMetrics.ledgerQty(item);
-    final physical = StockRowMetrics.physicalQty(item);
     final status = (item['stock_status']?.toString() ?? 'healthy').toLowerCase();
-    final updatedAt = item['last_stock_updated_at']?.toString();
-    final missingBarcode = (item['barcode']?.toString().trim().isEmpty ?? true) &&
-        (item['item_code']?.toString().trim().isEmpty ?? true);
-    final statusKind = StockStatusBadge.resolve(
-      stockStatus: status,
-      missingBarcode: missingBarcode,
-      updatedAtIso: updatedAt,
-    );
     final isLowOrCritical =
         status == 'low' || status == 'critical' || status == 'out';
     final deliveryKind = StockRowMetrics.deliveryIndicator(item);
+    final diff = StockRowMetrics.diffQty(item);
 
     final metaLine = sub.isNotEmpty
         ? sub
@@ -112,30 +101,16 @@ class StockWarehouseRow extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Row(
-                            children: [
-                              if (isStaffMode) ...[
-                                StockDeliveryTruckBadge(
-                                  item: item,
-                                  compact: true,
-                                ),
-                                if (deliveryKind != StockDeliveryIndicator.none)
-                                  const SizedBox(width: 6),
-                              ],
-                              Expanded(
-                                child: Text(
-                                  name,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF1A1A1A),
-                                    height: 1.15,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          Text(
+                            name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1A1A1A),
+                              height: 1.15,
+                            ),
                           ),
                           if (metaLine.isNotEmpty || updatedLabel != null)
                             Padding(
@@ -157,27 +132,18 @@ class StockWarehouseRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (isStaffMode)
-                    _boxedMetric(
-                      physical == null ? '—' : formatStockQtyNumber(physical),
-                      const Color(0xFF0F766E),
-                    )
-                  else ...[
-                    _boxedMetric(
-                      formatStockQtyNumber(ledger),
-                      StockRowMetrics.inlineStatusColor(item),
-                    ),
-                    Container(
-                      width: StockTableLayout.statusColWidth,
-                      decoration: StockTableLayout.cellDecoration(),
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: StockStatusBadge(
-                        kind: statusKind,
-                        compact: true,
-                      ),
-                    ),
-                  ],
+                  _boxedMetric(
+                    formatStockQtyNumber(StockRowMetrics.ledgerQty(item)),
+                    StockRowMetrics.inlineStatusColor(item),
+                  ),
+                  _boxedMetric(
+                    StockRowMetrics.physicalCellLabel(item),
+                    const Color(0xFF0F766E),
+                  ),
+                  _boxedMetric(
+                    StockRowMetrics.diffCellLabel(item),
+                    StockRowMetrics.diffColor(diff),
+                  ),
                 ],
               ),
             ),

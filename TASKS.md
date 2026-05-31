@@ -1,6 +1,27 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-05-30 (Master repair verification)
+**Last updated:** 2026-05-29 (Master prompt FIX-1–15 verification)
+
+## Master prompt FIX-1–15 (2026-05-29)
+
+All 15 fixes verified in codebase; pytest 10 passed; flutter repair tests 13 passed. Reports chart clamp + warehouse ring type fix ready for deploy.
+
+- [x] FIX-1–12 — shipped (see sections below)
+- [x] FIX-13–15 — empty states, dense rows, scrollable stock tabs / reports chips
+- [ ] Manual: commit delivery → stock SYSTEM column refreshes without pull-to-refresh
+- [ ] Deploy Vercel after reports chart fix
+
+## Screenshot fixes (2026-05-29)
+
+- [x] Compact sheet blank gap — `HexaResponsiveSheetViewport` compact uses `Align(heightFactor: 1)`; stock row actions → `showHexaBottomSheet`
+- [x] Stock list 4-column layout — ITEM | SYSTEM | PHYS | DIFF (owner + staff); no STATUS/PEND columns; pending via chips + left border only
+- [x] Verification log — `purchase`/`delivery_receive` → `DELIVERED` label
+- [x] Reports period — reactive sync from `appSelectedPeriodProvider` via `listenManual`
+- [x] Delivery commit invalidation — already via `invalidateAfterDeliveryCommit` hub
+
+- [x] **Invalid argument: 120** — `ReportsOverviewChartSection` used `.clamp(120, maxD)` while `maxD` from `viewportHeight: 280` is ~90; fixed `reportsOverviewChartSize()` + unit test
+- [ ] **401 `/v1/me/businesses`** — expired/invalid session (not Hive/DB); sign in again; redeploy after chart fix so error boundary no longer masks auth
+- Note: Hive “Got object store box…” logs are normal offline cache init, not Postgres errors
 
 ## Master repair verification (2026-05-30)
 

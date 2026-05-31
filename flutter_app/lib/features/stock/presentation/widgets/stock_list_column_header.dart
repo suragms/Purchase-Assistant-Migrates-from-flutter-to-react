@@ -2,16 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_operational_tokens.dart';
-import '../../../../core/design_system/hexa_responsive.dart';
 import 'stock_table_layout.dart';
 
-/// Warehouse table header: ITEM | STOCK | STATUS.
+/// Warehouse table header: ITEM | SYSTEM | PHYS | DIFF.
 class StockListColumnHeader extends StatelessWidget {
   const StockListColumnHeader({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final desktop = context.isDesktopLayout;
     final hdr = HexaDsType.label(10).copyWith(
       fontWeight: FontWeight.w800,
       color: const Color(0xFF475569),
@@ -39,27 +37,9 @@ class StockListColumnHeader extends StatelessWidget {
                   child: Text('ITEM', style: hdr),
                 ),
               ),
-              Container(
-                width: StockTableLayout.stockColWidth,
-                decoration: StockTableLayout.cellDecoration(),
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Text('STOCK', style: hdr),
-              ),
-              if (desktop) ...[
-                _metricHeader('PHYSICAL', hdr),
-                _metricHeader('PURCHASED', hdr),
-                _metricHeader('DIFF', hdr),
-              ],
-              SizedBox(
-                width: StockTableLayout.statusColWidth,
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Text('STATUS', style: hdr),
-                  ),
-                ),
-              ),
+              _metricHeader('SYSTEM', hdr),
+              _metricHeader('PHYS', hdr),
+              _metricHeader('DIFF', hdr),
             ],
           ),
         ),
@@ -69,10 +49,10 @@ class StockListColumnHeader extends StatelessWidget {
 
   Widget _metricHeader(String label, TextStyle style) {
     return Container(
-      width: StockTableLayout.desktopMetricColWidth,
+      width: StockTableLayout.metricColWidth,
       decoration: StockTableLayout.cellDecoration(),
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
       child: Text(label, style: style, textAlign: TextAlign.center),
     );
   }

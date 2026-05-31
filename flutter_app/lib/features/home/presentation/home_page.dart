@@ -6,15 +6,6 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/router/shell_navigation.dart';
 import '../../../features/shell/shell_branch_provider.dart';
-
-/// True when the Home IndexedStack tab is the active shell branch (URL + nav index).
-bool _homeShellTabVisible(WidgetRef ref, BuildContext context) {
-  final shell = StatefulNavigationShell.maybeOf(context);
-  if (shell != null) {
-    return shell.currentIndex == ShellBranch.home;
-  }
-  return ref.watch(shellCurrentBranchProvider) == ShellBranch.home;
-}
 import '../../../core/auth/dashboard_role.dart';
 import '../../../core/auth/auth_failure_policy.dart';
 import '../../../core/auth/session_notifier.dart'
@@ -61,6 +52,15 @@ import 'widgets/home_quick_actions_grid.dart';
 import 'widgets/home_live_status_bar.dart';
 import 'widgets/home_owner_dashboard_body.dart';
 import 'widgets/home_sticky_period_header.dart';
+
+/// True when the Home IndexedStack tab is the active shell branch (URL + nav index).
+bool _homeShellTabVisible(WidgetRef ref, BuildContext context) {
+  final shell = StatefulNavigationShell.maybeOf(context);
+  if (shell != null) {
+    return shell.currentIndex == ShellBranch.home;
+  }
+  return ref.watch(shellCurrentBranchProvider) == ShellBranch.home;
+}
 
 /// Harisree owner/admin home — purchase-first warehouse control center.
 class HomePage extends ConsumerStatefulWidget {
@@ -248,6 +248,7 @@ class _HomePageState extends ConsumerState<HomePage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState s) {
+    super.didChangeAppLifecycleState(s);
     _lifecycle = s;
     if (s == AppLifecycleState.resumed) {
       _lastUnread = ref.read(notificationsUnreadCountProvider);

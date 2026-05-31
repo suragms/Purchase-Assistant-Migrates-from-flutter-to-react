@@ -25,6 +25,21 @@ abstract final class StockRowMetrics {
   static double purchasedLifetimeQty(Map<String, dynamic> item) =>
       coerceToDoubleNullable(item['total_delivered_qty']) ?? 0;
 
+  /// Owner row subtitle: committed + in-transit purchase qty.
+  static String ownerDeliveryMetaLine(Map<String, dynamic> item) {
+    final parts = <String>[];
+    final delivered = purchasedLifetimeQty(item);
+    final pending = pendingDeliveryQty(item) ?? 0;
+    final u = unit(item);
+    if (delivered > 0.001) {
+      parts.add('Delivered ${formatStockQtyNumber(delivered)} $u');
+    }
+    if (pending > 0.001) {
+      parts.add('Pending ${formatStockQtyNumber(pending)} $u');
+    }
+    return parts.join(' · ');
+  }
+
   /// Authoritative ledger on-hand — primary display metric for warehouse lists.
   static double ledgerQty(Map<String, dynamic> item) =>
       coerceToDouble(item['current_stock']);
@@ -52,6 +67,22 @@ abstract final class StockRowMetrics {
     final pd = coerceToDoubleNullable(item['physical_stock_difference_qty']);
     if (pd != null && pd.isFinite) return pd;
     return double.nan;
+  }
+
+  /// Compact warehouse table cell — physical qty or em dash.
+  static String physicalCellLabel(Map<String, dynamic> item) {
+    final phys = physicalQty(item);
+    if (phys == null || !phys.isFinite) return '—';
+    return formatStockQtyNumber(phys);
+  }
+
+  /// Compact warehouse table cell — signed physical minus system, or em dash.
+  static String diffCellLabel(Map<String, dynamic> item) {
+    final diff = diffQty(item);
+    if (!diff.isFinite) return '—';
+    if (diff.abs() < 0.001) return '0';
+    final sign = diff > 0 ? '+' : '';
+    return '$sign${formatStockQtyNumber(diff)}';
   }
 
   static String openingLabel(Map<String, dynamic> item) {

@@ -27,90 +27,85 @@ Future<void> showStockRowActions({
       ? 'Not counted'
       : '${formatStockQtyNumber(physical)} $unit';
 
-  await showModalBottomSheet<void>(
+  await showHexaBottomSheet<void>(
     context: context,
-    showDragHandle: true,
-    useSafeArea: true,
-    isScrollControlled: true,
-    builder: (ctx) => HexaResponsiveSheetViewport(
-      compact: true,
-      bottomExtra: 12,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            name,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              _MetricChip(
-                label: 'System',
-                value: formatStockQtyNumber(system),
-              ),
-              const SizedBox(width: 8),
-              _MetricChip(
-                label: 'Physical',
-                value: physLabel,
-                muted: physical == null,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _StockActionTile(
-            icon: Icons.inventory_2_outlined,
-            label: 'Update physical stock',
-            onTap: () async {
-              Navigator.pop(ctx);
-              await showQuickStockActionSheet(
-                context: context,
-                ref: ref,
-                item: item,
-                initialMode: StockUpdateMode.physical,
-              );
-            },
-          ),
-          _StockActionTile(
-            icon: Icons.memory_outlined,
-            label: 'Update system stock',
-            onTap: () async {
-              Navigator.pop(ctx);
-              await showQuickStockActionSheet(
-                context: context,
-                ref: ref,
-                item: item,
-                initialMode: StockUpdateMode.system,
-              );
-            },
-          ),
-          _StockActionTile(
-            icon: Icons.add_shopping_cart_outlined,
-            label: 'Add purchase quantity',
-            onTap: () async {
-              Navigator.pop(ctx);
-              await showStockQuickPurchaseSheet(
-                context: context,
-                ref: ref,
-                item: item,
-              );
-            },
-          ),
-          _StockActionTile(
-            icon: Icons.info_outline_rounded,
-            label: 'View item activity',
-            onTap: () async {
-              Navigator.pop(ctx);
-              onBeforeNavigate?.call();
-              await context.push('/catalog/item/$id');
-              onAfterNavigateReturn?.call();
-            },
-          ),
-        ],
-      ),
+    compact: true,
+    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            _MetricChip(
+              label: 'System',
+              value: formatStockQtyNumber(system),
+            ),
+            const SizedBox(width: 8),
+            _MetricChip(
+              label: 'Physical',
+              value: physLabel,
+              muted: physical == null,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _StockActionTile(
+          icon: Icons.inventory_2_outlined,
+          label: 'Update physical stock',
+          onTap: () async {
+            Navigator.pop(context);
+            await showQuickStockActionSheet(
+              context: context,
+              ref: ref,
+              item: item,
+              initialMode: StockUpdateMode.physical,
+            );
+          },
+        ),
+        _StockActionTile(
+          icon: Icons.memory_outlined,
+          label: 'Update system stock',
+          onTap: () async {
+            Navigator.pop(context);
+            await showQuickStockActionSheet(
+              context: context,
+              ref: ref,
+              item: item,
+              initialMode: StockUpdateMode.system,
+            );
+          },
+        ),
+        _StockActionTile(
+          icon: Icons.add_shopping_cart_outlined,
+          label: 'Add purchase quantity',
+          onTap: () async {
+            Navigator.pop(context);
+            await showStockQuickPurchaseSheet(
+              context: context,
+              ref: ref,
+              item: item,
+            );
+          },
+        ),
+        _StockActionTile(
+          icon: Icons.info_outline_rounded,
+          label: 'View item activity',
+          onTap: () async {
+            Navigator.pop(context);
+            onBeforeNavigate?.call();
+            await context.push('/catalog/item/$id');
+            onAfterNavigateReturn?.call();
+          },
+        ),
+      ],
     ),
   );
 }

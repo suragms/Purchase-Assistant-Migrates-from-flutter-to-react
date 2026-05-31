@@ -44,6 +44,42 @@ void main() {
     });
   });
 
+  group('StockRowMetrics table cell labels', () {
+    test('physicalCellLabel returns em dash when not counted', () {
+      expect(
+        StockRowMetrics.physicalCellLabel(const {'current_stock': 10}),
+        '—',
+      );
+    });
+
+    test('physicalCellLabel formats counted qty', () {
+      expect(
+        StockRowMetrics.physicalCellLabel(const {
+          'current_stock': 10,
+          'physical_stock_qty': 8.5,
+        }),
+        '8.5',
+      );
+    });
+
+    test('diffCellLabel signed when physical present', () {
+      expect(
+        StockRowMetrics.diffCellLabel(const {
+          'current_stock': 100,
+          'physical_stock_qty': 80,
+        }),
+        '-20',
+      );
+    });
+
+    test('diffCellLabel em dash when unknown', () {
+      expect(
+        StockRowMetrics.diffCellLabel(const {'current_stock': 5}),
+        '—',
+      );
+    });
+  });
+
   group('StockRowMetrics.deliveryMetaLine', () {
     test('pending truck with qty and days', () {
       final line = StockRowMetrics.deliveryMetaLine({
