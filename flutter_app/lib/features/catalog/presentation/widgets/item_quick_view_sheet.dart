@@ -5,15 +5,14 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
 import '../../../../core/json_coerce.dart';
-import '../../../../core/providers/catalog_providers.dart';
 import '../../../../core/providers/stock_providers.dart';
-import '../../../../core/theme/hexa_colors.dart';
+import '../../../../core/utils/unit_utils.dart';
 import '../../../../core/widgets/friendly_load_error.dart';
 import '../../../../core/widgets/list_skeleton.dart';
-import '../../../../core/utils/unit_utils.dart';
-import '../../../../shared/widgets/stock_summary_widget.dart';
+import 'item_stock_metric_strip.dart';
+import '../../../stock/presentation/quick_stock_action_sheet.dart';
 
-/// Full-height draggable preview before opening catalog item detail.
+/// Compact item preview from stock row tap.
 Future<void> showItemQuickView({
   required BuildContext context,
   required WidgetRef ref,
@@ -22,247 +21,120 @@ Future<void> showItemQuickView({
 }) async {
   await showHexaBottomSheet<void>(
     context: context,
-    compact: false,
-    child: SizedBox(
-      height: MediaQuery.sizeOf(context).height * 0.88,
-      child: _ItemQuickViewBody(
-        itemId: itemId,
-        itemName: itemName,
-      ),
+    compact: true,
+    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+    child: _ItemQuickViewBody(
+      itemId: itemId,
+      itemName: itemName,
+      parentRef: ref,
     ),
   );
 }
 
-class _ItemQuickViewBody extends ConsumerStatefulWidget {
+class _ItemQuickViewBody extends ConsumerWidget {
   const _ItemQuickViewBody({
     required this.itemId,
     required this.itemName,
+    required this.parentRef,
   });
 
   final String itemId;
   final String itemName;
+  final WidgetRef parentRef;
 
   @override
-  ConsumerState<_ItemQuickViewBody> createState() => _ItemQuickViewBodyState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stockAsync = ref.watch(stockItemDetailProvider(itemId));
 
-class _ItemQuickViewBodyState extends ConsumerState<_ItemQuickViewBody> {
-  final _searchCtrl = TextEditingController();
+    return stockAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(16),
+        child: ListSkeleton(rowCount: 3),
+      ),
+      error: (_, __) => FriendlyLoadError(
+        message: 'Could not load stock',
+        onRetry: () => ref.invalidate(stockItemDetailProvider(itemId)),
+      ),
+      data: (stock) {
+        final unit = (stock['stock_unit'] ?? stock['unit'] ?? 'bag').toString();
+        final cur = coerceToDouble(stock['current_stock']);
+        final reorder = coerceToDouble(stock['reorder_level']);
 
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
-
-  void _searchStockList() {
-    final q = _searchCtrl.text.trim();
-    if (q.isEmpty) return;
-    ref.read(stockListQueryProvider.notifier).state =
-        ref.read(stockListQueryProvider).copyWith(q: q, page: 1, sort: 'recent');
-    Navigator.of(context).pop();
-    context.push('/stock');
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final stockAsync = ref.watch(stockItemDetailProvider(widget.itemId));
-    final itemAsync = ref.watch(catalogItemDetailProvider(widget.itemId));
-
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 0, 4, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.itemName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: HexaDsType.heading(18),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    itemName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      height: 1.15,
+                    ),
+                  ),
                 ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Full page',
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    context.push('/catalog/item/$itemId');
+                  },
+                  icon: const Icon(Icons.open_in_new_rounded, size: 20),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close_rounded, size: 20),
+                ),
+              ],
+            ),
+            Text(
+              'Stock in hand · ${formatStockQtyForUnit(unit, cur)}${isKgStockUnit(unit) ? ' ${unit.toUpperCase()}' : ''}',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF2563EB),
               ),
-              IconButton(
-                tooltip: 'Open full page',
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  context.push('/catalog/item/${widget.itemId}');
-                },
-                icon: const Icon(Icons.open_in_new_rounded),
-              ),
-              IconButton(
-                tooltip: 'Close',
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.close_rounded),
+            ),
+            const SizedBox(height: 8),
+            ItemStockMetricStrip(stock: stock),
+            if (reorder > 0) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Reorder at ${formatStockQtyForUnit(unit, reorder)}',
+                style: HexaDsType.body(11, color: HexaDsColors.textMuted),
               ),
             ],
-          ),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: stockAsync.when(
-            loading: () => const ListSkeleton(rowCount: 4),
-            error: (_, __) => FriendlyLoadError(
-              message: 'Could not load stock',
-              onRetry: () => ref.invalidate(stockItemDetailProvider(widget.itemId)),
+            const SizedBox(height: 10),
+            FilledButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await showQuickStockActionSheet(
+                  context: context,
+                  ref: parentRef,
+                  item: stock,
+                );
+              },
+              child: const Text('Update stock'),
             ),
-            data: (stock) {
-              final item = itemAsync.valueOrNull ?? const <String, dynamic>{};
-              final unit = (stock['stock_unit'] ?? stock['unit'] ?? item['default_unit'] ?? 'bag')
-                  .toString();
-              final cur = coerceToDouble(stock['current_stock']);
-              final reorder = coerceToDouble(stock['reorder_level']);
-              final code = item['item_code']?.toString().trim() ?? '';
-              final category = [
-                item['category_name'],
-                item['subcategory_name'] ?? item['type_name'],
-              ].whereType<String>().where((s) => s.trim().isNotEmpty).join(' · ');
-
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  TextField(
-                    controller: _searchCtrl,
-                    decoration: InputDecoration(
-                      hintText: 'Search another item…',
-                      isDense: true,
-                      prefixIcon: const Icon(Icons.search, size: 20),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.arrow_forward_rounded),
-                        onPressed: _searchStockList,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (_) => _searchStockList(),
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          HexaColors.brandPrimary.withValues(alpha: 0.12),
-                          HexaColors.brandPrimary.withValues(alpha: 0.04),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: HexaColors.brandPrimary.withValues(alpha: 0.25),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'ON HAND',
-                          style: HexaDsType.label(11, color: HexaDsColors.textMuted),
-                        ),
-                        const SizedBox(height: 8),
-                        StockSummaryWidget(
-                          qty: cur,
-                          unit: unit,
-                          status: stock['stock_status']?.toString(),
-                          hasPendingOrder: stock['has_pending_order'] == true,
-                          pendingDays:
-                              (stock['pending_order_days'] as num?)?.toInt(),
-                          fontSize: 28,
-                        ),
-                        if (reorder > 0) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            'Reorder at ${formatStockQtyNumber(reorder)} ${unit.toUpperCase()}',
-                            style: HexaDsType.body(13, color: HexaDsColors.textMuted),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  if (code.isNotEmpty)
-                    _InfoRow(label: 'Item code', value: code),
-                  if (category.isNotEmpty)
-                    _InfoRow(label: 'Category', value: category),
-                  if ((stock['supplier_name'] ?? item['supplier_name'])
-                          ?.toString()
-                          .trim()
-                          .isNotEmpty ==
-                      true)
-                    _InfoRow(
-                      label: 'Supplier',
-                      value: (stock['supplier_name'] ?? item['supplier_name'])
-                          .toString(),
-                      valueBold: true,
-                    ),
-                  const SizedBox(height: 20),
-                  FilledButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      context.push('/catalog/item/${widget.itemId}');
-                    },
-                    icon: const Icon(Icons.inventory_2_outlined),
-                    label: const Text('Open full item page'),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      context.push('/barcode/print/${widget.itemId}');
-                    },
-                    icon: const Icon(Icons.print_rounded),
-                    label: const Text('Print label'),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.label,
-    required this.value,
-    this.valueBold = false,
-  });
-
-  final String label;
-  final String value;
-  final bool valueBold;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: HexaDsType.body(12, color: HexaDsColors.textMuted),
+            const SizedBox(height: 6),
+            OutlinedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.push('/catalog/item/$itemId');
+              },
+              child: const Text('Open item page'),
             ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: valueBold ? FontWeight.w800 : FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 }

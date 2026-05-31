@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
 import '../../../../core/utils/unit_utils.dart';
+import '../../../catalog/presentation/widgets/item_stock_metric_strip.dart';
 import '../quick_stock_action_sheet.dart';
 import '../stock_quick_purchase_sheet.dart';
 import 'stock_row_metrics.dart';
@@ -21,16 +21,12 @@ Future<void> showStockRowActions({
   if (id.isEmpty) return;
   final name = item['name']?.toString() ?? 'Item';
   final system = StockRowMetrics.systemQty(item);
-  final physical = StockRowMetrics.physicalQty(item);
   final unit = StockRowMetrics.unit(item);
-  final physLabel = physical == null
-      ? 'Not counted'
-      : '${formatStockQtyNumber(physical)} $unit';
 
   await showHexaBottomSheet<void>(
     context: context,
     compact: true,
-    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
     child: Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -39,24 +35,24 @@ Future<void> showStockRowActions({
           name,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+          style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            height: 1.15,
+          ),
         ),
         const SizedBox(height: 6),
-        Row(
-          children: [
-            _MetricChip(
-              label: 'System',
-              value: formatStockQtyNumber(system),
-            ),
-            const SizedBox(width: 8),
-            _MetricChip(
-              label: 'Physical',
-              value: physLabel,
-              muted: physical == null,
-            ),
-          ],
+        Text(
+          'Stock in hand · ${formatStockQtyForUnit(unit, system)}',
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF2563EB),
+          ),
         ),
         const SizedBox(height: 8),
+        ItemStockMetricStrip(stock: item),
+        const SizedBox(height: 6),
         _StockActionTile(
           icon: Icons.inventory_2_outlined,
           label: 'Update physical stock',
@@ -108,52 +104,6 @@ Future<void> showStockRowActions({
       ],
     ),
   );
-}
-
-class _MetricChip extends StatelessWidget {
-  const _MetricChip({
-    required this.label,
-    required this.value,
-    this.muted = false,
-  });
-
-  final String label;
-  final String value;
-  final bool muted;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF8FAFC),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFE2E8F0)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: HexaDsType.label(10, color: HexaDsColors.textMuted),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w800,
-                color: muted ? HexaDsColors.textMuted : const Color(0xFF0F766E),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _StockActionTile extends StatelessWidget {

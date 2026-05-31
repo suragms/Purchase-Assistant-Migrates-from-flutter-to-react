@@ -28,7 +28,7 @@ String loadStateErrorSubtitle(Object? error) {
       case 429:
         return 'Too many requests. Wait a moment and try again.';
       case 503:
-        return 'Server error. Please try again shortly.';
+        return 'Server is starting up — wait about 30 seconds, then tap Retry.';
       default:
         if (sc != null && sc >= 500) {
           return 'Server error. Please try again shortly.';

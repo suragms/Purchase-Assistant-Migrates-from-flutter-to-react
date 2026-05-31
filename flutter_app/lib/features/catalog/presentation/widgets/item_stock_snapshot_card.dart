@@ -10,6 +10,7 @@ import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/item_detail_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../../core/utils/unit_utils.dart';
+import 'item_stock_metric_strip.dart';
 import '../../domain/item_stock_snapshot.dart';
 
 class ItemStockSnapshotCard extends ConsumerWidget {
@@ -137,16 +138,18 @@ class ItemStockSnapshotCard extends ConsumerWidget {
               ],
             ),
             if (trackingParts.isNotEmpty) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
                 trackingParts.join(' · '),
                 style: const TextStyle(
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFF64748B),
                 ),
               ),
             ],
+            const SizedBox(height: 8),
+            ItemStockMetricStrip(stock: stock),
             if (showOpeningCta) ...[
               const SizedBox(height: 8),
               Container(
@@ -576,7 +579,9 @@ class ItemStockSnapshotCard extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  unitLabel.isNotEmpty ? '$value $unitLabel' : value,
+                  unitLabel.isNotEmpty && isKgStockUnit(unitLabel)
+                      ? '$value $unitLabel'
+                      : value,
                   textAlign: TextAlign.right,
                   style: TextStyle(
                     fontSize: emphasized ? 18 : 15,

@@ -191,26 +191,6 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
           icon: const Icon(Icons.arrow_back_rounded),
           onPressed: () => context.popOrGo('/settings/users'),
         ),
-        bottom: TabBar(
-          controller: _tabs,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          labelStyle: HexaDsType.body(13, weight: FontWeight.w800),
-          unselectedLabelStyle: HexaDsType.body(13, weight: FontWeight.w600),
-          labelColor: HexaColors.brandPrimary,
-          unselectedLabelColor: HexaColors.textSecondary,
-          indicatorSize: TabBarIndicatorSize.label,
-          dividerColor: Colors.transparent,
-          tabs: const [
-            Tab(text: 'Overview'),
-            Tab(text: 'Activity'),
-            Tab(text: 'Stock'),
-            Tab(text: 'Purchases'),
-            Tab(text: 'Items'),
-            Tab(text: 'Ledger'),
-            Tab(text: 'Permissions'),
-          ],
-        ),
       ),
       body: profileAsync.when(
         loading: () => const Center(
@@ -231,6 +211,29 @@ class _UserProfilePageState extends ConsumerState<UserProfilePage>
           return Column(
             children: [
               _HeaderCard(user: u, onReset: _resetPassword, userId: widget.userId),
+              Material(
+                color: HexaColors.brandBackground,
+                child: TabBar(
+                  controller: _tabs,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  labelStyle: HexaDsType.body(12, weight: FontWeight.w800),
+                  unselectedLabelStyle: HexaDsType.body(12, weight: FontWeight.w600),
+                  labelColor: HexaColors.brandPrimary,
+                  unselectedLabelColor: HexaColors.textSecondary,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  dividerColor: Colors.transparent,
+                  tabs: const [
+                    Tab(text: 'Overview'),
+                    Tab(text: 'Activity'),
+                    Tab(text: 'Stock'),
+                    Tab(text: 'Purchases'),
+                    Tab(text: 'Items'),
+                    Tab(text: 'Ledger'),
+                    Tab(text: 'Permissions'),
+                  ],
+                ),
+              ),
               Expanded(
                 child: TabBarView(
                   controller: _tabs,

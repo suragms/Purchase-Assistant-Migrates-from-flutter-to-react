@@ -11,7 +11,31 @@ All 15 fixes verified in codebase; pytest 10 passed; flutter repair tests 13 pas
 - [ ] Manual: commit delivery → stock SYSTEM column refreshes without pull-to-refresh
 - [ ] Deploy Vercel after reports chart fix
 
-## Screenshot fixes (2026-05-29)
+## Wave 3 UX (2026-05-31)
+
+Stock table (shipped `34d498d`):
+- [x] 4 columns only: ITEM | SYS | PHYS | DIFF — no STATUS, no PEND column, no horizontal scroll
+- [x] Pending truck inline under item name (🚚 qty + days); delivered ✓ green
+- [x] Item name 12px bold, 2 lines
+
+Item surfaces (this wave):
+- [x] `ItemStockMetricStrip` — compact System / Physical / Pending / Delivered / Diff cards
+- [x] Item detail snapshot card + quick view + row actions sheet
+- [x] "Stock in hand" wording; KG-only unit suffix; bag/box/tin integers via `formatStockQtyForUnit`
+
+Errors / cloud failed:
+- [x] 503 subtitle: server cold-start hint (30s retry)
+- [x] Low-stock page uses `loadStateErrorSubtitle`
+- [x] Page error boundary friendlier default copy
+- Note: 401 `/v1/me/businesses` = expired session → sign in again (not a bug)
+
+Still pending (Wave 4):
+- [ ] Full white-space audit on remaining bottom sheets (purchase wizard output, barcode, contacts pickers)
+- [ ] Reports drill-down back navigation polish (PopScope already wired)
+- [ ] User profile tab content typography pass (Activity/Stock/Purchases rows)
+- [ ] Decimal sweep: purchase wizard display, low-stock tree rows, PDF exports
+- [ ] Manual QA: delivery commit → SYS column updates without pull-to-refresh
+
 
 - [x] Compact sheet blank gap — `HexaResponsiveSheetViewport` compact uses `Align(heightFactor: 1)`; stock row actions → `showHexaBottomSheet`
 - [x] Stock list 4-column layout — ITEM | SYSTEM | PHYS | DIFF (owner + staff); no STATUS/PEND columns; pending via chips + left border only

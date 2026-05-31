@@ -18,6 +18,7 @@ import '../../../core/services/pdf_actions.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/hexa_elevated_autocomplete.dart';
 import '../../../core/widgets/friendly_load_error.dart';
+import '../../../core/errors/load_state_error.dart';
 import 'quick_stock_action_sheet.dart';
 import 'widgets/stock_update_mode_toggle.dart';
 import 'widgets/low_stock_bulk_export.dart';
@@ -440,8 +441,9 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
       ),
       body: groupedAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, __) => FriendlyLoadError(
+        error: (e, _) => FriendlyLoadError(
           message: 'Could not load low stock',
+          subtitle: loadStateErrorSubtitle(e),
           onRetry: () => ref.invalidate(lowStockByCategoryProvider),
         ),
         data: (grouped) {

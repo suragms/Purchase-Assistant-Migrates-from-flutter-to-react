@@ -141,7 +141,7 @@ class _HexaPageErrorBoundaryState extends ConsumerState<HexaPageErrorBoundary> {
                 const SizedBox(height: 8),
                 Text(
                   widget.subtitle ??
-                      'Something went wrong loading this screen. Check your connection and try again.',
+                      'Something went wrong loading this screen. If you just opened the app, wait 30 seconds and tap Retry. Sign in again if the problem continues.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 13,
