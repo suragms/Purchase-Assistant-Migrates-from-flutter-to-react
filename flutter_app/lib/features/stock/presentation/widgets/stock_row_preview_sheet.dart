@@ -99,7 +99,7 @@ class _StockRowPreviewBody extends ConsumerWidget {
               _metric('Now', nowDual.primary, subtitle: nowDual.secondary),
               _metric(
                 'Var',
-                moved.abs() > 0.0001 ? formatStockQtyNumber(moved) : '—',
+                moved.abs() > 0.0001 ? formatStockQtyForUnit(stockUnit, moved) : '—',
               ),
             ],
           ),

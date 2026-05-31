@@ -60,7 +60,7 @@ class _OpeningStockSetBodyState extends ConsumerState<_OpeningStockSetBody> {
         ? 0
         : coerceToDouble(widget.item['opening_stock_qty']);
     _qtyCtrl = TextEditingController(
-      text: formatStockQtyNumber(_currentOpening),
+      text: formatStockQtyForUnit(_unit, _currentOpening),
     );
     _notesCtrl = TextEditingController();
     _reasonCtrl = TextEditingController();
@@ -128,7 +128,7 @@ class _OpeningStockSetBodyState extends ConsumerState<_OpeningStockSetBody> {
 
   @override
   Widget build(BuildContext context) {
-    final displayCurrent = formatStockQtyNumber(_currentOpening);
+    final displayCurrent = formatStockQtyForUnit(_unit, _currentOpening);
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,

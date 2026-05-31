@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/strict_decimal.dart';
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
 import '../../../../core/units/dynamic_unit_label_engine.dart' as unit_lbl;
+import '../../../../core/utils/unit_utils.dart';
 import '../../../../core/utils/trade_purchase_rate_display.dart';
 import '../../domain/purchase_draft.dart';
 import '../../mapping/purchase_line_display_adapter.dart';
@@ -118,7 +118,7 @@ class PurchaseSummarySections extends ConsumerWidget {
           children: [
             _TblCell('${i + 1}'),
             _TblCell(ln.itemName, maxLines: 2),
-            _TblCell(StrictDecimal.fromObject(ln.qty).format(3, trim: true)),
+            _TblCell(formatStockQtyForUnit(ln.unit, ln.qty)),
             _TblCell(ln.unit),
             _TblCell(_pRateDisplay(ln, rc)),
             _TblCell(_sRateDisplay(ln, rc)),
@@ -330,8 +330,7 @@ class _SummaryLineCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                _LinePill('Qty',
-                    StrictDecimal.fromObject(line.qty).format(3, trim: true)),
+                _LinePill('Qty', formatStockQtyForUnit(line.unit, line.qty)),
                 _LinePill('Unit', line.unit),
                 _LinePill('P-rate', _pRateDisplay(line, rateContext)),
                 _LinePill('S-rate', _sRateDisplay(line, rateContext)),

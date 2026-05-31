@@ -1,6 +1,14 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-05-29 (Master prompt FIX-1–15 verification)
+**Last updated:** 2026-05-29 (Wave 5 decimal sweep + live DB verify)
+
+## Live DB (Supabase MCP 2026-05-29)
+
+- [x] **Alembic head:** `044_catalog_current_stock_non_negative` (verified `alembic_version`)
+- [x] **Delivery pipeline columns:** `delivery_status`, `dispatch_note`, `delivered_qty_committed` present on `trade_purchases`
+- [x] **Stock constraint:** `chk_current_stock_non_negative` on `catalog_items`; **0** negative rows
+- [x] **Sort index:** `ix_catalog_items_business_active_updated` present
+- [ ] Manual: commit delivery → stock SYSTEM column refreshes without pull-to-refresh
 
 ## Master prompt FIX-1–15 (2026-05-29)
 
@@ -46,6 +54,7 @@ Still pending (Wave 5):
 - [x] Reports PDF + more-tabs sheets → compact `showHexaBottomSheet`
 - [x] Reports item drill → `context.replace` (back returns to Reports, no shake)
 - [x] Wizard delivery prompt + decimal sweep (summary, items, fast items, PDF receipt + invoice)
+- [x] Decimal sweep v2 — stock metrics, opening stock, update sheet, review/tally, staff verify, low-stock export
 - [x] Central sheet viewport — non-compact `Align(heightFactor: 1)` kills top blank gap
 - [ ] Manual QA: delivery commit → SYS column updates live (code: `invalidateAfterDeliveryCommit` → `stockListProvider`)
 - [x] All raw `showModalBottomSheet` migrated — only `hexa_responsive.dart` host remains
@@ -125,7 +134,7 @@ FIX-1–FIX-12: already shipped (invalidation hub, sheets, navigation, backend f
 - [x] **FIX-14** Dense warehouse row — `rowMinHeight` 72; ledger `current_stock` SSOT; removed PUR/human-id from `deliveryMetaLine`
 - [x] **FIX-15** Reports uses horizontal scroll `ChoiceChip` row (no `TabBar`); stock operational `TabBar` already `isScrollable: true`
 - [x] Tests: backend 10 passed; flutter `delivery_invalidation`, `navigation_ext`, `sheet_compact_height`, `stock_row_metrics`
-- [ ] **Deploy:** Alembic **044** on Render Postgres before API deploy
+- [x] **Deploy:** Alembic **044** on Render Postgres — verified live via Supabase MCP (`alembic_version`, CHECK, indexes)
 - [ ] Manual: commit delivery → stock SYSTEM column refreshes without pull-to-refresh
 
 ## FIX_TODO_MASTER (2026-05-30)
@@ -196,7 +205,7 @@ P3-001 … P3-015 — animations, haptics, desktop column resize, pricing table 
 - [x] **STOCK-009** Opening stock locked — staff blocked on PATCH (prior sprint)
 - [x] **UI display** Owner list **STOCK** column = `current_stock` (ledger); staff **PHYS** + truck badge; expected/reconciliation owner-only in item snapshot expansion tile
 - [x] Tests: `test_physical_count_diff_sign`, `test_stock_undo`, `test_warehouse_logic_fixes`, `test_purchase_stock_increment`; Flutter `stock_row_metrics_test`, `stock_dense_row_test`, `delivery_invalidation_test`
-- [ ] **Deploy:** apply migration **044** on Render Postgres before API deploy
+- [x] **Deploy:** migration **044** verified live (Supabase MCP)
 - [ ] Manual QA: commit delivery → stock list + home attention badge refresh; owner row shows ledger qty not expected formula
 
 **Backlog (out of scope):** available/reserved stock, returned stock, damaged stock in list UI.

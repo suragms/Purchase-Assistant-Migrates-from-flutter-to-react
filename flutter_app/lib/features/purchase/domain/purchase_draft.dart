@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/strict_decimal.dart';
+import '../../../core/utils/unit_utils.dart';
 
 /// How purchase/selling rates are interpreted before GST is applied on the wire.
 /// Backend always stores **pre-tax** unit rates; inclusive entry is normalized client-side.
@@ -96,7 +97,7 @@ String? brokerFigureBasisLineHint(List<PurchaseLineDraft> lines, String mode) {
     if (t <= 0) {
       return 'No tin lines yet — add “tin” lines or pick another basis.';
     }
-    return 'This bill: ${t.toStringAsFixed(3)} tin qty';
+    return 'This bill: ${formatStockQtyForUnit('tin', t)} tin qty';
   }
   if (m == kPurchaseCommissionModeFlatBag) {
     var b = 0.0;
@@ -107,7 +108,7 @@ String? brokerFigureBasisLineHint(List<PurchaseLineDraft> lines, String mode) {
     if (b <= 0) {
       return 'No bag lines — add “bag” lines or use per kg / once per bill.';
     }
-    return 'This bill: ${b.toStringAsFixed(3)} bag qty';
+    return 'This bill: ${formatStockQtyForUnit('bag', b)} bag qty';
   }
   if (m == kPurchaseCommissionModeFlatBox) {
     var bx = 0.0;
@@ -118,7 +119,7 @@ String? brokerFigureBasisLineHint(List<PurchaseLineDraft> lines, String mode) {
     if (bx <= 0) {
       return 'No box lines — add “box” lines or use per kg / once per bill.';
     }
-    return 'This bill: ${bx.toStringAsFixed(3)} box qty';
+    return 'This bill: ${formatStockQtyForUnit('box', bx)} box qty';
   }
   if (m == kPurchaseCommissionModeFlatKg) {
     return 'Uses total kg from line weights (items + qty).';

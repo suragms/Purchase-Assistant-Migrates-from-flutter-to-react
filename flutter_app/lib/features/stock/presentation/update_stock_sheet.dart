@@ -161,7 +161,9 @@ class _UpdateStockSheetBodyState extends ConsumerState<_UpdateStockSheetBody> {
         <String, dynamic>{};
     final oldQty = baseRow.isNotEmpty ? _qtyFromStockMap(baseRow) : null;
     final newQty = _parseQty(_qtyCtrl.text);
-    final unit = (baseRow['unit'] ?? '').toString().trim();
+    final unit = (baseRow['stock_unit'] ?? baseRow['unit'] ?? '')
+        .toString()
+        .trim();
 
     return SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
@@ -314,7 +316,7 @@ class _UpdateStockSheetBodyState extends ConsumerState<_UpdateStockSheetBody> {
                             ),
                           ),
                           Text(
-                            '${oldQty == oldQty.roundToDouble() ? oldQty.toInt() : oldQty}${unit.isNotEmpty ? ' $unit' : ''}',
+                            '${formatStockQtyForUnit(unit, oldQty)}${unit.isNotEmpty ? ' $unit' : ''}',
                             style: theme.textTheme.titleMedium
                                 ?.copyWith(fontWeight: FontWeight.w800),
                           ),
@@ -334,7 +336,7 @@ class _UpdateStockSheetBodyState extends ConsumerState<_UpdateStockSheetBody> {
                           Text(
                             newQty == null
                                 ? '—'
-                                : '${newQty == newQty.roundToDouble() ? newQty.toInt() : newQty}${unit.isNotEmpty ? ' $unit' : ''}',
+                                : '${formatStockQtyForUnit(unit, newQty)}${unit.isNotEmpty ? ' $unit' : ''}',
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w800,
                               color: cs.primary,
@@ -345,7 +347,7 @@ class _UpdateStockSheetBodyState extends ConsumerState<_UpdateStockSheetBody> {
                       if (newQty != null) ...[
                         const SizedBox(height: 8),
                         Text(
-                          'Change: ${(newQty - oldQty) > 0 ? '+' : ''}${formatStockQtyNumber(newQty - oldQty)}${unit.isNotEmpty ? ' $unit' : ''}',
+                          'Change: ${(newQty - oldQty) > 0 ? '+' : ''}${formatStockQtyForUnit(unit, newQty - oldQty)}${unit.isNotEmpty ? ' $unit' : ''}',
                           style: theme.textTheme.bodySmall?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),

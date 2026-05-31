@@ -12,7 +12,17 @@ void main() {
     expect(formatStockQtyNumber(101.5), '101.5');
   });
 
-  test('formatStockQtyNumber adds comma thousands', () {
-    expect(formatStockQtyNumber(1234), '1,234');
+  test('formatStockQtyForUnit — bag/box/tin integers, kg decimals', () {
+    expect(formatStockQtyForUnit('bag', 101), '101');
+    expect(formatStockQtyForUnit('BAG', 101.000), '101');
+    expect(formatStockQtyForUnit('box', 12.001), '12');
+    expect(formatStockQtyForUnit('tin', 5.9996), '6');
+    expect(formatStockQtyForUnit('kg', 23.22), '23.22');
+    expect(formatStockQtyForUnit('kg', 23.20), '23.2');
+  });
+
+  test('formatStockQtyDisplay adds KG suffix only for kg', () {
+    expect(formatStockQtyDisplay('bag', 101), '101');
+    expect(formatStockQtyDisplay('kg', 23.22), '23.22 KG');
   });
 }

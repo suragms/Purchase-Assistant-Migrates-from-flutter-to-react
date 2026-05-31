@@ -107,8 +107,8 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     if (!qty.isFinite) return null;
     final diff = coerceToDouble(widget.item['physical_stock_difference_qty']);
     final sign = diff >= 0 ? '+' : '';
-    return 'Last physical: ${formatStockQtyNumber(qty)} $_unitLabel'
-        '${diff.abs() > 0.001 ? ' ($sign${formatStockQtyNumber(diff)} diff)' : ''}';
+    return 'Last physical: ${formatStockQtyForUnit(_unit, qty)} $_unitLabel'
+        '${diff.abs() > 0.001 ? ' ($sign${formatStockQtyForUnit(_unit, diff)} diff)' : ''}';
   }
 
   Future<void> _save() async {
@@ -168,7 +168,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
         await LocalNotificationsService.instance.showLowStockItem(
           itemName: _name,
           detail:
-              '${formatStockQtyNumber(parsed)} $unitLabel (reorder ${formatStockQtyNumber(reorder)})',
+              '${formatStockQtyForUnit(_unit, parsed)} $unitLabel (reorder ${formatStockQtyForUnit(_unit, reorder)})',
         );
       }
       if (context.mounted) Navigator.of(context).pop(true);

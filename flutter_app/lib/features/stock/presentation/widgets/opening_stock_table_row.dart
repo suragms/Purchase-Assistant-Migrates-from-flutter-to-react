@@ -47,7 +47,7 @@ class OpeningStockTableRow extends StatelessWidget {
     final openingQty = item['opening_stock_qty'];
     final openingText = openingQty == null
         ? '—'
-        : formatStockQtyNumber(coerceToDouble(openingQty));
+        : formatStockQtyForUnit(unitRaw, coerceToDouble(openingQty));
 
     final statusBg = isCompleted
         ? const Color(0xFF16A34A)

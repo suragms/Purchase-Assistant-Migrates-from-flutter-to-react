@@ -30,15 +30,17 @@ Future<void> exportLowStockSelectionCsv(
       item['name'],
       item['subcategory_name'] ?? item['category_name'],
       unit,
-      formatStockQtyNumber(coerceToDouble(item['current_stock'])),
+      formatStockQtyForUnit(unit, coerceToDouble(item['current_stock'])),
       item['physical_stock_qty'] != null
-          ? formatStockQtyNumber(coerceToDouble(item['physical_stock_qty']))
+          ? formatStockQtyForUnit(
+              unit, coerceToDouble(item['physical_stock_qty']))
           : '',
       coerceToDouble(item['reorder_level']) > 0
-          ? formatStockQtyNumber(coerceToDouble(item['reorder_level']))
+          ? formatStockQtyForUnit(unit, coerceToDouble(item['reorder_level']))
           : '',
       coerceToDouble(item['period_purchased_qty']) > 0
-          ? formatStockQtyNumber(coerceToDouble(item['period_purchased_qty']))
+          ? formatStockQtyForUnit(
+              unit, coerceToDouble(item['period_purchased_qty']))
           : '',
       item['stock_status'],
       item['supplier_name'],

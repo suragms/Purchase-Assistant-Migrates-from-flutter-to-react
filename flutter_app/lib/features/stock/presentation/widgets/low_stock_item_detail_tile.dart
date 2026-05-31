@@ -129,9 +129,9 @@ class _LowStockItemDetailTileState extends State<LowStockItemDetailTile> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Physical ${formatStockQtyNumber(physical)}'
+                    'Physical ${formatStockQtyForUnit(unit, physical)}'
                     '${unitUp.isNotEmpty ? ' $unitUp' : ''}'
-                    '${pendingDel > 0.001 ? ' · Pending ${formatStockQtyNumber(pendingDel)}' : ''}',
+                    '${pendingDel > 0.001 ? ' · Pending ${formatStockQtyForUnit(unit, pendingDel)}' : ''}',
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,

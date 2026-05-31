@@ -32,10 +32,10 @@ abstract final class StockRowMetrics {
     final pending = pendingDeliveryQty(item) ?? 0;
     final u = unit(item);
     if (delivered > 0.001) {
-      parts.add('Delivered ${formatStockQtyNumber(delivered)} $u');
+      parts.add('Delivered ${formatStockQtyForUnit(u, delivered)} $u');
     }
     if (pending > 0.001) {
-      parts.add('Pending ${formatStockQtyNumber(pending)} $u');
+      parts.add('Pending ${formatStockQtyForUnit(u, pending)} $u');
     }
     return parts.join(' · ');
   }
@@ -207,7 +207,7 @@ abstract final class StockRowMetrics {
     final opening = coerceToDoubleNullable(item['opening_stock_qty']);
     if (opening == null) return '';
     final u = unit(item);
-    return 'Open ${formatStockQtyNumber(opening)}${u.isNotEmpty ? ' $u' : ''}';
+    return 'Open ${formatStockQtyForUnit(u, opening)}${u.isNotEmpty ? ' $u' : ''}';
   }
 
   static StockDeliveryIndicator deliveryIndicator(Map<String, dynamic> item) {
@@ -257,10 +257,11 @@ abstract final class StockRowMetrics {
 
   static String deliveryQtyBadge(Map<String, dynamic> item) {
     final pendingDel = pendingDeliveryQty(item) ?? 0;
-    if (pendingDel > 0.001) return formatStockQtyNumber(pendingDel);
+    final u = unit(item);
+    if (pendingDel > 0.001) return formatStockQtyForUnit(u, pendingDel);
     final purchased = purchasedQty(item);
     if (purchased != null && purchased > 0.001) {
-      return formatStockQtyNumber(purchased);
+      return formatStockQtyForUnit(u, purchased);
     }
     return '';
   }
@@ -275,7 +276,7 @@ abstract final class StockRowMetrics {
     if (hasPending || pendingDel > 0.001) {
       var line = 'Pending truck';
       if (pendingDel > 0.001) {
-        line += ' ${formatStockQtyNumber(pendingDel)}';
+        line += ' ${formatStockQtyForUnit(unit(item), pendingDel)}';
       }
       if (days != null && days > 0) line += ' · ${days}d';
       parts.add(line);
@@ -310,7 +311,7 @@ abstract final class StockRowMetrics {
 
   static String qtyLine(double? qty, String unit) {
     if (qty == null || !qty.isFinite) return '—';
-    return '${formatStockQtyNumber(qty)}\n$unit';
+    return '${formatStockQtyForUnit(unit, qty)}\n$unit';
   }
 
   static String signedDiffLine(double diff, String unit) {
@@ -320,7 +321,7 @@ abstract final class StockRowMetrics {
     }
     final sign = diff > 0 ? '+' : '';
     final intent = diff > 0 ? 'Excess' : 'Deficit';
-    return '$sign${formatStockQtyNumber(diff)} $unit\n$intent';
+    return '$sign${formatStockQtyForUnit(unit, diff)} $unit\n$intent';
   }
 
   static Color diffColor(double diff) {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/auth/session_notifier.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
 import '../../../../core/json_coerce.dart';
+import '../../../../core/utils/unit_utils.dart';
 
 Future<bool> showStaffVerificationSheet({
   required BuildContext context,
@@ -55,7 +56,10 @@ class _StaffVerificationSheetState extends ConsumerState<_StaffVerificationSheet
       final id = row['id']?.toString() ?? '';
       if (id.isEmpty) continue;
       final qty = coerceToDouble(row['qty']);
-      _received[id] = TextEditingController(text: qty > 0 ? qty.toStringAsFixed(0) : '');
+      final unit = row['unit']?.toString() ?? row['stock_unit']?.toString() ?? 'piece';
+      _received[id] = TextEditingController(
+        text: qty > 0 ? formatStockQtyForUnit(unit, qty) : '',
+      );
       _damaged[id] = TextEditingController();
       _returned[id] = TextEditingController();
     }

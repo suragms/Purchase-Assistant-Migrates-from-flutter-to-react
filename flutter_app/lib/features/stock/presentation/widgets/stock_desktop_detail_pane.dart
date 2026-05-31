@@ -76,27 +76,27 @@ class StockDesktopDetailPane extends ConsumerWidget {
           const SizedBox(height: 12),
           _metricRow(
             'Opening',
-            opening == null ? '—' : '${formatStockQtyNumber(opening)} $unit',
+            opening == null ? '—' : '${formatStockQtyForUnit(unit, opening)} $unit',
           ),
           if (!isStaff)
             _metricRow(
               'Purchased',
               purchased == null
                   ? '—'
-                  : '${formatStockQtyNumber(purchased)} $unit',
+                  : '${formatStockQtyForUnit(unit, purchased)} $unit',
             ),
           _metricRow(
             'Pending',
             pending == null || pending < 0.001
                 ? '—'
-                : '${formatStockQtyNumber(pending)} $unit',
+                : '${formatStockQtyForUnit(unit, pending)} $unit',
           ),
-          _metricRow('System', '${formatStockQtyNumber(stock)} $unit'),
+          _metricRow('System', '${formatStockQtyForUnit(unit, stock)} $unit'),
           _metricRow(
             'Physical',
             physical == null
                 ? '—'
-                : '${formatStockQtyNumber(physical)} $unit',
+                : '${formatStockQtyForUnit(unit, physical)} $unit',
           ),
           _metricRow(
             'Difference',
