@@ -11,6 +11,7 @@ final appNotificationsListProvider =
   final keepAlive = ref.keepAlive();
   final timer = Timer(const Duration(seconds: 120), keepAlive.close);
   ref.onDispose(timer.cancel);
+  if (providerSkipApi(ref)) return [];
   final session = ref.watch(activeSessionProvider);
   if (session == null) return [];
   return ref.read(hexaApiProvider).listAppNotifications(

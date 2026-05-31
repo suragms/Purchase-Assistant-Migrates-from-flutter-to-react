@@ -11,6 +11,7 @@
 - [ ] Manual: commit delivery → stock SYSTEM column refreshes without pull-to-refresh
 - [x] **Stock commit fix (2026-05-31):** reject empty commit; staff `stock_edit` can commit; truck hides after 5d; orange sync cue; home warehouse unit breakdown; recompute uses `stock_committed`
 - [x] **Home blank after Reports tab (2026-05-31):** sync `shellCurrentBranchProvider` with shell index same frame; refresh dashboard on tab return; skip realtime poll after 401
+- [x] **Prod 401 request storm + blank Home (2026-05-31):** `providerSkipApi` on home refresh/poll + notifications; stock list only when Home OOS strip or Stock tab visible; HexaApi skips refresh when session already expired; Home shows session-expired card instead of empty gray body
 
 ## Master prompt FIX-1–15 (2026-05-29)
 

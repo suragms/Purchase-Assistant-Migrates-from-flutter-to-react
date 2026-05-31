@@ -109,7 +109,7 @@ Future<void> showStockRowActions({
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(friendlyApiError(e)),
+                      content: Text(userFacingError(e)),
                       backgroundColor: Colors.red.shade700,
                     ),
                   );

@@ -8,6 +8,7 @@ import '../api/hexa_api.dart';
 import '../auth/provider_api_guard.dart';
 import '../auth/session_notifier.dart'
     show activeSessionProvider, hexaApiProvider;
+import '../../features/shell/shell_branch_provider.dart';
 import '../json_coerce.dart';
 import 'analytics_kpi_provider.dart' show analyticsDateRangeProvider;
 import 'app_period_provider.dart';
@@ -130,6 +131,22 @@ const kHomeOutOfStockListQuery = StockListQuery(
   page: 1,
   sort: 'stock_asc',
 );
+
+Map<String, dynamic> _emptyStockListPayload(StockListQuery query) =>
+    <String, dynamic>{
+      'items': <dynamic>[],
+      'total': 0,
+      'page': 1,
+      'per_page': query.perPage,
+    };
+
+/// Stock list API only when Stock tab is visible, or Home needs the OOS strip query.
+bool _stockListFetchAllowed(Ref ref, StockListQuery query) {
+  if (providerSkipApi(ref)) return false;
+  if (shellBranchIsVisible(ref, ShellBranch.stock)) return true;
+  return shellBranchIsVisible(ref, ShellBranch.home) &&
+      query == kHomeOutOfStockListQuery;
+}
 
 /// Item drill-down: period purchases, variance, recent lines.
 final stockItemIntelligenceProvider = FutureProvider.autoDispose
@@ -315,14 +332,12 @@ final stockChangesFeedProvider =
 final stockListCacheProvider = FutureProvider.autoDispose
     .family<Map<String, dynamic>, StockListQuery>((ref, query) async {
   providerKeepAlive(ref, const Duration(seconds: 30));
+  if (!_stockListFetchAllowed(ref, query)) {
+    return _emptyStockListPayload(query);
+  }
   final session = ref.watch(activeSessionProvider);
   if (session == null) {
-    return <String, dynamic>{
-      'items': <dynamic>[],
-      'total': 0,
-      'page': 1,
-      'per_page': query.perPage,
-    };
+    return _emptyStockListPayload(query);
   }
   return ref.read(hexaApiProvider).listStock(
         businessId: session.primaryBusiness.id,
@@ -452,6 +467,11 @@ final stockStatusCountsProvider =
   final keepAlive = ref.keepAlive();
   final timer = Timer(const Duration(minutes: 2), keepAlive.close);
   ref.onDispose(timer.cancel);
+  if (providerSkipApi(ref)) return {};
+  if (!shellBranchIsVisible(ref, ShellBranch.home) &&
+      !shellBranchIsVisible(ref, ShellBranch.stock)) {
+    return {};
+  }
   final session = ref.watch(activeSessionProvider);
   if (session == null) return {};
   final api = ref.read(hexaApiProvider);

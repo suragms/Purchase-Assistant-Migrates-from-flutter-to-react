@@ -171,6 +171,14 @@ final hexaApiProvider = Provider<HexaApi>((ref) {
         await ref.read(sessionProvider.notifier).logout();
       } catch (_) {/* container disposed */}
     },
+    authSessionExpired: () {
+      if (disposed) return true;
+      try {
+        return ref.read(authSessionExpiredProvider);
+      } catch (_) {
+        return true;
+      }
+    },
     onConnectivityBanner: (degraded, hint) {
       if (disposed) return;
       // Dio interceptors can run synchronously while a frame is building; never

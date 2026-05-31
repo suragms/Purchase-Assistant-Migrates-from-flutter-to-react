@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -152,7 +152,7 @@ async def delete_report_view(
     user: Annotated[User, Depends(get_current_user)],
     _m: Annotated[Membership, Depends(require_membership)],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> None:
+):
     del _m
     r = await db.execute(
         select(ReportSavedView).where(
@@ -166,3 +166,4 @@ async def delete_report_view(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="view_not_found")
     await db.delete(row)
     await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

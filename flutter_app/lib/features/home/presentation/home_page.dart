@@ -9,8 +9,11 @@ import '../../../core/router/shell_navigation.dart';
 import '../../../features/shell/shell_branch_provider.dart';
 import '../../../core/auth/dashboard_role.dart';
 import '../../../core/auth/auth_failure_policy.dart';
+import '../../../core/auth/provider_api_guard.dart';
 import '../../../core/auth/session_notifier.dart'
     show hexaApiProvider, sessionProvider;
+import '../../../core/providers/api_degraded_provider.dart';
+import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/models/trade_purchase_models.dart';
 import '../../../core/providers/app_period_provider.dart'
     show homePeriodSyncListenerProvider;
@@ -110,10 +113,12 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   void _scheduleRefresh({bool alertsOnly = false, bool force = false}) {
+    if (providerSkipApi(ref)) return;
     _refreshDebounce?.cancel();
     _refreshDebounce = Timer(const Duration(milliseconds: 500), () {
       _refreshDebounce = null;
       if (!mounted) return;
+      if (providerSkipApi(ref)) return;
       if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) return;
       if (!force && _throttleHomeInvalidate()) return;
       if (alertsOnly) {
@@ -127,6 +132,7 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   void _invalidateHomeDataProviders() {
+    if (providerSkipApi(ref)) return;
     _homeLastRefreshedAt = DateTime.now();
     bustHomeDashboardVolatileCaches();
     ref.invalidate(homeDashboardDataProvider);
@@ -170,7 +176,8 @@ class _HomePageState extends ConsumerState<HomePage>
       _lastUnread = ref.read(notificationsUnreadCountProvider);
       // IndexedStack keeps Home mounted on other tabs — never reset shell branch here
       // (ShellScreen owns branch sync). Doing so broke Reports error handling.
-      if (ref.read(shellCurrentBranchProvider) == ShellBranch.home) {
+      if (ref.read(shellCurrentBranchProvider) == ShellBranch.home &&
+          !providerSkipApi(ref)) {
         _setHomePollingActive(true);
         _scheduleRefresh(force: true);
       }
@@ -178,6 +185,7 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   void _maybeNotifyStaffPurchases() {
+    if (providerSkipApi(ref)) return;
     final session = ref.read(sessionProvider);
     if (session == null || !sessionHasOwnerDashboard(session)) return;
     if (!ref.read(localNotificationsOptInProvider)) return;
@@ -315,11 +323,13 @@ class _HomePageState extends ConsumerState<HomePage>
       final onHome = next == ShellBranch.home;
       _setHomePollingActive(onHome);
       if (onHome && prev != ShellBranch.home) {
-        if (!_throttleHomeInvalidate()) {
-          _scheduleRefresh(force: true);
+        if (!providerSkipApi(ref)) {
+          if (!_throttleHomeInvalidate()) {
+            _scheduleRefresh(force: true);
+          }
+          // Dashboard providers skip fetch while off-tab; kick a rebuild now.
+          ref.invalidate(homeDashboardDataProvider);
         }
-        // Dashboard providers skip fetch while off-tab; kick a rebuild now.
-        ref.invalidate(homeDashboardDataProvider);
       }
     });
 
@@ -328,7 +338,9 @@ class _HomePageState extends ConsumerState<HomePage>
       return const SizedBox.shrink();
     }
 
-    ref.watch(notificationCenterCoordinatorProvider);
+    if (!providerSkipApi(ref)) {
+      ref.watch(notificationCenterCoordinatorProvider);
+    }
 
     ref.listen<PurchasePostSavePayload?>(purchasePostSaveProvider,
         (prev, next) {
@@ -373,11 +385,37 @@ class _HomePageState extends ConsumerState<HomePage>
     ref.watch(homePeriodSyncListenerProvider);
 
     final session = ref.watch(sessionProvider);
+    final authExpired = ref.watch(authSessionExpiredProvider);
+    final degraded = ref.watch(apiDegradedProvider);
+    final authBlocked = authExpired ||
+        (degraded != null &&
+            (degraded.toLowerCase().contains('session') ||
+                degraded.toLowerCase().contains('sign in')));
     final hasDashboard = session != null && sessionHasOwnerDashboard(session);
     final conn = ref.watch(connectivityResultsProvider);
     final offline =
         conn.valueOrNull != null && isOfflineResult(conn.valueOrNull!);
     final gutter = HexaResponsive.pageGutter(context, operational: true);
+
+    if (authBlocked) {
+      return Scaffold(
+        backgroundColor: HexaColors.brandBackground,
+        body: SafeArea(
+          child: Padding(
+            padding: EdgeInsets.all(gutter),
+            child: FriendlyLoadError(
+              message: 'Session expired',
+              subtitle:
+                  'Your sign-in is no longer valid. Tap below to sign in again and load warehouse data.',
+              onRetry: () async {
+                await ref.read(sessionProvider.notifier).logout();
+                if (context.mounted) context.go('/login');
+              },
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: HexaColors.brandBackground,

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../auth/provider_api_guard.dart';
 import '../auth/session_notifier.dart' show activeSessionProvider, hexaApiProvider;
 import '../json_coerce.dart';
 import 'stock_providers.dart' show providerKeepAlive;
@@ -51,6 +52,7 @@ class WarehouseAlerts {
 final warehouseAlertsProvider =
     FutureProvider.autoDispose<WarehouseAlerts>((ref) async {
   providerKeepAlive(ref, const Duration(seconds: 60));
+  if (providerSkipApi(ref)) return const WarehouseAlerts();
   final session = ref.watch(activeSessionProvider);
   if (session == null) return const WarehouseAlerts();
   final api = ref.read(hexaApiProvider);

@@ -112,10 +112,12 @@ class HexaApi {
     Future<void> Function(String reason)? onTerminalAuthFailure,
     Future<String?> Function()? resolveAccessToken,
     void Function(bool degraded, String? hint)? onConnectivityBanner,
+    bool Function()? authSessionExpired,
   })  : _onUnauthorizedRefresh = onUnauthorizedRefresh,
         _onTerminalAuthFailure = onTerminalAuthFailure,
         _resolveAccessToken = resolveAccessToken,
         _onConnectivityBanner = onConnectivityBanner,
+        _authSessionExpired = authSessionExpired,
         _dio = Dio(
           BaseOptions(
             baseUrl: baseUrl ?? AppConfig.resolvedApiBaseUrl,
@@ -184,6 +186,9 @@ class HexaApi {
           }
           final req = err.requestOptions;
           if (_isAuthEndpoint(path)) {
+            return handler.next(err);
+          }
+          if (_authSessionExpired?.call() == true) {
             return handler.next(err);
           }
           if (req.extra['authRetried'] == true) {
@@ -258,6 +263,7 @@ class HexaApi {
   final Future<void> Function(String reason)? _onTerminalAuthFailure;
   final Future<String?> Function()? _resolveAccessToken;
   final void Function(bool degraded, String? hint)? _onConnectivityBanner;
+  final bool Function()? _authSessionExpired;
 
   Dio get raw => _dio;
 
