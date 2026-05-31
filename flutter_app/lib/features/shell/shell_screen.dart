@@ -6,22 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../core/providers/home_owner_dashboard_providers.dart'
-    show
-        homeInventorySummaryProvider,
-        homeRecentActivityFeedProvider,
-        homeWarehouseActivityFullProvider,
-        stockAuditPeriodProvider;
 import '../../core/providers/notification_center_provider.dart'
     show notificationCenterCoordinatorProvider;
 import '../../core/providers/notifications_provider.dart'
     show notificationsUnreadCountProvider;
-import '../../core/providers/stock_providers.dart';
-import '../../core/providers/home_breakdown_tab_providers.dart';
-import '../../core/providers/home_dashboard_provider.dart';
-import '../../core/providers/reports_provider.dart';
-import '../../core/providers/trade_purchases_provider.dart'
-    show invalidateTradePurchaseCaches;
 import '../../core/design_system/hexa_ds_tokens.dart';
 import '../../core/design_system/hexa_operational_tokens.dart';
 import '../../core/auth/session_notifier.dart';
@@ -64,31 +52,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   void _syncShellBranch(int idx) {
     if (!mounted) return;
-    final prev = ref.read(shellCurrentBranchProvider);
-    if (prev == idx) return;
+    if (ref.read(shellCurrentBranchProvider) == idx) return;
+    // Only sync branch index — do NOT invalidate providers here (caused
+    // hundreds of parallel refetches + StaleHomeDashboardFetch loops on web).
     ref.read(shellCurrentBranchProvider.notifier).state = idx;
-    switch (idx) {
-      case ShellBranch.home:
-        ref.invalidate(homeDashboardDataProvider);
-        ref.invalidate(homeShellReportsProvider);
-        ref.invalidate(homeInventorySummaryProvider);
-        ref.invalidate(stockAuditPeriodProvider);
-        ref.invalidate(homeRecentActivityFeedProvider);
-        ref.invalidate(homeWarehouseActivityFullProvider);
-        break;
-      case ShellBranch.history:
-        invalidateTradePurchaseCaches(ref);
-        break;
-      case ShellBranch.reports:
-        ref.invalidate(reportsPurchasesPayloadProvider);
-        break;
-      case ShellBranch.stock:
-        ref.invalidate(stockListProvider);
-        ref.invalidate(stockStatusCountsProvider);
-        break;
-      default:
-        break;
-    }
   }
 
   @override
@@ -112,8 +79,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     void go(int branch) {
       HapticFeedback.selectionClick();
       ref.read(shellReturnBranchProvider.notifier).state = null;
-      _syncShellBranch(branch);
       navigationShell.goBranch(branch);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncShellBranch(branch);
+      });
     }
 
     final loc = routePath;

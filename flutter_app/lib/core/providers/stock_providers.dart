@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../api/hexa_api.dart';
+import '../auth/provider_api_guard.dart';
 import '../auth/session_notifier.dart'
     show activeSessionProvider, hexaApiProvider;
 import '../json_coerce.dart';
@@ -706,10 +707,10 @@ final openingStockBulkSelectionProvider = StateProvider<Set<String>>(
 final openingStockMissingProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
   providerKeepAlive(ref, const Duration(minutes: 2));
-  final session = ref.watch(activeSessionProvider);
-  if (session == null) {
+  if (providerSkipApi(ref)) {
     return {'items': <Map<String, dynamic>>[], 'missing_count': 0};
   }
+  final session = ref.watch(activeSessionProvider)!;
   return ref.read(hexaApiProvider).getMissingOpeningStock(
         businessId: session.primaryBusiness.id,
       );

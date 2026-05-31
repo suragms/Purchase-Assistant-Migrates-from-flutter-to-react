@@ -313,8 +313,8 @@ class _HomePageState extends ConsumerState<HomePage>
     ref.listen<int>(shellCurrentBranchProvider, (prev, next) {
       final onHome = next == ShellBranch.home;
       _setHomePollingActive(onHome);
-      if (onHome && prev != ShellBranch.home) {
-        _scheduleRefresh(force: true);
+      if (onHome && prev != ShellBranch.home && !_throttleHomeInvalidate()) {
+        _scheduleRefresh();
       }
     });
 

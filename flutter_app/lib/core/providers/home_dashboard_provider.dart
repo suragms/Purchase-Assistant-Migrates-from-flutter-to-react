@@ -8,6 +8,7 @@ import 'package:dio/dio.dart';
 
 import '../../features/shell/shell_branch_provider.dart';
 import '../api/hexa_api.dart';
+import '../auth/auth_failure_policy.dart' show authSessionExpiredProvider;
 import '../auth/session_notifier.dart' show activeSessionProvider, hexaApiProvider;
 import '../json_coerce.dart';
 import '../models/trade_purchase_models.dart';
@@ -879,7 +880,7 @@ class HomeDashboardDataNotifier extends AutoDisposeNotifier<HomeDashboardDashSta
     final custom = ref.watch(homeCustomDateRangeProvider);
     final session = ref.watch(activeSessionProvider);
 
-    if (session == null) {
+    if (session == null || ref.watch(authSessionExpiredProvider)) {
       return const HomeDashboardDashState(
         snapshot: HomeDashboardPayload(data: HomeDashboardData.empty),
         refreshing: false,
@@ -936,9 +937,8 @@ class HomeDashboardDataNotifier extends AutoDisposeNotifier<HomeDashboardDashSta
         if (_dead) return;
         state = HomeDashboardDashState(snapshot: payload, refreshing: false);
       } on StaleHomeDashboardFetch {
-        if (!_dead) {
-          ref.invalidate(homeDashboardDataProvider);
-        }
+        // Superseded by a newer refresh — do not re-invalidate (tab storms).
+        return;
       } on DioException catch (e) {
         if (_dead) return;
         final sc = e.response?.statusCode;
