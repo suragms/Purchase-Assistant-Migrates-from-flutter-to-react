@@ -89,46 +89,87 @@ abstract final class StockRowMetrics {
     return '$sign${formatStockQtyForUnit(unit(item), diff)}';
   }
 
-  /// Inline truck / delivered cue for item cell (qty + days, no extra column).
+  /// Inline truck cue — orange pending or green delivered, qty + days in bold pill.
   static Widget? inlineDeliveryCue(Map<String, dynamic> item) {
     final cell = pendingCellDisplay(item);
     if (cell.primary == '—') return null;
 
-    final kind = deliveryIndicator(item);
-    final icon = kind == StockDeliveryIndicator.delivered
-        ? Icons.check_circle_rounded
-        : Icons.local_shipping_rounded;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 11, color: cell.color),
-        if (cell.primary != '•' && cell.primary != '✓') ...[
-          const SizedBox(width: 2),
-          Text(
-            cell.primary,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-              color: cell.color,
-              height: 1,
-            ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: cell.color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(5),
+        border: Border.all(color: cell.color.withValues(alpha: 0.45), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.local_shipping_rounded,
+            size: 12,
+            color: cell.color,
           ),
-        ],
-        if (cell.secondary != null) ...[
-          const SizedBox(width: 2),
-          Text(
-            cell.secondary!,
-            style: TextStyle(
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              color: cell.color.withValues(alpha: 0.9),
-              height: 1,
+          if (cell.primary != '•' && cell.primary != '✓') ...[
+            const SizedBox(width: 3),
+            Text(
+              cell.primary,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                color: cell.color,
+                height: 1,
+              ),
             ),
-          ),
+          ] else if (cell.primary == '✓') ...[
+            const SizedBox(width: 2),
+            Icon(Icons.check_rounded, size: 11, color: cell.color),
+          ],
+          if (cell.secondary != null) ...[
+            const SizedBox(width: 3),
+            Text(
+              cell.secondary!,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                color: cell.color,
+                height: 1,
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
+  }
+
+  /// Who last counted/updated stock — no purchase order ids.
+  static String? lastActivityMetaLine(Map<String, dynamic> item) {
+    final physBy = item['physical_stock_counted_by']?.toString().trim();
+    final physAtRaw = item['physical_stock_counted_at']?.toString();
+    if (physBy != null && physBy.isNotEmpty) {
+      final rel = _shortRelativeFromIso(physAtRaw);
+      if (rel != null) return 'Verified · $physBy · $rel';
+      return 'Verified · $physBy';
+    }
+    final by = item['last_stock_updated_by']?.toString().trim();
+    final rel = relativeUpdatedLabel(item);
+    if (by != null && by.isNotEmpty && rel != null) {
+      return '$by · ${rel.replaceFirst('Updated ', '')}';
+    }
+    if (rel != null) return rel;
+    if (by != null && by.isNotEmpty) return by;
+    return null;
+  }
+
+  static String? _shortRelativeFromIso(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final dt = DateTime.tryParse(raw)?.toLocal();
+    if (dt == null) return null;
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${dt.day}/${dt.month}';
   }
 
   /// Pending truck qty (+ optional days) for inline item-row cue.
@@ -152,8 +193,9 @@ abstract final class StockRowMetrics {
       );
     }
     if (kind == StockDeliveryIndicator.delivered) {
+      final recent = purchasedQty(item) ?? 0;
       return (
-        primary: '✓',
+        primary: recent > 0.001 ? formatStockQtyForUnit(u, recent) : '✓',
         secondary: days != null && days > 0 ? '${days}d' : null,
         color: deliveredColor,
       );

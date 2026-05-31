@@ -37,6 +37,15 @@ Still pending (Wave 4):
 - [x] User profile Activity/Stock/Purchases/Items — compact separated lists
 
 Still pending (Wave 5):
+- [x] Bold orange/green truck pill on each stock row (qty + days)
+- [x] Row meta: verified-by / last updated — no PO/PUR ids on stock UI
+- [x] Item delivery card: qty + verifier, no PO numbers
+- [ ] Purchase wizard output page white-space
+- [ ] Barcode + contact picker sheets
+- [ ] Reports drill-down back navigation polish
+- [ ] Decimal sweep on purchase wizard + PDF exports
+- [ ] Manual QA: delivery commit → SYS column updates live
+
 - [ ] Full white-space audit on remaining bottom sheets (purchase wizard output, barcode, contacts pickers)
 - [ ] Reports drill-down back navigation polish (PopScope already wired)
 - [ ] User profile tab content typography pass (Activity/Stock/Purchases rows)

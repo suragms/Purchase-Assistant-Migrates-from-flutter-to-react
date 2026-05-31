@@ -5,6 +5,7 @@ import 'package:harisree_warehouse/features/stock/presentation/widgets/stock_war
 import 'package:harisree_warehouse/features/stock/presentation/widgets/stock_warehouse_table_header.dart';
 import 'package:harisree_warehouse/features/stock/presentation/widgets/stock_table_layout.dart';
 import 'package:harisree_warehouse/features/stock/presentation/widgets/stock_status_badge.dart';
+import 'package:harisree_warehouse/features/stock/presentation/widgets/stock_row_metrics.dart';
 
 void main() {
   testWidgets('warehouse row shows SYSTEM PHYS DIFF metrics', (tester) async {
@@ -129,6 +130,7 @@ void main() {
                     'pending_delivery_qty': 5,
                     'has_pending_order': true,
                     'pending_order_days': 3,
+                    'stock_unit': 'bag',
                   },
                   onTap: () {},
                 ),
@@ -143,5 +145,16 @@ void main() {
     expect(find.text('5'), findsOneWidget);
     expect(find.text('3d'), findsOneWidget);
     expect(find.text('PEND'), findsNothing);
+  });
+
+  testWidgets('activity meta shows verifier not PO id', (tester) async {
+    final meta = StockRowMetrics.lastActivityMetaLine(const {
+      'physical_stock_counted_by': 'krishna',
+      'physical_stock_counted_at': '2026-05-30T10:00:00Z',
+    });
+    expect(meta, contains('Verified'));
+    expect(meta, contains('krishna'));
+    expect(meta, isNot(contains('PO')));
+    expect(meta, isNot(contains('PUR')));
   });
 }

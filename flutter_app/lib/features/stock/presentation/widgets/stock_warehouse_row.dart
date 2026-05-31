@@ -38,12 +38,14 @@ class StockWarehouseRow extends StatelessWidget {
     final deliveryKind = StockRowMetrics.deliveryIndicator(item);
     final diff = StockRowMetrics.diffQty(item);
     final deliveryCue = StockRowMetrics.inlineDeliveryCue(item);
+    final activityMeta = StockRowMetrics.lastActivityMetaLine(item);
 
-    final metaLine = sub.isNotEmpty
-        ? sub
-        : cat.isNotEmpty
-            ? cat
-            : '';
+    final metaLine = activityMeta ??
+        (sub.isNotEmpty
+            ? sub
+            : cat.isNotEmpty
+                ? cat
+                : '');
 
     return Padding(
       padding: EdgeInsets.symmetric(

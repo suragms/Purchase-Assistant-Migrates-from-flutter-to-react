@@ -15,6 +15,7 @@ import '../../../../core/theme/hexa_colors.dart';
 
 import '../quick_stock_action_sheet.dart';
 import 'reorder_level_sheet.dart';
+import 'stock_row_metrics.dart';
 import '../../../catalog/domain/item_stock_snapshot.dart';
 import 'low_stock_approval_sheet.dart';
 
@@ -90,7 +91,7 @@ class LowStockItemRow extends ConsumerWidget {
     final updatedBy = item['last_stock_updated_by']?.toString().trim();
 
     final supplier = item['supplier_name']?.toString().trim();
-    final poHuman = item['last_purchase_human_id']?.toString().trim();
+    final deliveryCue = StockRowMetrics.inlineDeliveryCue(item);
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -171,6 +172,10 @@ class LowStockItemRow extends ConsumerWidget {
                     ),
                 ],
               ),
+              if (deliveryCue != null) ...[
+                const SizedBox(height: 6),
+                deliveryCue,
+              ],
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -237,7 +242,7 @@ class LowStockItemRow extends ConsumerWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Updated: ${updatedAt != null ? DateFormat('dd MMM yyyy').format(updatedAt) : '—'}${updatedBy != null && updatedBy.isNotEmpty ? ' · $updatedBy' : ''}${poHuman != null && poHuman.isNotEmpty ? ' · PO $poHuman' : ''}',
+                'Updated: ${updatedAt != null ? DateFormat('dd MMM yyyy').format(updatedAt) : '—'}${updatedBy != null && updatedBy.isNotEmpty ? ' · $updatedBy' : ''}',
                 style: const TextStyle(fontSize: 10, color: Color(0xFF64748B), fontWeight: FontWeight.w700),
               ),
             ],

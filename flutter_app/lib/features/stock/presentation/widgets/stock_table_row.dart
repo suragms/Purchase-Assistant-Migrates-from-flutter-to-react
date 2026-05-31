@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
 import 'stock_row_metrics.dart';
-import 'stock_status_badge.dart' show formatStockRelativeTime;
 import 'stock_table_layout.dart';
 
 /// Dense bordered warehouse stock row: ITEM | SYSTEM | PHYS | DIFF.
@@ -26,23 +25,20 @@ class StockTableRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final name = item['name']?.toString() ?? '—';
-    final codeRaw = item['item_code']?.toString().trim() ?? '';
     final sub = item['subcategory_name']?.toString().trim() ?? '';
     final status =
         (item['stock_status']?.toString() ?? 'healthy').toLowerCase();
-    final updatedAt = item['last_stock_updated_at']?.toString();
-    final updatedBy = item['last_stock_updated_by']?.toString();
-    final relative = formatStockRelativeTime(updatedAt);
     final isLowOrCritical =
         status == 'low' || status == 'critical' || status == 'out';
     final deliveryKind = StockRowMetrics.deliveryIndicator(item);
     final diff = StockRowMetrics.diffQty(item);
+    final deliveryCue = StockRowMetrics.inlineDeliveryCue(item);
+    final activityMeta = StockRowMetrics.lastActivityMetaLine(item);
 
-    final metaParts = <String>[
-      if (codeRaw.isNotEmpty) '#$codeRaw',
-      if (relative.isNotEmpty) relative,
-      if (!isStaffMode && updatedBy != null && updatedBy.isNotEmpty) updatedBy,
-    ];
+    final metaLine = activityMeta ??
+        (sub.isNotEmpty && sub.toLowerCase() != name.trim().toLowerCase()
+            ? sub
+            : '');
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -106,35 +102,28 @@ class StockTableRow extends StatelessWidget {
                               height: 1.12,
                             ),
                           ),
-                          if (StockRowMetrics.inlineDeliveryCue(item) != null ||
-                              (sub.isNotEmpty &&
-                                  sub.toLowerCase() != name.trim().toLowerCase()) ||
-                              metaParts.isNotEmpty)
+                          if (deliveryCue != null || metaLine.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 2),
                               child: Row(
                                 children: [
-                                  if (StockRowMetrics.inlineDeliveryCue(item) !=
-                                      null) ...[
-                                    StockRowMetrics.inlineDeliveryCue(item)!,
-                                    const SizedBox(width: 6),
+                                  if (deliveryCue != null) ...[
+                                    deliveryCue,
+                                    if (metaLine.isNotEmpty)
+                                      const SizedBox(width: 6),
                                   ],
-                                  Expanded(
-                                    child: Text(
-                                      [
-                                        if (sub.isNotEmpty &&
-                                            sub.toLowerCase() !=
-                                                name.trim().toLowerCase())
-                                          sub,
-                                        ...metaParts,
-                                      ].join(' · '),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: HexaDsType.label(9).copyWith(
-                                        color: const Color(0xFF64748B),
+                                  if (metaLine.isNotEmpty)
+                                    Expanded(
+                                      child: Text(
+                                        metaLine,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: HexaDsType.label(9).copyWith(
+                                          color: const Color(0xFF64748B),
+                                          height: 1.1,
+                                        ),
                                       ),
                                     ),
-                                  ),
                                 ],
                               ),
                             ),

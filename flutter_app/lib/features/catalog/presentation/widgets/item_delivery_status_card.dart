@@ -8,8 +8,9 @@ import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/item_detail_providers.dart';
 import '../../../../core/router/post_auth_route.dart' show sessionIsStaff;
 import '../../../../core/utils/unit_utils.dart';
+import '../../../stock/presentation/widgets/stock_row_metrics.dart';
 
-/// Pending vs delivered truck summary for item detail.
+/// Pending vs delivered truck summary for item detail (no PO numbers).
 class ItemDeliveryStatusCard extends ConsumerWidget {
   const ItemDeliveryStatusCard({super.key, required this.itemId});
 
@@ -24,13 +25,12 @@ class ItemDeliveryStatusCard extends ConsumerWidget {
     final isStaff = session != null && sessionIsStaff(session);
     final unit =
         (stock['stock_unit'] ?? stock['unit'] ?? 'piece').toString().trim();
-    final unitUp = unit.isEmpty ? '' : unit.toUpperCase();
     final pendingDel = coerceToDouble(stock['pending_delivery_qty']);
     final hasPending = stock['has_pending_order'] == true;
     final delivered = stock['last_purchase_delivered'] == true;
     final pendingDays = (stock['pending_order_days'] as num?)?.toInt();
-    final po = stock['last_purchase_human_id']?.toString().trim() ?? '';
     final purchased = coerceToDouble(stock['period_purchased_qty']);
+    final verifiedBy = stock['physical_stock_counted_by']?.toString().trim();
 
     if (!hasPending && !delivered && pendingDel <= 0.001 && purchased <= 0) {
       return const SizedBox.shrink();
@@ -49,7 +49,10 @@ class ItemDeliveryStatusCard extends ConsumerWidget {
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.local_shipping_rounded, color: Color(0xFFE65100)),
+                leading: const Icon(
+                  Icons.local_shipping_rounded,
+                  color: Color(0xFFEA580C),
+                ),
                 title: const Text(
                   'Pending truck',
                   style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
@@ -57,22 +60,21 @@ class ItemDeliveryStatusCard extends ConsumerWidget {
                 subtitle: Text(
                   [
                     if (pendingDel > 0.001)
-                      '${formatStockQtyNumber(pendingDel)}${unitUp.isNotEmpty ? ' $unitUp' : ''}',
+                      '${formatStockQtyDisplay(unit, pendingDel)} — adds to system when verified',
                     if (pendingDays != null && pendingDays > 0) '$pendingDays days',
-                    if (po.isNotEmpty) 'PO $po',
                   ].where((s) => s.isNotEmpty).join(' · '),
-                  style: const TextStyle(fontSize: 12),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFFEA580C),
+                  ),
                 ),
                 trailing: TextButton(
                   onPressed: () {
                     if (isStaff) {
-                      if (po.isNotEmpty) {
-                        context.push('/staff/receive/$po');
-                      } else {
-                        context.push('/staff/receive');
-                      }
+                      context.push('/staff/receive');
                     } else {
-                      context.push('/purchase');
+                      context.push('/purchase?filter=pending_delivery');
                     }
                   },
                   child: Text(isStaff ? 'Receive' : 'Purchases'),
@@ -84,15 +86,26 @@ class ItemDeliveryStatusCard extends ConsumerWidget {
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.check_circle_outline, color: Color(0xFF16A34A)),
+                leading: const Icon(
+                  Icons.local_shipping_rounded,
+                  color: Color(0xFF16A34A),
+                ),
                 title: const Text(
-                  'Delivered (in system stock)',
+                  'Delivered to system stock',
                   style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                 ),
                 subtitle: Text(
-                  '${formatStockQtyNumber(purchased)}${unitUp.isNotEmpty ? ' $unitUp' : ''} received this period'
-                      '${po.isNotEmpty ? ' · PO $po' : ''}',
-                  style: const TextStyle(fontSize: 12),
+                  [
+                    '${formatStockQtyDisplay(unit, purchased)} received this period',
+                    if (verifiedBy != null && verifiedBy.isNotEmpty)
+                      'Verified by $verifiedBy',
+                    StockRowMetrics.lastActivityMetaLine(stock),
+                  ].whereType<String>().where((s) => s.isNotEmpty).join(' · '),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF16A34A),
+                  ),
                 ),
               ),
             ],
