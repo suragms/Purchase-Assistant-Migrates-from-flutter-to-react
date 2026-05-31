@@ -207,8 +207,11 @@ class _ItemHistoryPageState extends ConsumerState<ItemHistoryPage> {
             businessId: session.primaryBusiness.id,
             purchaseId: row.purchaseId,
           );
-      invalidatePurchaseWorkspace(ref);
-      ref.invalidate(tradePurchaseDetailProvider(row.purchaseId));
+      invalidateAfterPurchaseDelete(
+        ref,
+        purchaseId: row.purchaseId,
+        extraItemIds: {widget.catalogItemId},
+      );
       ref.invalidate(itemHistoryLinesProvider(widget.catalogItemId));
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)

@@ -19,7 +19,15 @@ All 15 fixes verified in codebase; pytest 10 passed; flutter repair tests 13 pas
 - [ ] Manual: commit delivery → stock SYSTEM column refreshes without pull-to-refresh
 - [ ] Deploy Vercel after reports chart fix
 
-## Wave 3 UX (2026-05-31)
+## Reports module redesign (2026-05-29)
+
+- [x] **REPORTS-SHELL** — `ReportsShellPage`: 56px compact header, sticky period + segmented nav, search overlay, filter sheet
+- [x] **REPORTS-TABS** — Overview KPI row + 280px charts; Items/Purchases virtualized 76px row cards; Stock + Activity primary tabs
+- [x] **REPORTS-DRILL** — `ReportsItemReportPage`, `ReportsPurchaseReportPage`, breadcrumb bar; `/reports/item/:id` in-flow (no catalog redirect)
+- [x] **REPORTS-BACKEND** — Migration **046** `report_saved_views` + CRUD API; `/reports/activity-feed`, `/reports/item/{id}` bundle; trade-items sort/limit/offset
+- [x] **REPORTS-RESPONSIVE** — Desktop 3-column scaffold (nav / content / filter drawer)
+- [x] **REPORTS-CLEANUP** — Monolith moved to `shell/reports_shell_page.dart`; `reports_page.dart` thin export; smoke tests updated
+
 
 Stock table (shipped `34d498d`):
 - [x] 4 columns only: ITEM | SYS | PHYS | DIFF — no STATUS, no PEND column, no horizontal scroll
@@ -189,6 +197,13 @@ P3-001 … P3-015 — animations, haptics, desktop column resize, pricing table 
 | Home KPI → Reports → system back → Home | [ ] |
 | Home → Reports → bottom nav Stock (no stuck Reports body) | [ ] |
 | `/reports?tab=items` cold URL selects Items tab | [ ] |
+| Reports tab chip tap updates URL (`?tab=purchase` etc.) | [ ] |
+| Reports search opens overlay (no permanent search field in scroll) | [ ] |
+| Reports Quarter period chip syncs with Home | [ ] |
+| Item tap in Reports → `/reports/item/:id` (not catalog redirect) | [ ] |
+| Purchase tap in Reports → `/reports/purchase/:id` | [ ] |
+| Saved report view create/list round-trip (server) | [ ] |
+| Desktop Reports 3-column layout (nav / content / filters) | [ ] |
 | Purchase detail → Verify → dismiss sheet → status refreshes | [ ] |
 | Stock list scroll → View item → back restores scroll | [ ] |
 

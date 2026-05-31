@@ -42,6 +42,7 @@ from app.routers import (
     public_items,
     realtime,
     reports_trade,
+    report_views,
     search,
     trade_purchases,
     stock,
@@ -476,6 +477,7 @@ app.include_router(entries.router)
 app.include_router(exports.router)
 app.include_router(trade_purchases.router)
 app.include_router(reports_trade.router)
+app.include_router(report_views.router)
 app.include_router(search.router)
 app.include_router(analytics.router)
 app.include_router(dashboard.router)

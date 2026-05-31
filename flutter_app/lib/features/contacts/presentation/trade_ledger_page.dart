@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/auth/auth_error_messages.dart';
+import '../../../core/catalog/item_trade_history.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/models/trade_purchase_models.dart';
@@ -22,6 +23,7 @@ import '../../../core/services/pdf_actions.dart';
 import '../../../core/services/supplier_statement_pdf.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/utils/line_display.dart';
+import '../../../core/utils/unit_utils.dart';
 import '../../../core/utils/phone_launch.dart';
 import '../../../core/widgets/focused_search_chrome.dart';
 import '../../../core/utils/trade_purchase_commission.dart';
@@ -279,8 +281,7 @@ class _TradeLedgerPageState extends ConsumerState<TradeLedgerPage> {
             businessId: session.primaryBusiness.id,
             purchaseId: p.id,
           );
-      invalidatePurchaseWorkspace(ref);
-      ref.invalidate(tradePurchaseDetailProvider(p.id));
+      invalidateAfterPurchaseDelete(ref, purchase: p);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Deleted')),
@@ -406,6 +407,8 @@ class _TradeLedgerPageState extends ConsumerState<TradeLedgerPage> {
       u['box'] = (u['box'] ?? 0) + l.qty;
     } else if (up.contains('TIN')) {
       u['tin'] = (u['tin'] ?? 0) + l.qty;
+    } else if (up.contains('KG')) {
+      u['kg'] = (u['kg'] ?? 0) + l.qty;
     }
   }
 
@@ -424,6 +427,12 @@ class _TradeLedgerPageState extends ConsumerState<TradeLedgerPage> {
     final itemAsync = widget.kind == TradeLedgerKind.catalogItem
         ? ref.watch(catalogItemDetailProvider(widget.entityId))
         : null;
+    final catalogItemName = widget.kind == TradeLedgerKind.catalogItem
+        ? itemAsync?.maybeWhen(
+            data: (m) => m['name']?.toString(),
+            orElse: () => null,
+          )
+        : null;
 
     final data = _visibleRows;
     final sumTotal = data.fold<double>(0, (s, p) => s + p.totalAmount);
@@ -433,7 +442,13 @@ class _TradeLedgerPageState extends ConsumerState<TradeLedgerPage> {
     for (final p in data) {
       for (final l in p.lines) {
         if (widget.kind == TradeLedgerKind.catalogItem) {
-          if (l.catalogItemId == widget.entityId) _addUnitQty(l, units);
+          if (itemLineBelongsToCatalog(
+            l,
+            widget.entityId,
+            catalogItemName: catalogItemName,
+          )) {
+            _addUnitQty(l, units);
+          }
         } else {
           _addUnitQty(l, units);
         }
@@ -730,11 +745,13 @@ class _TradeLedgerPageState extends ConsumerState<TradeLedgerPage> {
                                         'Units: '
                                         '${[
                                           if ((units['bag'] ?? 0) > 0)
-                                            'Bags ${units['bag']!.toStringAsFixed(0)}',
+                                            'Bags ${formatStockQtyForUnit('bag', units['bag']!)}',
                                           if ((units['box'] ?? 0) > 0)
-                                            'Box ${units['box']!.toStringAsFixed(0)}',
+                                            'Box ${formatStockQtyForUnit('box', units['box']!)}',
                                           if ((units['tin'] ?? 0) > 0)
-                                            'Tin ${units['tin']!.toStringAsFixed(0)}',
+                                            'Tin ${formatStockQtyForUnit('tin', units['tin']!)}',
+                                          if ((units['kg'] ?? 0) > 0)
+                                            'KG ${formatStockQtyForUnit('kg', units['kg']!)}',
                                         ].join(' · ')}',
                                         style: tt.bodySmall?.copyWith(
                                           fontWeight: FontWeight.w600,

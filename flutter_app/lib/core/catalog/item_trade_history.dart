@@ -1,5 +1,6 @@
 import '../calc_engine.dart';
 import '../models/trade_purchase_models.dart';
+import '../utils/line_display.dart';
 import '../utils/trade_purchase_rate_display.dart';
 import '../utils/unit_utils.dart';
 import '../units/dynamic_unit_label_engine.dart' as unit_lbl;
@@ -36,6 +37,8 @@ class ItemTradeHistoryRow {
     this.brokerName,
     this.brokerPhone,
     required this.line,
+    this.deliveryStatus = DeliveryStatus.pending,
+    this.deliveryVerifiedAt,
   });
 
   final String purchaseId;
@@ -46,6 +49,11 @@ class ItemTradeHistoryRow {
   final String? brokerName;
   final String? brokerPhone;
   final TradePurchaseLine line;
+  final DeliveryStatus deliveryStatus;
+  final DateTime? deliveryVerifiedAt;
+
+  bool get isStockCommitted =>
+      deliveryStatus == DeliveryStatus.stockCommitted;
 
   double get lineTotal =>
       line.lineTotal ?? lineMoney(tradeLineToCalc(line));
@@ -104,6 +112,8 @@ List<ItemTradeHistoryRow> itemTradeHistoryRows(
           brokerName: p.brokerName,
           brokerPhone: p.brokerPhone,
           line: ln,
+          deliveryStatus: p.deliveryStatusEnum,
+          deliveryVerifiedAt: p.stockCommittedAt ?? p.deliveredAt,
         ),
       );
     }
@@ -219,6 +229,34 @@ List<ItemSupplierIntel> itemSupplierIntel(List<ItemTradeHistoryRow> rows) {
     });
   }
   return out;
+}
+
+/// Human-readable purchase qty totals for a filtered history list.
+String itemTradeHistoryTotalsLine(List<ItemTradeHistoryRow> rows) {
+  if (rows.isEmpty) return '';
+  var bags = 0.0;
+  var boxes = 0.0;
+  var tins = 0.0;
+  var kg = 0.0;
+  for (final r in rows) {
+    final u = r.line.unit;
+    final q = r.line.qty;
+    if (unitCountsAsBagFamily(u)) {
+      bags += q;
+    } else if (u.toUpperCase().contains('BOX')) {
+      boxes += q;
+    } else if (u.toUpperCase().contains('TIN')) {
+      tins += q;
+    } else if (u.toUpperCase().contains('KG')) {
+      kg += q;
+    }
+  }
+  final parts = <String>[];
+  if (bags > 0.001) parts.add('Bags ${formatStockQtyForUnit('bag', bags)}');
+  if (boxes > 0.001) parts.add('Box ${formatStockQtyForUnit('box', boxes)}');
+  if (tins > 0.001) parts.add('Tin ${formatStockQtyForUnit('tin', tins)}');
+  if (kg > 0.001) parts.add('KG ${formatStockQtyForUnit('kg', kg)}');
+  return parts.join(' · ');
 }
 
 bool supplierIntelIsBest(ItemSupplierIntel s, List<ItemSupplierIntel> all) {

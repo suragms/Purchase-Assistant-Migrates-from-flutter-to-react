@@ -5,6 +5,7 @@ enum ReportsBiTab {
   subcategories,
   items,
   purchases,
+  stock,
   suppliers,
   brokers,
   slowMoving,
@@ -20,6 +21,7 @@ extension ReportsBiTabX on ReportsBiTab {
         ReportsBiTab.subcategories => 'subcategories',
         ReportsBiTab.items => 'items',
         ReportsBiTab.purchases => 'purchase',
+        ReportsBiTab.stock => 'stock',
         ReportsBiTab.suppliers => 'suppliers',
         ReportsBiTab.brokers => 'brokers',
         ReportsBiTab.slowMoving => 'slow',
@@ -33,7 +35,8 @@ extension ReportsBiTabX on ReportsBiTab {
         ReportsBiTab.categories => 'Categories',
         ReportsBiTab.subcategories => 'Subcat',
         ReportsBiTab.items => 'Items',
-        ReportsBiTab.purchases => 'Purchase',
+        ReportsBiTab.purchases => 'Purchases',
+        ReportsBiTab.stock => 'Stock',
         ReportsBiTab.suppliers => 'Suppliers',
         ReportsBiTab.brokers => 'Brokers',
         ReportsBiTab.slowMoving => 'Stock intel',
@@ -51,6 +54,7 @@ extension ReportsBiTabX on ReportsBiTab {
       'subcategories' || 'subcategory' || 'types' => ReportsBiTab.subcategories,
       'items' || 'item' => ReportsBiTab.items,
       'purchase' || 'purchases' => ReportsBiTab.purchases,
+      'stock' || 'stock_intel' => ReportsBiTab.stock,
       'suppliers' || 'supplier' || 'supp' => ReportsBiTab.suppliers,
       'brokers' || 'broker' => ReportsBiTab.brokers,
       'slow' || 'slow_moving' || 'slowmoving' => ReportsBiTab.slowMoving,
@@ -61,21 +65,20 @@ extension ReportsBiTabX on ReportsBiTab {
     };
   }
 
-  /// Primary row on phone (4 chips max); rest open via More sheet.
+  /// Primary sticky row — no wrap; horizontal scroll on narrow screens.
   static const primaryRow = [
     ReportsBiTab.overview,
     ReportsBiTab.items,
     ReportsBiTab.purchases,
+    ReportsBiTab.stock,
     ReportsBiTab.stockMovement,
   ];
 
   static const moreSheet = [
-    ReportsBiTab.slowMoving,
     ReportsBiTab.categories,
     ReportsBiTab.subcategories,
     ReportsBiTab.suppliers,
     ReportsBiTab.brokers,
-    ReportsBiTab.deadStock,
     ReportsBiTab.usage,
   ];
 }

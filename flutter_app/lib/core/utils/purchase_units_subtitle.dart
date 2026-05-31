@@ -3,6 +3,49 @@ import '../providers/home_dashboard_provider.dart';
 import '../../features/home/home_pack_unit_word.dart';
 import '../../features/home/presentation/widgets/home_formatters.dart';
 
+/// Sum bag/box/tin/kg from trade purchase line maps (list API JSON).
+String purchaseUnitsSubtitleFromLines(List<dynamic> lines) {
+  var bags = 0.0;
+  var boxes = 0.0;
+  var tins = 0.0;
+  var kg = 0.0;
+  for (final raw in lines) {
+    if (raw is! Map) continue;
+    final m = Map<String, dynamic>.from(raw);
+    final qty = coerceToDouble(m['qty']);
+    if (qty <= 0) continue;
+    final ut = (m['unit_type'] ?? m['unit'] ?? '')
+        .toString()
+        .trim()
+        .toLowerCase();
+    final u = ut == 'sack' ? 'bag' : ut;
+    if (u == 'bag') {
+      bags += qty;
+    } else if (u == 'box') {
+      boxes += qty;
+    } else if (u == 'tin') {
+      tins += qty;
+    } else if (u == 'kg' || u == 'kilogram') {
+      kg += qty;
+    } else {
+      final tw = coerceToDoubleNullable(m['total_weight']);
+      if (tw != null && tw > 0) {
+        kg += tw;
+      } else {
+        final kpu = coerceToDoubleNullable(m['kg_per_unit'] ??
+            m['weight_per_unit']);
+        if (kpu != null && kpu > 0) kg += qty * kpu;
+      }
+    }
+  }
+  return purchaseUnitsSubtitleFromMap({
+    'total_bags': bags,
+    'total_boxes': boxes,
+    'total_tins': tins,
+    'total_kg': kg,
+  });
+}
+
 /// Compact bags · boxes · tins · kg line for report/home breakdown rows.
 String purchaseUnitsSubtitleFromMap(Map<String, dynamic> m) {
   final parts = <String>[];

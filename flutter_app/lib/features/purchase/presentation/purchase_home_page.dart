@@ -24,7 +24,13 @@ import '../../../core/utils/line_display.dart';
 import '../../../core/utils/snack.dart';
 import '../../../core/providers/business_profile_provider.dart';
 import '../../../core/providers/business_aggregates_invalidation.dart'
-    show invalidateAfterDeliveryCommit, invalidatePurchaseWorkspace;
+    show
+        catalogItemIdsFromPurchase,
+        invalidateAfterDeliveryCommit,
+        invalidateAfterPurchaseDelete,
+        invalidatePurchaseWorkspace;
+import '../../../core/providers/delivery_pipeline_provider.dart';
+import '../../../core/providers/staff_home_providers.dart';
 import '../../../core/providers/trade_purchases_provider.dart';
 import '../../shell/shell_branch_provider.dart';
 import '../providers/trade_purchase_detail_provider.dart';
@@ -846,8 +852,7 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
             businessId: session.primaryBusiness.id,
             purchaseId: p.id,
           );
-      invalidatePurchaseWorkspace(ref);
-      ref.invalidate(tradePurchaseDetailProvider(p.id));
+      invalidateAfterPurchaseDelete(ref, purchase: p);
       try {
         await ref.read(tradePurchasesListProvider.future);
       } catch (_) {}
@@ -889,6 +894,17 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
     final session = ref.read(sessionProvider);
     if (session == null) return;
     final ids = _selected.toList();
+    final list = ref.read(tradePurchasesParsedProvider).valueOrNull ??
+        const <TradePurchase>[];
+    final catalogIds = <String>{};
+    for (final id in ids) {
+      for (final p in list) {
+        if (p.id == id) {
+          catalogIds.addAll(catalogItemIdsFromPurchase(p));
+          break;
+        }
+      }
+    }
     setState(() {
       for (final id in ids) {
         _pendingDeleteIds.add(id);
@@ -902,14 +918,18 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
               businessId: session.primaryBusiness.id,
               purchaseId: id,
             );
-        ref.invalidate(tradePurchaseDetailProvider(id));
       } catch (_) {
         if (mounted) {
           setState(() => _pendingDeleteIds.remove(id));
         }
       }
     }
-    invalidatePurchaseWorkspace(ref);
+    invalidatePurchaseWorkspace(ref, affectedItemIds: catalogIds);
+    ref.invalidate(deliveryPipelineProvider);
+    ref.invalidate(staffPendingDeliveriesProvider);
+    for (final id in ids) {
+      ref.invalidate(tradePurchaseDetailProvider(id));
+    }
     try {
       await ref.read(tradePurchasesListProvider.future);
     } catch (_) {}
@@ -2519,8 +2539,7 @@ class _PurchaseHistoryFullscreenSearchPageState
             businessId: session.primaryBusiness.id,
             purchaseId: p.id,
           );
-      invalidatePurchaseWorkspace(ref);
-      ref.invalidate(tradePurchaseDetailProvider(p.id));
+      invalidateAfterPurchaseDelete(ref, purchase: p);
       try {
         await ref.read(tradePurchasesListProvider.future);
       } catch (_) {}

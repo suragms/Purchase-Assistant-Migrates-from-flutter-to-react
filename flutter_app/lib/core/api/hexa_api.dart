@@ -1707,6 +1707,36 @@ class HexaApi {
     return Map<String, dynamic>.from(res.data ?? {});
   }
 
+  Future<List<Map<String, dynamic>>> listReportSavedViews({
+    required String businessId,
+  }) async {
+    final res = await _dio.get<List<dynamic>>(
+      '/v1/businesses/$businessId/report-views',
+    );
+    return (res.data ?? [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> createReportSavedView({
+    required String businessId,
+    required String name,
+    required String tab,
+    required Map<String, dynamic> filtersJson,
+    bool isDefault = false,
+  }) async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/report-views',
+      data: {
+        'name': name,
+        'tab': tab,
+        'filters_json': filtersJson,
+        'is_default': isDefault,
+      },
+    );
+    return Map<String, dynamic>.from(res.data ?? {});
+  }
+
   Future<Map<String, dynamic>> getWhatsAppReportSchedule({
     required String businessId,
   }) async {

@@ -14,7 +14,8 @@ import '../../features/shell/shell_branch_provider.dart';
 import '../../features/analytics/presentation/full_reports_page.dart';
 import '../../features/reports/reports_bi_tab.dart';
 import '../../features/catalog/presentation/item_analytics_redirect_page.dart';
-import '../../features/reports/presentation/reports_item_redirect_page.dart';
+import '../../features/reports/drill/reports_item_report_page.dart';
+import '../../features/reports/drill/reports_purchase_report_page.dart';
 import '../../features/catalog/presentation/catalog_add_category_page.dart';
 import '../../features/catalog/presentation/catalog_add_item_page.dart';
 import '../../features/catalog/presentation/catalog_add_subcategory_page.dart';
@@ -43,6 +44,7 @@ import '../../features/supplier/presentation/supplier_ledger_page.dart';
 import '../../features/item/presentation/item_history_page.dart';
 import '../../features/broker/presentation/broker_history_page.dart';
 import '../../features/home/presentation/home_breakdown_list_page.dart';
+import '../../features/home/presentation/home_warehouse_activity_page.dart';
 import '../../features/home/presentation/home_page.dart';
 import '../providers/home_breakdown_tab_providers.dart'
     show homeBreakdownTabFromQuery, HomeBreakdownTab;
@@ -1007,12 +1009,41 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/reports/item/:catalogItemId',
         name: 'reports_item_bi',
-        redirect: (context, state) {
+        pageBuilder: (context, state) {
           final id = state.pathParameters['catalogItemId'] ?? '';
-          if (id.isEmpty) return '/reports';
-          final tab = state.uri.queryParameters['tab'];
-          final q = tab != null && tab.isNotEmpty ? '?tab=$tab' : '';
-          return '/catalog/item/$id$q';
+          if (id.isEmpty) {
+            return iosPushPage(
+              key: state.pageKey,
+              child: const Scaffold(
+                body: Center(child: Text('Item not found')),
+              ),
+            );
+          }
+          final rawName = state.uri.queryParameters['name'];
+          final name =
+              rawName != null ? Uri.decodeComponent(rawName) : null;
+          return iosPushPage(
+            key: state.pageKey,
+            child: ReportsItemReportPage(
+              catalogItemId: id,
+              itemName: name,
+            ),
+          );
+        },
+      ),
+      GoRoute(
+        path: '/reports/purchase/:purchaseId',
+        name: 'reports_purchase_report',
+        pageBuilder: (context, state) {
+          final extra = state.extra;
+          return iosPushPage(
+            key: state.pageKey,
+            child: ReportsPurchaseReportPage(
+              purchaseId: state.pathParameters['purchaseId'] ?? '',
+              initialPurchase:
+                  extra is TradePurchase ? extra : null,
+            ),
+          );
         },
       ),
       GoRoute(
@@ -1023,7 +1054,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final n = Uri.decodeComponent(state.uri.queryParameters['n'] ?? '');
           return iosPushPage(
             key: state.pageKey,
-            child: ReportsItemRedirectPage(
+            child: ReportsItemReportFallbackPage(
               itemKey: k,
               itemName: n.isEmpty ? 'Item' : n,
             ),
@@ -1069,6 +1100,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 ),
                 routes: [
                   GoRoute(
+                    path: 'activity',
+                    name: 'home_activity',
+                    builder: (context, state) =>
+                        const HomeWarehouseActivityPage(),
+                  ),
+                  GoRoute(
                     path: 'breakdown-more',
                     name: 'home_breakdown_more',
                     builder: (context, state) {
@@ -1111,10 +1148,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                       title: 'Reports could not load',
                       fallbackRoute: '/home',
                       shellBranchIndex: ShellBranch.reports,
-                      child: FullReportsPage(
-                        initialTab: ReportsBiTabX.fromQuery(
-                          state.uri.queryParameters['tab'],
-                        ),
+                      child: const FullReportsPage(
+                        key: ValueKey('reports_shell'),
                       ),
                     ),
               ),

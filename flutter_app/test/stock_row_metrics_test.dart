@@ -103,6 +103,32 @@ void main() {
       expect(cell.primary, '12');
       expect(cell.secondary, '4d');
     });
+
+    test('pending truck shows today when days is zero', () {
+      final cell = StockRowMetrics.pendingCellDisplay(const {
+        'pending_delivery_qty': 5,
+        'pending_order_days': 0,
+        'has_pending_order': true,
+        'stock_unit': 'piece',
+      });
+      expect(cell.secondary, 'today');
+    });
+
+    test('delivered truck uses last_line_qty not period total', () {
+      final cell = StockRowMetrics.pendingCellDisplay({
+        'current_stock': 101,
+        'period_purchased_qty': 711,
+        'last_line_qty': 100,
+        'last_purchase_at': DateTime.now()
+            .subtract(const Duration(days: 4))
+            .toIso8601String(),
+        'last_purchase_human_id': 'PUR-1',
+        'last_purchase_delivered': true,
+        'stock_unit': 'bag',
+      });
+      expect(cell.primary, '100');
+      expect(cell.secondary, '4d');
+    });
   });
 
   group('formatStockQtyDisplay', () {

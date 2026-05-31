@@ -21,6 +21,7 @@ import '../../../core/providers/home_owner_dashboard_providers.dart'
     show
         homeInventorySummaryProvider,
         homeRecentActivityFeedProvider,
+        homeWarehouseActivityFullProvider,
         homeStockAttentionCountProvider,
         stockAlertCountsProvider,
         stockAuditPeriodProvider,
@@ -130,6 +131,7 @@ class _HomePageState extends ConsumerState<HomePage>
     ref.invalidate(homeDashboardDataProvider);
     ref.invalidate(homeInventorySummaryProvider);
     ref.invalidate(homeRecentActivityFeedProvider);
+    ref.invalidate(homeWarehouseActivityFullProvider);
     ref.invalidate(stockLowTopHomeProvider);
     ref.invalidate(lowStockByCategoryProvider);
     ref.invalidate(stockVariancesTodayProvider);
@@ -506,6 +508,7 @@ class _HomePageState extends ConsumerState<HomePage>
     c.invalidate(stockAuditPeriodProvider);
     c.invalidate(stockVariancesTodayProvider);
     c.invalidate(homeRecentActivityFeedProvider);
+    c.invalidate(homeWarehouseActivityFullProvider);
     c.invalidate(homeDashboardDataProvider);
     c.invalidate(warehouseAlertsProvider);
   }

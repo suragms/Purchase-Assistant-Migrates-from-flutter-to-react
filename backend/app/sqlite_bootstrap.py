@@ -11,6 +11,7 @@ import uuid
 from sqlalchemy import inspect
 
 from app.models import Base
+from app.models.report_saved_view import ReportSavedView
 from app.models.unit_intelligence import (
     AiItemProfile,
     ItemLearningHistory,
@@ -39,6 +40,7 @@ def apply_sqlite_bootstrap(sync_conn) -> None:
             UnitConfidenceLog.__table__,
             AiItemProfile.__table__,
             SmartPackageRule.__table__,
+            ReportSavedView.__table__,
         ],
     )
     _ensure_entries_place(sync_conn)

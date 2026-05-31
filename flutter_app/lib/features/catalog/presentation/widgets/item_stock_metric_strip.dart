@@ -17,9 +17,13 @@ class ItemStockMetricStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final unit = (stock['stock_unit'] ?? stock['unit'] ?? 'piece').toString();
     final delivered = coerceToDouble(stock['total_delivered_qty']);
-    final pendingRaw = stock['total_pending_delivery_qty'] ?? stock['pending_delivery_qty'];
+    final pendingRaw =
+        stock['total_pending_delivery_qty'] ?? stock['pending_delivery_qty'];
     final pending = coerceToDouble(pendingRaw);
     final diff = StockRowMetrics.diffQty(stock);
+
+    String qtyOrDash(double v) =>
+        v > 0.001 ? formatStockQtyForUnit(unit, v) : '—';
 
     final cells = <_MetricCell>[
       _MetricCell(
@@ -32,18 +36,16 @@ class ItemStockMetricStrip extends StatelessWidget {
         StockRowMetrics.physicalCellLabel(stock),
         const Color(0xFF0F766E),
       ),
-      if (pending > 0.001)
-        _MetricCell(
-          'Pending',
-          formatStockQtyForUnit(unit, pending),
-          const Color(0xFFEA580C),
-        ),
-      if (delivered > 0.001)
-        _MetricCell(
-          'Delivered',
-          formatStockQtyForUnit(unit, delivered),
-          const Color(0xFF16A34A),
-        ),
+      _MetricCell(
+        'Delivered',
+        qtyOrDash(delivered),
+        const Color(0xFF16A34A),
+      ),
+      _MetricCell(
+        'Pending',
+        qtyOrDash(pending),
+        const Color(0xFFEA580C),
+      ),
       _MetricCell(
         'Diff',
         StockRowMetrics.diffCellLabel(stock),

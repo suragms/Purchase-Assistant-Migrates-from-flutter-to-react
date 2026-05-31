@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../../core/catalog/item_trade_history.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/models/trade_purchase_models.dart';
@@ -165,11 +166,49 @@ class _CatalogItemPurchaseHistoryPageState
                     )
                   : RefreshIndicator(
                       onRefresh: () => _load(reset: true),
-                      child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(12, 8, 12, 32),
-                        itemCount: _purchases.length + (_exhausted ? 0 : 1),
-                        itemBuilder: (context, i) {
-                          if (i == _purchases.length) {
+                      child: Builder(
+                        builder: (context) {
+                          final rows = itemTradeHistoryRows(
+                            _purchases,
+                            widget.itemId,
+                          );
+                          final totalsLine =
+                              itemTradeHistoryTotalsLine(rows);
+                          return ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 32),
+                            itemCount: _purchases.length +
+                                (totalsLine.isNotEmpty ? 1 : 0) +
+                                (_exhausted ? 0 : 1),
+                            itemBuilder: (context, i) {
+                              if (totalsLine.isNotEmpty && i == 0) {
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF0FDF4),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: const Color(0xFFBBF7D0),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      '${rows.length} purchase(s) · Total $totalsLine',
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: Color(0xFF166534),
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              }
+                              final pi = totalsLine.isNotEmpty ? i - 1 : i;
+                              if (pi == _purchases.length) {
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               child: Center(
@@ -182,7 +221,7 @@ class _CatalogItemPurchaseHistoryPageState
                               ),
                             );
                           }
-                          final p = _purchases[i];
+                          final p = _purchases[pi];
                           TradePurchaseLine? line;
                           final want = widget.itemId.toLowerCase();
                           for (final l in p.lines) {
@@ -217,6 +256,8 @@ class _CatalogItemPurchaseHistoryPageState
                               '/purchase/detail/${p.id}',
                               extra: p,
                             ),
+                          );
+                            },
                           );
                         },
                       ),

@@ -100,8 +100,7 @@ class SupplierLedgerPage extends ConsumerWidget {
             businessId: session.primaryBusiness.id,
             purchaseId: row.purchaseId,
           );
-      invalidatePurchaseWorkspace(ref);
-      ref.invalidate(tradePurchaseDetailProvider(row.purchaseId));
+      invalidateAfterPurchaseDelete(ref, purchaseId: row.purchaseId);
       ref.invalidate(supplierLedgerLinesProvider(supplierId));
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Deleted')));

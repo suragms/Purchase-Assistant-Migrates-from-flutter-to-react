@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/shell/shell_branch_provider.dart';
 import '../auth/session_notifier.dart' show activeSessionProvider, hexaApiProvider;
 import '../json_coerce.dart';
+import '../utils/purchase_units_subtitle.dart';
 import 'stock_providers.dart'
     show lowStockByCategoryProvider, stockStatusCountsProvider;
 import 'home_breakdown_tab_providers.dart';
@@ -327,6 +328,10 @@ class HomeActivityItem {
     this.routeId,
     this.actor,
     this.qtyChange,
+    this.humanId,
+    this.unitsLine,
+    this.verifiedBy,
+    this.supplierName,
   });
 
   final String kind; // purchase | stock
@@ -337,6 +342,15 @@ class HomeActivityItem {
   final String? routeId;
   final String? actor;
   final String? qtyChange;
+  final String? humanId;
+  final String? unitsLine;
+  final String? verifiedBy;
+  final String? supplierName;
+
+  bool get isPurchaseDelivery =>
+      kind == 'delivery_verified' ||
+      kind == 'purchase' ||
+      title.startsWith('Delivery committed');
 }
 
 /// Group label + items for the recent-changes section.
@@ -428,8 +442,29 @@ String _activityTitleFromAdjustment(String? adjustmentType, String itemName) {
   return (humanId: humanId, purchaseId: purchaseId);
 }
 
-final homeRecentActivityFeedProvider =
-    FutureProvider.autoDispose<List<HomeActivityItem>>((ref) async {
+String? _purchaseUnitsLine(Map<String, dynamic> p) {
+  final linesRaw = p['lines'];
+  if (linesRaw is List && linesRaw.isNotEmpty) {
+    final line = purchaseUnitsSubtitleFromLines(linesRaw);
+    if (line.isNotEmpty) return line;
+  }
+  final fromMap = purchaseUnitsSubtitleFromMap(p);
+  return fromMap.isNotEmpty ? fromMap : null;
+}
+
+String? _purchaseVerifiedBy(Map<String, dynamic> p) {
+  final v = p['staff_verified_by_name']?.toString().trim();
+  if (v != null && v.isNotEmpty) return v;
+  final c = p['created_by_name']?.toString().trim();
+  if (c != null && c.isNotEmpty) return c;
+  return p['staff_name']?.toString().trim();
+}
+
+Future<List<HomeActivityItem>> _fetchHomeWarehouseActivity(
+  Ref ref, {
+  int purchaseLimit = 15,
+  int maxItems = 15,
+}) async {
   _providerKeepAlive(ref, const Duration(minutes: 3));
   if (!shellBranchIsVisible(ref, ShellBranch.home)) return [];
   final session = ref.watch(activeSessionProvider);
@@ -452,7 +487,7 @@ final homeRecentActivityFeedProvider =
     final results = await Future.wait([
       api.listTradePurchases(
         businessId: bid,
-        limit: 15,
+        limit: purchaseLimit,
         offset: 0,
         status: 'all',
         purchaseFrom: q.from,
@@ -488,7 +523,10 @@ final homeRecentActivityFeedProvider =
     if (at == null) continue;
     final local = at.toLocal();
     if (local.isBefore(range.start) || !local.isBefore(range.end)) continue;
-    final delivered = p['is_delivered'] == true;
+    final deliveryStatus =
+        (p['delivery_status'] ?? '').toString().toLowerCase();
+    final delivered = p['is_delivered'] == true ||
+        deliveryStatus == 'stock_committed';
     items.add(
       HomeActivityItem(
         kind: delivered ? 'delivery_verified' : 'purchase',
@@ -504,6 +542,10 @@ final homeRecentActivityFeedProvider =
             p['invoice_number']?.toString() ??
             p['bill_no']?.toString() ??
             '',
+        humanId: p['human_id']?.toString(),
+        unitsLine: _purchaseUnitsLine(p),
+        verifiedBy: delivered ? _purchaseVerifiedBy(p) : null,
+        supplierName: p['supplier_name']?.toString(),
         at: local,
         amountInr: coerceToDouble(p['total_amount'] ?? p['bill_total']),
         routeId: id.isNotEmpty ? id : null,
@@ -533,6 +575,10 @@ final homeRecentActivityFeedProvider =
             ? 'Delivery committed — ${received.humanId}'
             : _activityTitleFromAdjustment(adjType, itemName),
         subtitle: itemName,
+        humanId: received?.humanId,
+        verifiedBy: a['updated_by']?.toString() ??
+            a['updated_by_name']?.toString() ??
+            a['user_name']?.toString(),
         at: local,
         routeId: received?.purchaseId?.isNotEmpty == true
             ? received!.purchaseId
@@ -558,6 +604,7 @@ final homeRecentActivityFeedProvider =
         kind: 'stock_quick_purchase',
         title: 'Purchase quantity added',
         subtitle: p['item_name']?.toString() ?? 'Item',
+        unitsLine: qty > 0 ? '+$qty $unit' : null,
         at: local,
         routeId: p['item_id']?.toString(),
         actor: p['created_by_name']?.toString(),
@@ -578,7 +625,18 @@ final homeRecentActivityFeedProvider =
   items.removeWhere((i) => !keepKinds.contains(i.kind));
 
   items.sort((a, b) => b.at.compareTo(a.at));
-  return items.take(15).toList();
+  return items.take(maxItems).toList();
+}
+
+final homeRecentActivityFeedProvider =
+    FutureProvider.autoDispose<List<HomeActivityItem>>((ref) async {
+  return _fetchHomeWarehouseActivity(ref, purchaseLimit: 15, maxItems: 15);
+});
+
+/// Full warehouse activity list for Home → View all (respects shared period).
+final homeWarehouseActivityFullProvider =
+    FutureProvider.autoDispose<List<HomeActivityItem>>((ref) async {
+  return _fetchHomeWarehouseActivity(ref, purchaseLimit: 100, maxItems: 200);
 });
 
 /// @deprecated Use [homeRecentActivityFeedProvider] only — kept for invalidation parity.

@@ -974,9 +974,28 @@ async def trade_items_breakdown(
     db: Annotated[AsyncSession, Depends(get_db)],
     date_from: date = Query(..., alias="from"),
     date_to: date = Query(..., alias="to"),
+    category_id: list[uuid.UUID] | None = Query(None),
+    subcategory_id: list[uuid.UUID] | None = Query(None),
+    supplier_id: list[uuid.UUID] | None = Query(None),
+    sort: str = Query("highestValue"),
+    order: str = Query("desc"),
+    limit: int = Query(500, ge=1, le=2000),
+    offset: int = Query(0, ge=0),
 ) -> list[dict[str, Any]]:
     del _m
-    return await _fetch_trade_items_breakdown_rows(db, business_id, date_from, date_to)
+    rows = await _fetch_trade_items_breakdown_rows(db, business_id, date_from, date_to)
+    if supplier_id:
+        allowed = {str(s) for s in supplier_id}
+        rows = [r for r in rows if str(r.get("supplier_id") or "") in allowed]
+    reverse = order.lower() != "asc"
+    key_fn = {
+        "highestValue": lambda r: float(r.get("total_purchase") or r.get("total_amount") or 0),
+        "highestQty": lambda r: float(r.get("total_qty") or 0),
+        "az": lambda r: str(r.get("item_name") or r.get("name") or "").lower(),
+        "latest": lambda r: str(r.get("last_purchase_date") or ""),
+    }.get(sort, lambda r: float(r.get("total_purchase") or 0))
+    rows.sort(key=key_fn, reverse=reverse)
+    return rows[offset : offset + limit]
 
 
 @router.get("/trade-suppliers")
@@ -1173,3 +1192,164 @@ async def reports_movement_summary(
         for d, c in daily_r.all()
     ]
     return {"by_type": by_type, "timeline": timeline}
+
+
+@router.get("/activity-feed")
+async def reports_activity_feed(
+    business_id: uuid.UUID,
+    _m: Annotated[Membership, Depends(require_membership)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    date_from: date = Query(..., alias="from"),
+    date_to: date = Query(..., alias="to"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    """Unified activity timeline: purchases + stock adjustments."""
+    del _m
+    start_dt = datetime.combine(date_from, datetime.min.time(), tzinfo=timezone.utc)
+    end_dt = datetime.combine(date_to, datetime.max.time(), tzinfo=timezone.utc)
+    daily_r = await db.execute(
+        select(
+            func.date(StockAdjustmentLog.updated_at),
+            func.count(),
+        )
+        .where(
+            StockAdjustmentLog.business_id == business_id,
+            StockAdjustmentLog.updated_at >= start_dt,
+            StockAdjustmentLog.updated_at <= end_dt,
+        )
+        .group_by(func.date(StockAdjustmentLog.updated_at))
+        .order_by(func.date(StockAdjustmentLog.updated_at))
+    )
+    stock_timeline = [
+        {
+            "type": "stock",
+            "date": (d.isoformat() if hasattr(d, "isoformat") else str(d)),
+            "events": int(c or 0),
+        }
+        for d, c in daily_r.all()
+    ]
+    bf = _trade_purchase_date_filter(business_id, date_from, date_to)
+    pq = (
+        select(
+            TradePurchase.id,
+            TradePurchase.human_id,
+            TradePurchase.purchase_date,
+            TradePurchase.total_amount,
+        )
+        .where(bf)
+        .order_by(TradePurchase.purchase_date.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    purchases = [
+        {
+            "type": "purchase",
+            "purchase_id": str(pid),
+            "human_id": hid,
+            "date": pd.isoformat(),
+            "amount": float(amt or 0),
+        }
+        for pid, hid, pd, amt in (await db.execute(pq)).all()
+    ]
+    return {
+        "stock_timeline": stock_timeline,
+        "purchases": purchases,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/item/{catalog_item_id}")
+async def reports_item_bundle(
+    business_id: uuid.UUID,
+    catalog_item_id: uuid.UUID,
+    _m: Annotated[Membership, Depends(require_membership)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    date_from: date = Query(..., alias="from"),
+    date_to: date = Query(..., alias="to"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+) -> dict[str, Any]:
+    """Item report KPIs + paginated purchase lines for catalog item."""
+    del _m
+    item_r = await db.execute(
+        select(CatalogItem.id, CatalogItem.name, CatalogItem.current_stock).where(
+            CatalogItem.business_id == business_id,
+            CatalogItem.id == catalog_item_id,
+            CatalogItem.deleted_at.is_(None),
+        )
+    )
+    item_row = item_r.one_or_none()
+    if item_row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="item_not_found")
+    _cid, item_name, current_stock = item_row
+    amt = _trade_line_amount_expr()
+    bf = _trade_purchase_date_filter(business_id, date_from, date_to)
+    summary_q = (
+        select(
+            func.coalesce(func.sum(amt), 0).label("total_purchase"),
+            func.coalesce(func.sum(TradePurchaseLine.qty), 0).label("total_qty"),
+            func.count(func.distinct(TradePurchase.id)).label("purchase_count"),
+            func.count(func.distinct(TradePurchase.supplier_id)).label("supplier_count"),
+            func.coalesce(func.min(TradePurchaseLine.landing_cost), 0).label("rate_min"),
+            func.coalesce(func.max(TradePurchaseLine.landing_cost), 0).label("rate_max"),
+            func.coalesce(func.avg(TradePurchaseLine.landing_cost), 0).label("rate_avg"),
+        )
+        .select_from(TradePurchaseLine)
+        .join(TradePurchase, TradePurchase.id == TradePurchaseLine.trade_purchase_id)
+        .where(
+            bf,
+            TradePurchaseLine.catalog_item_id == catalog_item_id,
+        )
+    )
+    sm = (await db.execute(summary_q)).mappings().one()
+    lines_q = (
+        select(
+            TradePurchase.id,
+            TradePurchase.human_id,
+            TradePurchase.purchase_date,
+            TradePurchaseLine.qty,
+            TradePurchaseLine.unit,
+            TradePurchaseLine.landing_cost,
+            func.coalesce(amt, 0).label("line_amount"),
+        )
+        .select_from(TradePurchaseLine)
+        .join(TradePurchase, TradePurchase.id == TradePurchaseLine.trade_purchase_id)
+        .where(
+            bf,
+            TradePurchaseLine.catalog_item_id == catalog_item_id,
+        )
+        .order_by(TradePurchase.purchase_date.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    lines = [
+        {
+            "purchase_id": str(pid),
+            "human_id": hid,
+            "purchase_date": pdate.isoformat(),
+            "qty": float(qty or 0),
+            "unit": str(unit or ""),
+            "rate": float(rate or 0),
+            "line_amount": float(lamt or 0),
+        }
+        for pid, hid, pdate, qty, unit, rate, lamt in (await db.execute(lines_q)).all()
+    ]
+    return {
+        "catalog_item_id": str(catalog_item_id),
+        "item_name": item_name,
+        "current_stock": float(current_stock or 0),
+        "summary": {
+            "total_purchase": float(sm["total_purchase"] or 0),
+            "total_qty": float(sm["total_qty"] or 0),
+            "purchase_count": int(sm["purchase_count"] or 0),
+            "supplier_count": int(sm["supplier_count"] or 0),
+            "rate_min": float(sm["rate_min"] or 0),
+            "rate_max": float(sm["rate_max"] or 0),
+            "rate_avg": float(sm["rate_avg"] or 0),
+        },
+        "lines": lines,
+        "limit": limit,
+        "offset": offset,
+    }

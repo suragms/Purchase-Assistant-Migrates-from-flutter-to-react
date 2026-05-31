@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import delete, exists, func, not_, select
+from sqlalchemy import delete, exists, func, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -49,6 +49,7 @@ _DELIVERY_TERMINAL = frozenset({"stock_committed", "cancelled"})
 _ARRIVE_FROM = frozenset({"pending", "dispatched", "in_transit"})
 _VERIFY_FROM = frozenset({"arrived", "staff_verifying"})
 _COMMIT_FROM = frozenset({"staff_verified", "partial"})
+_CATALOG_SNAPSHOT_SKIP_STATUSES = ("deleted", "cancelled", "draft")
 
 
 def _delivery_status(tp: TradePurchase) -> str:
@@ -738,11 +739,30 @@ async def list_trade_purchases(
     if purchase_to is not None:
         stmt = stmt.where(TradePurchase.purchase_date <= purchase_to)
     if catalog_item_id is not None:
+        item_name: str | None = None
+        cr = await db.execute(
+            select(CatalogItem.name).where(
+                CatalogItem.id == catalog_item_id,
+                CatalogItem.business_id == business_id,
+            )
+        )
+        name_row = cr.first()
+        if name_row:
+            item_name = (name_row[0] or "").strip()
+        line_pred = TradePurchaseLine.catalog_item_id == catalog_item_id
+        if item_name:
+            line_pred = or_(
+                line_pred,
+                (
+                    TradePurchaseLine.catalog_item_id.is_(None)
+                    & (func.lower(TradePurchaseLine.item_name) == item_name.lower())
+                ),
+            )
         stmt = stmt.where(
             exists(
                 select(1).where(
                     TradePurchaseLine.trade_purchase_id == TradePurchase.id,
-                    TradePurchaseLine.catalog_item_id == catalog_item_id,
+                    line_pred,
                 )
             )
         )
@@ -1672,6 +1692,62 @@ async def mark_trade_purchase_paid(
     return await get_trade_purchase(db, business_id, purchase_id)
 
 
+async def refresh_catalog_last_trade_snapshots(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    catalog_item_ids: set[uuid.UUID] | list[uuid.UUID],
+) -> None:
+    """Repoint catalog last-trade snapshot to the newest active purchase line per item."""
+    ids = [i for i in set(catalog_item_ids) if i is not None]
+    if not ids:
+        return
+    for cid in ids:
+        ir = await db.execute(
+            select(CatalogItem).where(
+                CatalogItem.id == cid,
+                CatalogItem.business_id == business_id,
+            )
+        )
+        item = ir.scalar_one_or_none()
+        if item is None:
+            continue
+        lr = await db.execute(
+            select(TradePurchase, TradePurchaseLine)
+            .join(
+                TradePurchaseLine,
+                TradePurchaseLine.trade_purchase_id == TradePurchase.id,
+            )
+            .where(
+                TradePurchase.business_id == business_id,
+                TradePurchase.status.notin_(_CATALOG_SNAPSHOT_SKIP_STATUSES),
+                TradePurchaseLine.catalog_item_id == cid,
+            )
+            .order_by(
+                TradePurchase.purchase_date.desc(),
+                TradePurchase.created_at.desc(),
+            )
+            .limit(1)
+        )
+        pair = lr.first()
+        if pair is None:
+            item.last_trade_purchase_id = None
+            item.last_line_qty = None
+            item.last_line_unit = None
+            item.last_line_weight_kg = None
+            continue
+        tp, line = pair
+        item.last_trade_purchase_id = tp.id
+        item.last_line_qty = dp.qty(line.qty)
+        u = (line.unit or "").strip()
+        item.last_line_unit = u[:32] if u else None
+        wt = _line_total_weight(line)
+        item.last_line_weight_kg = wt if wt > 0 else None
+        if tp.supplier_id:
+            item.last_supplier_id = tp.supplier_id
+        if tp.broker_id:
+            item.last_broker_id = tp.broker_id
+
+
 async def cancel_trade_purchase(
     db: AsyncSession, business_id: uuid.UUID, purchase_id: uuid.UUID
 ) -> TradePurchaseOut | None:
@@ -1690,9 +1766,11 @@ async def cancel_trade_purchase(
         return None
     was_delivered = bool(getattr(tp, "is_delivered", False))
     old_lines = list(tp.lines) if was_delivered else []
+    catalog_ids = {li.catalog_item_id for li in tp.lines if li.catalog_item_id}
     tp.status = "cancelled"
     tp.is_delivered = False
     tp.delivered_at = None
+    tp.delivery_status = "cancelled"
     tp.updated_at = utcnow()
     if was_delivered and old_lines:
         try:
@@ -1707,6 +1785,7 @@ async def cancel_trade_purchase(
         except ValueError:
             await db.rollback()
             raise
+    await refresh_catalog_last_trade_snapshots(db, business_id, catalog_ids)
     await db.commit()
     bump_trade_read_caches_for_business(business_id)
     return await get_trade_purchase(db, business_id, purchase_id)
@@ -1730,9 +1809,11 @@ async def delete_trade_purchase(
         return False
     was_delivered = bool(getattr(tp, "is_delivered", False))
     old_lines = list(tp.lines) if was_delivered else []
+    catalog_ids = {li.catalog_item_id for li in tp.lines if li.catalog_item_id}
     tp.status = "deleted"
     tp.is_delivered = False
     tp.delivered_at = None
+    tp.delivery_status = "cancelled"
     tp.updated_at = utcnow()
     if was_delivered and old_lines:
         try:
@@ -1747,6 +1828,7 @@ async def delete_trade_purchase(
         except ValueError:
             await db.rollback()
             raise
+    await refresh_catalog_last_trade_snapshots(db, business_id, catalog_ids)
     await db.commit()
     bump_trade_read_caches_for_business(business_id)
     return True

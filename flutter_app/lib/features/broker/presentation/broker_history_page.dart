@@ -236,8 +236,7 @@ class BrokerHistoryPage extends ConsumerWidget {
             businessId: session.primaryBusiness.id,
             purchaseId: row.purchaseId,
           );
-      invalidatePurchaseWorkspace(ref);
-      ref.invalidate(tradePurchaseDetailProvider(row.purchaseId));
+      invalidateAfterPurchaseDelete(ref, purchaseId: row.purchaseId);
       ref.invalidate(brokerHistoryLinesProvider(brokerId));
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Deleted')));

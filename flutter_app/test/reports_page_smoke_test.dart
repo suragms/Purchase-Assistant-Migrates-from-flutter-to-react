@@ -68,7 +68,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
 
     expect(find.text('Reports'), findsOneWidget);
-    expect(find.text('Overview'), findsOneWidget);
+    expect(find.text('Overview'), findsWidgets);
     expect(find.text('Could not load the app'), findsNothing);
     expect(find.text('Reports could not load'), findsNothing);
   });

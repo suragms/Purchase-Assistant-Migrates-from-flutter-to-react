@@ -10,6 +10,7 @@ import '../../core/providers/home_owner_dashboard_providers.dart'
     show
         homeInventorySummaryProvider,
         homeRecentActivityFeedProvider,
+        homeWarehouseActivityFullProvider,
         stockAuditPeriodProvider;
 import '../../core/providers/notification_center_provider.dart'
     show notificationCenterCoordinatorProvider;
@@ -73,6 +74,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         ref.invalidate(homeInventorySummaryProvider);
         ref.invalidate(stockAuditPeriodProvider);
         ref.invalidate(homeRecentActivityFeedProvider);
+        ref.invalidate(homeWarehouseActivityFullProvider);
         break;
       case ShellBranch.history:
         invalidateTradePurchaseCaches(ref);

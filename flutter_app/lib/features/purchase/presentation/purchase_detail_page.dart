@@ -14,6 +14,7 @@ import '../../../core/providers/business_aggregates_invalidation.dart'
     show
         invalidateAfterDeliveryCommit,
         invalidateAfterDeliveryVerify,
+        invalidateAfterPurchaseDelete,
         invalidatePurchaseWorkspace;
 import '../../../core/providers/delivery_pipeline_provider.dart';
 import '../../../core/providers/business_profile_provider.dart';
@@ -420,8 +421,7 @@ class _LoadedPurchaseScaffold extends ConsumerWidget {
             businessId: session.primaryBusiness.id,
             purchaseId: p.id,
           );
-      invalidatePurchaseWorkspace(ref);
-      ref.invalidate(tradePurchaseDetailProvider(p.id));
+      invalidateAfterPurchaseDelete(ref, purchase: p);
       if (!context.mounted) return;
       showTopSnack(context, 'Deleted');
       context.popOrGo(_purchaseHistoryBackRoute(ref));

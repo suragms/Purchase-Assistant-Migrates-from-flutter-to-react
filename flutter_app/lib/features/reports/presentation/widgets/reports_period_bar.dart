@@ -23,7 +23,7 @@ class ReportsPeriodBar extends ConsumerWidget {
   final VoidCallback onSyncHome;
   final bool compact;
 
-  static const presets = ['Today', 'Week', 'Month', 'Year'];
+  static const presets = ['Today', 'Week', 'Month', 'Quarter', 'Year'];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

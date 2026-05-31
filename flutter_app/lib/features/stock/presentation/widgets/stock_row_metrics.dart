@@ -19,6 +19,24 @@ abstract final class StockRowMetrics {
   static double? pendingDeliveryQty(Map<String, dynamic> item) =>
       coerceToDoubleNullable(item['pending_delivery_qty']);
 
+  /// Last committed purchase line qty — not period purchased total.
+  static double? lastDeliveryLineQty(Map<String, dynamic> item) =>
+      coerceToDoubleNullable(item['last_line_qty']);
+
+  /// Compact age for truck pill: up to [compactCapDays] as "Nd", else "d/m".
+  static String? deliveryAgeLabel(String? iso, {int compactCapDays = 5}) {
+    if (iso == null || iso.isEmpty) return null;
+    final dt = DateTime.tryParse(iso)?.toLocal();
+    if (dt == null) return null;
+    final days = DateTime.now().difference(dt).inDays;
+    if (days < 1) return 'today';
+    if (days <= compactCapDays) return '${days}d';
+    return '${dt.day}/${dt.month}';
+  }
+
+  static String? deliveryVerifiedAgeLabel(Map<String, dynamic> item) =>
+      deliveryAgeLabel(item['last_purchase_at']?.toString());
+
   static double? openingQty(Map<String, dynamic> item) =>
       coerceToDoubleNullable(item['opening_stock_qty']);
 
@@ -188,15 +206,15 @@ abstract final class StockRowMetrics {
       final qty = pending > 0.001 ? pending : 0.0;
       return (
         primary: qty > 0.001 ? formatStockQtyForUnit(u, qty) : '•',
-        secondary: days != null && days > 0 ? '${days}d' : null,
+        secondary: _pendingDaysLabel(days),
         color: pendingColor,
       );
     }
     if (kind == StockDeliveryIndicator.delivered) {
-      final recent = purchasedQty(item) ?? 0;
+      final qty = lastDeliveryLineQty(item) ?? 0;
       return (
-        primary: recent > 0.001 ? formatStockQtyForUnit(u, recent) : '✓',
-        secondary: days != null && days > 0 ? '${days}d' : null,
+        primary: qty > 0.001 ? formatStockQtyForUnit(u, qty) : '✓',
+        secondary: deliveryVerifiedAgeLabel(item),
         color: deliveredColor,
       );
     }
@@ -217,13 +235,22 @@ abstract final class StockRowMetrics {
     final deliveredFlag = item['last_purchase_delivered'] == true;
     final undeliveredFlag = item['last_purchase_delivered'] == false;
 
-    if (hasPending || pendingDel > 0.001 || (po.isNotEmpty && undeliveredFlag)) {
+    if (hasPending || pendingDel > 0.001) {
       return StockDeliveryIndicator.pending;
     }
     if (po.isNotEmpty && deliveredFlag) {
       return StockDeliveryIndicator.delivered;
     }
+    if (po.isNotEmpty && undeliveredFlag) {
+      return StockDeliveryIndicator.pending;
+    }
     return StockDeliveryIndicator.none;
+  }
+
+  static String? _pendingDaysLabel(int? days) {
+    if (days == null) return null;
+    if (days <= 0) return 'today';
+    return '${days}d';
   }
 
   static bool matchesDeliveryFilter(
@@ -259,9 +286,9 @@ abstract final class StockRowMetrics {
     final pendingDel = pendingDeliveryQty(item) ?? 0;
     final u = unit(item);
     if (pendingDel > 0.001) return formatStockQtyForUnit(u, pendingDel);
-    final purchased = purchasedQty(item);
-    if (purchased != null && purchased > 0.001) {
-      return formatStockQtyForUnit(u, purchased);
+    final last = lastDeliveryLineQty(item);
+    if (last != null && last > 0.001) {
+      return formatStockQtyForUnit(u, last);
     }
     return '';
   }

@@ -523,12 +523,16 @@ async def _is_delivered_for_trade_purchase_ids(
     if not purchase_ids:
         return {}
     r = await db.execute(
-        select(TradePurchase.id, TradePurchase.is_delivered).where(
+        select(TradePurchase.id, TradePurchase.delivery_status).where(
             TradePurchase.business_id == business_id,
             TradePurchase.id.in_(purchase_ids),
+            TradePurchase.status.notin_(("deleted", "cancelled")),
         )
     )
-    return {row[0]: bool(row[1]) for row in r.all()}
+    return {
+        row[0]: (row[1] or "").strip().lower() == "stock_committed"
+        for row in r.all()
+    }
 
 
 async def _last_purchase_delivered_for_snapshot(

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/catalog/item_trade_history.dart';
+import '../../../../core/models/trade_purchase_models.dart';
 import '../../../../core/providers/trade_purchases_provider.dart';
 import '../../../../core/router/post_auth_route.dart';
 import '../../../../core/auth/session_notifier.dart';
@@ -91,9 +92,34 @@ class _ItemPurchaseHistorySectionState
                     ),
                   );
                 }
+                final totalsLine = itemTradeHistoryTotalsLine(filtered);
                 final take = filtered.take(12).toList();
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (totalsLine.isNotEmpty) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0FDF4),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFBBF7D0)),
+                        ),
+                        child: Text(
+                          '${filtered.length} purchase(s) · Total $totalsLine',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF166534),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                     for (var i = 0; i < take.length; i++) ...[
                       _PurchaseCard(
                         row: take[i],
@@ -183,9 +209,9 @@ class _PurchaseCard extends StatelessWidget {
         onTap: () => context.push('/purchase/detail/${row.purchaseId}'),
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: const Color(0xFFE2E8F0)),
           ),
           child: Column(
@@ -193,21 +219,46 @@ class _PurchaseCard extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  if (row.isStockCommitted)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Icon(
+                        Icons.local_shipping_rounded,
+                        size: 14,
+                        color: const Color(0xFF16A34A),
+                      ),
+                    )
+                  else if (row.deliveryStatus != DeliveryStatus.cancelled)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Icon(
+                        Icons.local_shipping_outlined,
+                        size: 14,
+                        color: const Color(0xFFEA580C),
+                      ),
+                    ),
                   Expanded(
                     child: Text(
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                   Text(
                     df.format(row.purchaseDate),
-                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w700),
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: Color(0xFF64748B),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: 2),
               Text(
                 [
                   if (row.humanId.trim().isNotEmpty) row.humanId,
@@ -215,15 +266,22 @@ class _PurchaseCard extends StatelessWidget {
                 ].join('  •  '),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w700),
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Row(
                 children: [
                   Expanded(
                     child: Text(
-                      '${formatStockQtyNumber(qty)} $unit',
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14),
+                      '${formatStockQtyForUnit(unit, qty)} $unit',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                   if (!hideFinancials) ...[

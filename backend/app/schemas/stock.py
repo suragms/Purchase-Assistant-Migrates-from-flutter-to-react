@@ -133,6 +133,8 @@ class StockListItemOut(BaseModel):
     barcode: str | None = None
     last_purchase_human_id: str | None = None
     last_purchase_delivered: bool | None = None
+    last_line_qty: Decimal | None = None
+    last_purchase_at: datetime | None = None
     has_pending_order: bool = False
     pending_order_days: int | None = None
     pending_delivery_qty: Decimal | None = None

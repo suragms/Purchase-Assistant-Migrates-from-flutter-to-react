@@ -212,46 +212,6 @@ class ItemStockSnapshotCard extends ConsumerWidget {
                 ),
               ),
             ],
-            const SizedBox(height: 10),
-            _summaryLine(
-              label: 'Stock in hand',
-              value: _qty(ledgerQty, unit),
-              unitLabel: unitLabel,
-              emphasized: true,
-              subtitle: updatedAt != null
-                  ? (updatedBy != null
-                      ? 'By $updatedBy · ${_timeAgo(updatedAt)}'
-                      : _timeAgo(updatedAt))
-                  : null,
-            ),
-            if (isOwner && lifetimeDelivered > 0.001) ...[
-              const SizedBox(height: 6),
-              _summaryLine(
-                label: 'Delivered to stock',
-                value: _qty(lifetimeDelivered, unit),
-                unitLabel: unitLabel,
-              ),
-            ],
-            if (isOwner && pendingDeliveryQty > 0.001) ...[
-              const SizedBox(height: 6),
-              _summaryLine(
-                label: 'Pending delivery',
-                value: _qty(pendingDeliveryQty, unit),
-                unitLabel: unitLabel,
-                valueColor: const Color(0xFFEA580C),
-                subtitle: pendingDays != null && pendingDays > 0
-                    ? 'Truck · ${pendingDays}d'
-                    : null,
-              ),
-            ],
-            if (!isStaff && hasPhysicalCount) ...[
-              const SizedBox(height: 6),
-              _summaryLine(
-                label: 'Physical count',
-                value: physicalQty > 0.001 ? _qty(physicalQty, unit) : '—',
-                unitLabel: unitLabel,
-              ),
-            ],
             if (isOwner) ...[
               Align(
                 alignment: Alignment.centerRight,

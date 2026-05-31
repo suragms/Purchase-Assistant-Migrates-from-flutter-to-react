@@ -20,6 +20,10 @@ String _apiDate(DateTime d) =>
       ),
     AppPeriod.week => (from: now.subtract(const Duration(days: 7)), to: now),
     AppPeriod.month => (from: DateTime(now.year, now.month, 1), to: now),
+    AppPeriod.quarter => (
+        from: DateTime(now.year, now.month - ((now.month - 1) % 3), 1),
+        to: now,
+      ),
     AppPeriod.year => (from: DateTime(now.year, 1, 1), to: now),
     AppPeriod.allTime => (from: DateTime(1970, 1, 1), to: DateTime(2099, 12, 31)),
     AppPeriod.custom => (from: now, to: now),
@@ -32,7 +36,7 @@ String appPeriodApiDateFrom(Ref ref, AppPeriod period) =>
 String appPeriodApiDateTo(Ref ref, AppPeriod period) =>
     _apiDate(appPeriodDateRange(ref, period).to);
 
-enum AppPeriod { today, week, month, year, allTime, custom }
+enum AppPeriod { today, week, month, quarter, year, allTime, custom }
 
 final appSelectedPeriodProvider = StateProvider<AppPeriod>(
   (ref) => AppPeriod.month,
@@ -44,6 +48,7 @@ extension AppPeriodX on AppPeriod {
         AppPeriod.today => 'Today',
         AppPeriod.week => 'Week',
         AppPeriod.month => 'Month',
+        AppPeriod.quarter => 'Quarter',
         AppPeriod.year => 'Year',
         AppPeriod.allTime => 'All time',
         AppPeriod.custom => 'Custom',

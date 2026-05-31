@@ -25,6 +25,7 @@ import 'low_stock_providers.dart';
 import 'staff_home_providers.dart';
 import 'stock_providers.dart';
 import '../../features/purchase/providers/trade_purchase_detail_provider.dart';
+import '../models/trade_purchase_models.dart';
 import 'server_notifications_provider.dart';
 import 'warehouse_alerts_provider.dart';
 
@@ -100,19 +101,48 @@ void invalidateWorkspaceSeedData(dynamic ref) {
   bumpBusinessDataWriteRevision(ref);
 }
 
+/// Catalog item ids linked on a purchase (for targeted cache bust after delete).
+Set<String> catalogItemIdsFromPurchase(TradePurchase purchase) => {
+      for (final ln in purchase.lines)
+        if ((ln.catalogItemId ?? '').trim().isNotEmpty) ln.catalogItemId!.trim(),
+    };
+
+/// After soft-delete: bust stock, item detail, delivery pipeline, and aggregates.
+void invalidateAfterPurchaseDelete(
+  dynamic ref, {
+  TradePurchase? purchase,
+  String? purchaseId,
+  Iterable<String> extraItemIds = const [],
+}) {
+  final ids = {
+    if (purchase != null) ...catalogItemIdsFromPurchase(purchase),
+    ...extraItemIds.where((id) => id.trim().isNotEmpty),
+  };
+  invalidateWarehouseSurfacesLight(ref);
+  for (final id in ids) {
+    invalidateWarehouseSurfacesLight(ref, itemId: id);
+  }
+  emitBusinessWriteEvent(ref, kind: 'purchase', affectedItemIds: ids);
+  invalidateBusinessAggregates(ref);
+  final pid = purchase?.id ?? purchaseId;
+  if (pid != null && pid.isNotEmpty) {
+    ref.invalidate(tradePurchaseDetailProvider(pid));
+  }
+  ref.invalidate(deliveryPipelineProvider);
+  ref.invalidate(staffPendingDeliveriesProvider);
+  invalidateTradePurchaseCaches(ref);
+}
+
 /// Purchase mutations: warehouse lists + financial aggregates (debounced).
 void invalidatePurchaseWorkspace(
   dynamic ref, {
   Set<String>? affectedItemIds,
 }) {
   final ids = affectedItemIds ?? const <String>{};
-  if (ids.isEmpty) {
-    invalidateWarehouseSurfacesLight(ref);
-  } else {
-    for (final id in ids) {
-      if (id.isEmpty) continue;
-      invalidateWarehouseSurfacesLight(ref, itemId: id);
-    }
+  invalidateWarehouseSurfacesLight(ref);
+  for (final id in ids) {
+    if (id.isEmpty) continue;
+    invalidateWarehouseSurfacesLight(ref, itemId: id);
   }
   emitBusinessWriteEvent(ref, kind: 'purchase', affectedItemIds: ids);
   invalidateBusinessAggregates(ref);

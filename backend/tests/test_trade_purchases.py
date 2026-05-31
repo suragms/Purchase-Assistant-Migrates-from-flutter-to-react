@@ -918,6 +918,46 @@ def test_staff_cannot_edit_payment_but_can_receive_delivery_without_financials()
     assert commit.status_code == 403, commit.text
 
 
+def test_delete_clears_catalog_last_trade_snapshot():
+    h, bid = _register_and_business()
+    sid = _supplier_id(h, bid)
+    iid = _catalog_item_id(h, bid)
+    cr = client.post(
+        f"/v1/businesses/{bid}/trade-purchases",
+        headers=h,
+        json={
+            "purchase_date": date.today().isoformat(),
+            "status": "confirmed",
+            "supplier_id": sid,
+            "lines": [_line_body(iid)],
+        },
+    )
+    assert cr.status_code == 201, cr.text
+    pid = cr.json()["id"]
+    item_before = client.get(f"/v1/businesses/{bid}/catalog-items/{iid}", headers=h)
+    assert item_before.status_code == 200, item_before.text
+    assert item_before.json().get("last_trade_purchase_id") == pid
+
+    dr = client.delete(f"/v1/businesses/{bid}/trade-purchases/{pid}", headers=h)
+    assert dr.status_code == 204, dr.text
+
+    item_after = client.get(f"/v1/businesses/{bid}/catalog-items/{iid}", headers=h)
+    assert item_after.status_code == 200, item_after.text
+    assert item_after.json().get("last_trade_purchase_id") in (None, "")
+
+    stock = client.get(
+        f"/v1/businesses/{bid}/stock/list",
+        headers=h,
+        params={"q": "Test rice"},
+    )
+    assert stock.status_code == 200, stock.text
+    rows = stock.json().get("items") or []
+    row = next((r for r in rows if r.get("id") == iid), None)
+    assert row is not None
+    assert row.get("has_pending_order") is not True
+    assert row.get("last_purchase_human_id") in (None, "")
+
+
 def test_stock_period_purchased_counts_only_delivered_purchase_lines():
     h, bid = _register_and_business()
     sid = _supplier_id(h, bid)

@@ -176,10 +176,19 @@ async def _last_trade_meta_map(
         select(
             TradePurchase.id,
             TradePurchase.human_id,
-            TradePurchase.is_delivered,
-        ).where(TradePurchase.id.in_(tp_ids))
+            TradePurchase.delivery_status,
+        ).where(
+            TradePurchase.id.in_(tp_ids),
+            TradePurchase.status.notin_(("deleted", "cancelled")),
+        )
     )
-    by_tp = {row[0]: (row[1], row[2]) for row in r.all()}
+    by_tp = {
+        row[0]: (
+            row[1],
+            (row[2] or "").strip().lower() == "stock_committed",
+        )
+        for row in r.all()
+    }
     out: dict[uuid.UUID, tuple[str | None, bool | None]] = {}
     for item in items:
         tid = item.last_trade_purchase_id
@@ -207,6 +216,8 @@ def _item_to_list_row(
     is_perishable: bool = False,
     last_purchase_human_id: str | None = None,
     last_purchase_delivered: bool | None = None,
+    last_line_qty: Decimal | None = None,
+    last_purchase_at: datetime | None = None,
     has_pending_order: bool = False,
     pending_order_days: int | None = None,
     pending_delivery_qty: Decimal | None = None,
@@ -276,6 +287,8 @@ def _item_to_list_row(
         barcode=getattr(item, "barcode", None),
         last_purchase_human_id=last_purchase_human_id,
         last_purchase_delivered=last_purchase_delivered,
+        last_line_qty=last_line_qty,
+        last_purchase_at=last_purchase_at,
         has_pending_order=has_pending_order,
         pending_order_days=pending_order_days,
         pending_delivery_qty=pending_delivery_qty,
@@ -1254,6 +1267,7 @@ async def list_stock(
         sup = sup_map.get(item.id)
         meta = trade_meta.get(item.id, (None, None))
         pend = pending_meta.get(item.id, (False, None, None))
+        valid_last_trade = meta[0] is not None
         phys = physical_meta.get(item.id)
         purchased = period_map.get(item.id) if include_period else None
         usage = period_usage_map.get(item.id) if include_period else None
@@ -1295,6 +1309,12 @@ async def list_stock(
                 is_perishable=perishable,
                 last_purchase_human_id=meta[0],
                 last_purchase_delivered=meta[1],
+                last_line_qty=getattr(item, "last_line_qty", None)
+                if valid_last_trade
+                else None,
+                last_purchase_at=getattr(item, "last_purchase_at", None)
+                if valid_last_trade
+                else None,
                 has_pending_order=pend[0],
                 pending_order_days=pend[1],
                 pending_delivery_qty=pend[2],
