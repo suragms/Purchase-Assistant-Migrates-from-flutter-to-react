@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
+import '../../../../core/utils/unit_utils.dart';
 import 'stock_row_metrics.dart';
 import 'stock_table_layout.dart';
 
@@ -39,6 +40,10 @@ class StockWarehouseRow extends StatelessWidget {
     final diff = StockRowMetrics.diffQty(item);
     final deliveryCue = StockRowMetrics.inlineDeliveryCue(item);
     final activityMeta = StockRowMetrics.lastActivityMetaLine(item);
+    final pendingQty = StockRowMetrics.pendingDeliveryQty(item) ?? 0;
+    final pendingLine = pendingQty > 0.001
+        ? 'Pending ${formatStockQtyForUnit(StockRowMetrics.unit(item), pendingQty)} ${StockRowMetrics.unit(item)}'
+        : '';
 
     final metaLine = activityMeta ??
         (sub.isNotEmpty
@@ -113,26 +118,48 @@ class StockWarehouseRow extends StatelessWidget {
                               height: 1.12,
                             ),
                           ),
-                          if (deliveryCue != null || metaLine.isNotEmpty)
+                          if (deliveryCue != null || metaLine.isNotEmpty || pendingLine.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 2),
-                              child: Row(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  if (deliveryCue != null) ...[
-                                    deliveryCue,
-                                    if (metaLine.isNotEmpty)
-                                      const SizedBox(width: 6),
-                                  ],
-                                  if (metaLine.isNotEmpty)
-                                    Expanded(
-                                      child: Text(
-                                        metaLine,
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: HexaDsType.label(9).copyWith(
-                                          color: const Color(0xFF64748B),
-                                          height: 1.1,
-                                        ),
+                                  if (pendingLine.isNotEmpty)
+                                    Text(
+                                      pendingLine,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: HexaDsType.label(9).copyWith(
+                                        color: const Color(0xFF7C3AED),
+                                        fontWeight: FontWeight.w800,
+                                        height: 1.1,
+                                      ),
+                                    ),
+                                  if (deliveryCue != null || metaLine.isNotEmpty)
+                                    Padding(
+                                      padding: EdgeInsets.only(
+                                        top: pendingLine.isNotEmpty ? 2 : 0,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          if (deliveryCue != null) ...[
+                                            deliveryCue,
+                                            if (metaLine.isNotEmpty)
+                                              const SizedBox(width: 6),
+                                          ],
+                                          if (metaLine.isNotEmpty)
+                                            Expanded(
+                                              child: Text(
+                                                metaLine,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: HexaDsType.label(9).copyWith(
+                                                  color: const Color(0xFF64748B),
+                                                  height: 1.1,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
                                       ),
                                     ),
                                 ],

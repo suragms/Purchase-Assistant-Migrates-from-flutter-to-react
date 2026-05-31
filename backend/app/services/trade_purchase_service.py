@@ -1617,6 +1617,9 @@ async def verify_trade_purchase_delivery(
         total_received += recv
         total_damaged += _dec(line.damaged_qty)
         total_return += _dec(line.return_qty)
+        row.received_qty = dp.qty(recv) if recv > 0 else dp.qty(Decimal(0))
+        row.damaged_qty = dp.qty(_dec(line.damaged_qty))
+        row.return_qty = dp.qty(_dec(line.return_qty))
         if recv < ordered:
             short = True
 
@@ -1651,13 +1654,44 @@ async def verify_trade_purchase_delivery(
     bump_trade_read_caches_for_business(business_id)
     from app.services.notification_emitter import PRIORITY_INFO
 
+    committed_out: TradePurchaseOut | None = None
+    try:
+        committed_out = await commit_trade_purchase_delivery(
+            db, business_id, purchase_id, user
+        )
+    except ValueError:
+        committed_out = None
+
+    if committed_out is not None and committed_out.delivery_status == "stock_committed":
+        await _emit_delivery_notification(
+            db,
+            business_id=business_id,
+            tp=tp,
+            kind="delivery_verified",
+            title=f"Verified: {tp.human_id}",
+            body=f"{tp.staff_verified_by_name} verified receipt — system stock updated",
+            priority=PRIORITY_INFO,
+            dedupe_key=f"delivery_verified:{purchase_id}",
+        )
+        await _emit_delivery_notification(
+            db,
+            business_id=business_id,
+            tp=tp,
+            kind="delivery_received",
+            title=f"Stock updated: {tp.human_id}",
+            body="Verified quantities added to warehouse system stock",
+            priority=PRIORITY_INFO,
+            dedupe_key=f"delivery_received:{purchase_id}",
+        )
+        return committed_out
+
     await _emit_delivery_notification(
         db,
         business_id=business_id,
         tp=tp,
         kind="delivery_verified",
         title=f"Verified: {tp.human_id}",
-        body=f"{tp.staff_verified_by_name} verified warehouse receipt — owner can commit to stock",
+        body=f"{tp.staff_verified_by_name} verified warehouse receipt — stock will sync when units are set",
         priority=PRIORITY_INFO,
         dedupe_key=f"delivery_verified:{purchase_id}",
     )
@@ -1667,7 +1701,7 @@ async def verify_trade_purchase_delivery(
         tp=tp,
         kind="delivery_ready_to_commit",
         title=f"Ready to commit: {tp.human_id}",
-        body="Staff verified delivery — commit to stock when ready",
+        body="Staff verified delivery — retry commit from purchase detail if stock did not update",
         priority=PRIORITY_INFO,
         dedupe_key=f"delivery_ready_to_commit:{purchase_id}",
     )

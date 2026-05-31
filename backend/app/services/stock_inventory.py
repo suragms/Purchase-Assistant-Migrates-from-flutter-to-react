@@ -171,6 +171,39 @@ async def compute_inventory_summary(
     }
 
 
+def line_qty_for_stock_commit(line: Any, item: CatalogItem) -> Decimal:
+    """Qty to add on delivery commit — uses staff [received_qty] when set."""
+    recv = getattr(line, "received_qty", None)
+    if recv is not None:
+        recv_d = Decimal(str(recv))
+        if recv_d <= 0:
+            return Decimal(0)
+        ordered_d = Decimal(getattr(line, "qty", 0) or 0)
+        snap = getattr(line, "qty_in_stock_unit", None)
+        if snap is not None and ordered_d > 0:
+            from decimal import ROUND_HALF_UP
+
+            return (Decimal(str(snap)) * recv_d / ordered_d).quantize(
+                Decimal("0.001"), rounding=ROUND_HALF_UP
+            )
+        class _RecvLine:
+            pass
+
+        proxy = _RecvLine()
+        proxy.qty = recv_d
+        for attr in (
+            "unit",
+            "item_name",
+            "kg_per_unit",
+            "weight_per_unit",
+            "total_weight",
+            "qty_in_stock_unit",
+        ):
+            setattr(proxy, attr, getattr(line, attr, None))
+        return line_qty_in_stock_unit(proxy, item)
+    return line_qty_in_stock_unit(line, item)
+
+
 async def _qty_by_catalog_item(
     db: AsyncSession,
     business_id: uuid.UUID,
@@ -202,8 +235,8 @@ async def _qty_by_catalog_item_with_skips(
         item = items.get(cid_u)
         if not item:
             continue
-        raw_qty = Decimal(getattr(li, "qty", 0) or 0)
-        qty = line_qty_in_stock_unit(li, item)
+        raw_qty = Decimal(getattr(li, "received_qty", None) or getattr(li, "qty", 0) or 0)
+        qty = line_qty_for_stock_commit(li, item)
         if raw_qty > 0 and qty <= 0:
             skipped.append(
                 {

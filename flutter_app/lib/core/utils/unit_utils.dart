@@ -40,8 +40,7 @@ bool isKgStockUnit(String? unit) {
 String formatStockQtyForUnit(String? unit, double n) {
   if (!n.isFinite) return '—';
   if (isKgStockUnit(unit)) {
-    final s = n.toStringAsFixed(2);
-    return s.endsWith('0') ? s.substring(0, s.length - 1) : s;
+    return formatStockQtyNumber(n);
   }
   return formatStockQtyNumber(n);
 }

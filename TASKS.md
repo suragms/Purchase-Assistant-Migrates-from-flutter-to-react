@@ -13,6 +13,7 @@
 - [x] **Home blank after Reports tab (2026-05-31):** sync `shellCurrentBranchProvider` with shell index same frame; refresh dashboard on tab return; skip realtime poll after 401
 - [x] **Prod 401 request storm + blank Home (2026-05-31):** `providerSkipApi` on home refresh/poll + notifications; stock list only when Home OOS strip or Stock tab visible; HexaApi skips refresh when session already expired; Home shows session-expired card instead of empty gray body
 - [x] **401 storm v2 (2026-05-31):** 401 burst circuit breaker (4 in 10s → stop all API); single-flight terminal logout; no off-tab Reports `/trade-purchases` fetch; shell tab switch syncs URL; Home visibility uses route fallback
+- [x] **Stock SYS column + delivery commit (2026-05-31):** Staff verify auto-commits received qty to system stock; line `received_qty` columns (047); kg/bag qty display without `.0`; violet pending qty under item row
 
 ## Master prompt FIX-1–15 (2026-05-29)
 

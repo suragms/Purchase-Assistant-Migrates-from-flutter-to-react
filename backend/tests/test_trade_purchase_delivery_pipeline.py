@@ -1,4 +1,4 @@
-"""Delivery pipeline: staff verify must not commit stock; owner commit-stock only."""
+"""Delivery pipeline: staff verify auto-commits stock; manual commit-stock is idempotent."""
 
 import uuid
 from decimal import Decimal
@@ -93,11 +93,15 @@ def _arrive_and_verify(h, bid, pid, line_id: str, qty: str = "10"):
         },
     )
     assert ver.status_code == 200, ver.text
-    assert ver.json()["delivery_status"] in ("staff_verified", "partial")
+    assert ver.json()["delivery_status"] in (
+        "staff_verified",
+        "partial",
+        "stock_committed",
+    )
     return ver.json()
 
 
-def test_verify_does_not_increment_stock():
+def test_verify_auto_commits_stock():
     h, bid = _register_owner()
     iid, sup = _setup_item(h, bid)
     p = _create_purchase(h, bid, iid, sup)
@@ -106,10 +110,11 @@ def test_verify_does_not_increment_stock():
     stock0 = client.get(f"/v1/businesses/{bid}/stock/{iid}", headers=h)
     assert Decimal(str(stock0.json()["current_stock"])) == Decimal("0")
 
-    _arrive_and_verify(h, bid, pid, line_id)
+    body = _arrive_and_verify(h, bid, pid, line_id)
+    assert body["delivery_status"] == "stock_committed"
 
     stock1 = client.get(f"/v1/businesses/{bid}/stock/{iid}", headers=h)
-    assert Decimal(str(stock1.json()["current_stock"])) == Decimal("0")
+    assert Decimal(str(stock1.json()["current_stock"])) == Decimal("10")
 
 
 def test_commit_stock_increments_once():
@@ -119,6 +124,9 @@ def test_commit_stock_increments_once():
     pid, line_id = p["id"], p["lines"][0]["id"]
     _arrive_and_verify(h, bid, pid, line_id)
 
+    stock = client.get(f"/v1/businesses/{bid}/stock/{iid}", headers=h)
+    assert Decimal(str(stock.json()["current_stock"])) == Decimal("10")
+
     c1 = client.post(
         f"/v1/businesses/{bid}/trade-purchases/{pid}/commit-stock",
         headers=h,
@@ -126,7 +134,7 @@ def test_commit_stock_increments_once():
     assert c1.status_code == 200, c1.text
     assert c1.json()["delivery_status"] == "stock_committed"
     assert c1.json()["is_delivered"] is True
-    assert len(c1.json().get("stock_updates") or []) == 1
+    assert (c1.json().get("stock_updates") or []) == []
 
     c2 = client.post(
         f"/v1/businesses/{bid}/trade-purchases/{pid}/commit-stock",
@@ -179,7 +187,25 @@ def _staff_headers(owner_h, bid):
     return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
-def test_staff_cannot_commit_stock():
+def test_staff_cannot_commit_stock_before_verify():
+    owner_h, bid = _register_owner()
+    staff_h = _staff_headers(owner_h, bid)
+    iid, sup = _setup_item(owner_h, bid)
+    p = _create_purchase(owner_h, bid, iid, sup)
+    pid = p["id"]
+    client.post(
+        f"/v1/businesses/{bid}/trade-purchases/{pid}/arrive",
+        headers=staff_h,
+        json={},
+    )
+    r = client.post(
+        f"/v1/businesses/{bid}/trade-purchases/{pid}/commit-stock",
+        headers=staff_h,
+    )
+    assert r.status_code in (400, 403), r.text
+
+
+def test_staff_verify_commits_system_stock():
     owner_h, bid = _register_owner()
     staff_h = _staff_headers(owner_h, bid)
     iid, sup = _setup_item(owner_h, bid)
@@ -190,7 +216,7 @@ def test_staff_cannot_commit_stock():
         headers=staff_h,
         json={},
     )
-    client.post(
+    ver = client.post(
         f"/v1/businesses/{bid}/trade-purchases/{pid}/verify",
         headers=staff_h,
         json={
@@ -204,11 +230,10 @@ def test_staff_cannot_commit_stock():
             ]
         },
     )
-    r = client.post(
-        f"/v1/businesses/{bid}/trade-purchases/{pid}/commit-stock",
-        headers=staff_h,
-    )
-    assert r.status_code == 403, r.text
+    assert ver.status_code == 200, ver.text
+    assert ver.json()["delivery_status"] == "stock_committed"
+    stock = client.get(f"/v1/businesses/{bid}/stock/{iid}", headers=owner_h)
+    assert Decimal(str(stock.json()["current_stock"])) == Decimal("10")
 
 
 def test_dispatch_and_pipeline_counts():

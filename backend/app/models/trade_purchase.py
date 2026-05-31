@@ -139,6 +139,9 @@ class TradePurchaseLine(Base):
     # Snapshot or override; falls back to catalog item_code in API when unset.
     item_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
     description: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    received_qty: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
+    damaged_qty: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
+    return_qty: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
 
     purchase = relationship("TradePurchase", back_populates="lines")
     catalog_item = relationship("CatalogItem", foreign_keys=[catalog_item_id], lazy="selectin")

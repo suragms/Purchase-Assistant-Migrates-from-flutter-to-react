@@ -23,8 +23,8 @@ from app.services.trade_purchase_service import commit_trade_purchase_delivery
 async def run(*, business_id: uuid.UUID | None, dry_run: bool) -> None:
     async with async_session_maker() as db:
         q = select(TradePurchase).where(
-            TradePurchase.is_delivered.is_(True),
-            TradePurchase.delivery_status == "stock_committed",
+            TradePurchase.delivery_status.in_(("staff_verified", "partial", "stock_committed")),
+            TradePurchase.status.notin_(("cancelled", "deleted")),
         )
         if business_id:
             q = q.where(TradePurchase.business_id == business_id)
