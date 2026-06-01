@@ -699,13 +699,18 @@ class _StockPageState extends ConsumerState<StockPage>
       body = const ListSkeleton(rowCount: 12);
     } else if (listAsync.hasError && data == null) {
       final err = listAsync.error;
+      final blocked = err is StockListFetchBlockedException
+          ? err.reason
+          : null;
       final isAuth = isStockListAuthFailure(err) ||
           (err is DioException && err.response?.statusCode == 401);
       body = FriendlyLoadError(
         message: isAuth ? 'Sign in to load stock' : 'Unable to load stock',
         subtitle: isAuth
             ? 'Warehouse list needs a valid session. Sign in and try again.'
-            : null,
+            : blocked == 'tab_not_visible'
+                ? 'Stock list paused while another tab is open. Switch back to Stock and tap Retry.'
+                : null,
         onRetry: () {
           if (isAuth) {
             ref.read(authApiGateProvider.notifier).reset();

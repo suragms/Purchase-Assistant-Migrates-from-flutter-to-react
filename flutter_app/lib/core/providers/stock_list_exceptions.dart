@@ -9,6 +9,15 @@ class StockListFetchBlockedException implements Exception {
 }
 
 bool isStockListAuthFailure(Object? error) {
-  if (error is StockListFetchBlockedException) return true;
-  return false;
+  if (error is! StockListFetchBlockedException) return false;
+  switch (error.reason) {
+    case 'no_session':
+    case 'api_gate':
+    case 'business_mismatch':
+      return true;
+    case 'tab_not_visible':
+      return false;
+    default:
+      return false;
+  }
 }

@@ -10,6 +10,7 @@ import '../auth/session_notifier.dart'
     show activeSessionProvider, hexaApiProvider;
 import 'stock_list_exceptions.dart';
 import '../../features/shell/shell_branch_provider.dart';
+import '../../features/staff/staff_shell_branch_provider.dart';
 import '../json_coerce.dart';
 import '../utils/stock_audit_rows.dart';
 import 'analytics_kpi_provider.dart' show analyticsDateRangeProvider;
@@ -135,10 +136,16 @@ const kHomeOutOfStockListQuery = StockListQuery(
   sort: 'stock_asc',
 );
 
-/// Stock list API only when Stock tab is visible, or Home needs the OOS strip query.
+bool _stockOwnerOrStaffTabVisible(Ref ref) {
+  if (shellBranchIsVisible(ref, ShellBranch.stock)) return true;
+  if (staffShellBranchIsVisible(ref, StaffShellBranch.stock)) return true;
+  return false;
+}
+
+/// Stock list API when owner/staff Stock tab is visible, or Home OOS strip query.
 bool _stockListFetchAllowed(Ref ref, StockListQuery query) {
   if (providerSkipApi(ref)) return false;
-  if (shellBranchIsVisible(ref, ShellBranch.stock)) return true;
+  if (_stockOwnerOrStaffTabVisible(ref)) return true;
   return shellBranchIsVisible(ref, ShellBranch.home) &&
       query == kHomeOutOfStockListQuery;
 }
@@ -525,8 +532,8 @@ final stockStatusCountsProvider =
   if (providerSkipApi(ref)) {
     throw const StockListFetchBlockedException('api_gate');
   }
-  if (!shellBranchIsVisible(ref, ShellBranch.home) &&
-      !shellBranchIsVisible(ref, ShellBranch.stock)) {
+  if (!_stockOwnerOrStaffTabVisible(ref) &&
+      !shellBranchIsVisible(ref, ShellBranch.home)) {
     return {};
   }
   final session = ref.watch(activeSessionProvider);

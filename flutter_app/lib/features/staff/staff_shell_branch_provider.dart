@@ -14,3 +14,7 @@ abstract final class StaffShellBranch {
 final staffShellCurrentBranchProvider = StateProvider<int>(
   (ref) => StaffShellBranch.home,
 );
+
+/// Whether [branch] is the active staff IndexedStack tab.
+bool staffShellBranchIsVisible(Ref ref, int branch) =>
+    ref.watch(staffShellCurrentBranchProvider) == branch;

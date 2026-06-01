@@ -12,6 +12,7 @@
 - [x] Hub `/catalog/taxonomy` — staff + owner; chips + list + quick bottom sheet
 - [x] Sheet: category + optional subcategory, or subcategory under existing category (API: `item_categories`, `category_types`)
 - [x] Entry: Settings, staff Home **Categories** tool, Catalog app bar + FAB sheet
+- [x] Staff `/staff/stock`: allow stock list fetch on staff shell tab (was blocked → false "Sign in" error)
 - [ ] Deploy Flutter web so staff can use without full catalog access
 
 ## Stock Changes / Movement / Today tabs (2026-06-01)
