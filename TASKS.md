@@ -57,6 +57,8 @@
 
 - [x] Purchases API: `created_by_name`, resolve `staff_verified_by_name` (user join + delivery notes + commit actor)
 - [x] Activity UI: Entered by + Verified by columns; tap row → detail sheet with staff names
+- [x] Activity feed: dedupe purchase vs stock-commit audit rows; format audit deltas with unit labels; misc purchase line units (not bare numbers)
+- [x] Warehouse activity page: stop Home-tab poll/resume from invalidating full feed; no session-watch refetch loop; keep previous rows while reloading
 
 ## Bulk PDF + scan stock (2026-06-01)
 

@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
+import '../../../../core/utils/home_activity_units.dart';
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../purchase/presentation/purchase_home_page.dart'
     show formatPurchaseHumanDate;
@@ -229,7 +230,10 @@ class _DeliveryLayout extends StatelessWidget {
     final bill = item.humanId?.trim();
     final leftTitle = bill != null && bill.isNotEmpty ? bill : item.title;
     final dateLabel = DateFormat('d MMM yyyy').format(item.at);
-    final units = item.unitsLine ?? item.qtyChange ?? '—';
+    final units = warehouseActivityDeliveryUnitsLabel(
+      unitsLine: item.unitsLine,
+      qtyChange: item.qtyChange,
+    );
     final entered = item.createdBy ?? item.actor;
     final verifier = (item.verifiedBy ?? '').trim();
     final verifierLabel =

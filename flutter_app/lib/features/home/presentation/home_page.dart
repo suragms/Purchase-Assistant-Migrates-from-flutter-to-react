@@ -26,7 +26,6 @@ import '../../../core/providers/home_owner_dashboard_providers.dart'
     show
         homeInventorySummaryProvider,
         homeRecentActivityFeedProvider,
-        homeWarehouseActivityFullProvider,
         homeStockAttentionCountProvider,
         stockAlertCountsProvider,
         stockAuditPeriodProvider,
@@ -70,6 +69,12 @@ bool _homeShellTabVisible(WidgetRef ref, BuildContext context) {
   // Fallback when shell index and GoRouter location desync (common on web back).
   final path = GoRouterState.of(context).uri.path;
   return path == '/home' || path.startsWith('/home/');
+}
+
+/// Owner dashboard root only — not Warehouse activity / breakdown sub-routes.
+bool _isHomeDashboardRoot(BuildContext context) {
+  final path = GoRouterState.of(context).uri.path;
+  return path == '/home';
 }
 
 /// Harisree owner/admin home — purchase-first warehouse control center.
@@ -125,6 +130,8 @@ class _HomePageState extends ConsumerState<HomePage>
       if (!mounted) return;
       if (providerSkipApi(ref)) return;
       if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) return;
+      // Home stays mounted under /home/activity — do not bust full activity feed.
+      if (!_isHomeDashboardRoot(context)) return;
       if (!force && _throttleHomeInvalidate()) return;
       if (alertsOnly) {
         _invalidateAlertProviders();
@@ -145,7 +152,6 @@ class _HomePageState extends ConsumerState<HomePage>
     ref.invalidate(homeDashboardDataProvider);
     ref.invalidate(homeInventorySummaryProvider);
     ref.invalidate(homeRecentActivityFeedProvider);
-    ref.invalidate(homeWarehouseActivityFullProvider);
     ref.invalidate(stockLowTopHomeProvider);
     ref.invalidate(lowStockByCategoryProvider);
     ref.invalidate(stockVariancesTodayProvider);
@@ -172,6 +178,8 @@ class _HomePageState extends ConsumerState<HomePage>
         return;
       }
       if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) return;
+      if (!_isHomeDashboardRoot(context)) return;
+      if (!shouldSoftRefreshHomeSurfaces(_homeLastRefreshedAt)) return;
       _scheduleRefresh();
     });
   }
@@ -275,10 +283,8 @@ class _HomePageState extends ConsumerState<HomePage>
     }
     if (s != AppLifecycleState.resumed) return;
     if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) return;
-    final last = _homeLastRefreshedAt;
-    if (last != null && DateTime.now().difference(last).inMinutes < 5) {
-      return;
-    }
+    if (!_isHomeDashboardRoot(context)) return;
+    if (!shouldRefreshOnShellTabReturn(_homeLastRefreshedAt)) return;
     _resumeRefreshDebounce?.cancel();
     _resumeRefreshDebounce = Timer(const Duration(milliseconds: 320), () {
       if (!mounted) {
@@ -594,7 +600,6 @@ class _HomePageState extends ConsumerState<HomePage>
     c.invalidate(stockAuditPeriodProvider);
     c.invalidate(stockVariancesTodayProvider);
     c.invalidate(homeRecentActivityFeedProvider);
-    c.invalidate(homeWarehouseActivityFullProvider);
     c.invalidate(homeDashboardDataProvider);
     c.invalidate(warehouseAlertsProvider);
   }

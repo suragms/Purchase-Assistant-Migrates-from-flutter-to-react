@@ -9,6 +9,7 @@ String purchaseUnitsSubtitleFromLines(List<dynamic> lines) {
   var boxes = 0.0;
   var tins = 0.0;
   var kg = 0.0;
+  final miscUnits = <String, double>{};
   for (final raw in lines) {
     if (raw is! Map) continue;
     final m = Map<String, dynamic>.from(raw);
@@ -34,16 +35,38 @@ String purchaseUnitsSubtitleFromLines(List<dynamic> lines) {
       } else {
         final kpu = coerceToDoubleNullable(m['kg_per_unit'] ??
             m['weight_per_unit']);
-        if (kpu != null && kpu > 0) kg += qty * kpu;
+        if (kpu != null && kpu > 0) {
+          kg += qty * kpu;
+        } else {
+          final rawUnit = (m['unit'] ?? '').toString().trim();
+          if (rawUnit.isNotEmpty) {
+            final key = rawUnit.toLowerCase();
+            miscUnits[key] = (miscUnits[key] ?? 0) + qty;
+          }
+        }
       }
     }
   }
-  return purchaseUnitsSubtitleFromMap({
+  final base = purchaseUnitsSubtitleFromMap({
     'total_bags': bags,
     'total_boxes': boxes,
     'total_tins': tins,
     'total_kg': kg,
   });
+  if (base.isNotEmpty) {
+    if (miscUnits.isEmpty) return base;
+    final extra = miscUnits.entries
+        .map(
+          (e) =>
+              '${homeFmtQty(e.value)} ${e.key.toUpperCase()}',
+        )
+        .join(' · ');
+    return '$base · $extra';
+  }
+  if (miscUnits.isEmpty) return '';
+  return miscUnits.entries
+      .map((e) => '${homeFmtQty(e.value)} ${e.key.toUpperCase()}')
+      .join(' · ');
 }
 
 /// Compact bags · boxes · tins · kg line for report/home breakdown rows.
@@ -69,7 +92,6 @@ String purchaseUnitsSubtitleFromMap(Map<String, dynamic> m) {
   if (qty > 0 && unit.isNotEmpty) {
     return '${homeFmtQty(qty)} ${unit.toUpperCase()}';
   }
-  if (qty > 0) return homeFmtQty(qty);
   return '';
 }
 

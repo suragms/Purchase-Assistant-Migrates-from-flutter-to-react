@@ -7,7 +7,7 @@ import '../api/hexa_api.dart';
 import '../auth/session_notifier.dart' show activeSessionProvider, hexaApiProvider;
 import '../json_coerce.dart';
 import '../utils/stock_audit_rows.dart';
-import '../utils/purchase_units_subtitle.dart';
+import '../utils/home_activity_units.dart';
 import 'stock_providers.dart'
     show lowStockByCategoryProvider, stockStatusCountsProvider;
 import 'home_breakdown_tab_providers.dart';
@@ -360,8 +360,39 @@ class HomeActivityItem {
 
   bool get isPurchaseDelivery =>
       kind == 'delivery_verified' ||
-      kind == 'purchase' ||
       title.startsWith('Delivery committed');
+
+  HomeActivityItem copyWith({
+    String? kind,
+    String? title,
+    String? subtitle,
+    DateTime? at,
+    double? amountInr,
+    String? routeId,
+    String? actor,
+    String? createdBy,
+    String? qtyChange,
+    String? humanId,
+    String? unitsLine,
+    String? verifiedBy,
+    String? supplierName,
+  }) {
+    return HomeActivityItem(
+      kind: kind ?? this.kind,
+      title: title ?? this.title,
+      subtitle: subtitle ?? this.subtitle,
+      at: at ?? this.at,
+      amountInr: amountInr ?? this.amountInr,
+      routeId: routeId ?? this.routeId,
+      actor: actor ?? this.actor,
+      createdBy: createdBy ?? this.createdBy,
+      qtyChange: qtyChange ?? this.qtyChange,
+      humanId: humanId ?? this.humanId,
+      unitsLine: unitsLine ?? this.unitsLine,
+      verifiedBy: verifiedBy ?? this.verifiedBy,
+      supplierName: supplierName ?? this.supplierName,
+    );
+  }
 }
 
 /// Group label + items for the recent-changes section.
@@ -453,16 +484,6 @@ String _activityTitleFromAdjustment(String? adjustmentType, String itemName) {
   return (humanId: humanId, purchaseId: purchaseId);
 }
 
-String? _purchaseUnitsLine(Map<String, dynamic> p) {
-  final linesRaw = p['lines'];
-  if (linesRaw is List && linesRaw.isNotEmpty) {
-    final line = purchaseUnitsSubtitleFromLines(linesRaw);
-    if (line.isNotEmpty) return line;
-  }
-  final fromMap = purchaseUnitsSubtitleFromMap(p);
-  return fromMap.isNotEmpty ? fromMap : null;
-}
-
 String? _purchaseCreatedBy(Map<String, dynamic> p) {
   for (final key in ['created_by_name', 'user_name', 'staff_name']) {
     final v = p[key]?.toString().trim();
@@ -486,13 +507,88 @@ String? _purchaseVerifiedBy(Map<String, dynamic> p) {
   return null;
 }
 
+void _enrichPurchaseActivityFromAudit(
+  List<HomeActivityItem> items,
+  String purchaseId,
+  Map<String, dynamic> audit,
+) {
+  final idx = items.indexWhere((i) => i.routeId == purchaseId);
+  if (idx < 0) return;
+  final existing = items[idx];
+  final verified = audit['updated_by_name']?.toString().trim();
+  final units = stockAuditActivityUnitsLine(audit);
+  items[idx] = existing.copyWith(
+    verifiedBy: (existing.verifiedBy?.trim().isNotEmpty == true)
+        ? existing.verifiedBy
+        : (verified != null && verified.isNotEmpty ? verified : null),
+    unitsLine: (existing.unitsLine?.trim().isNotEmpty == true)
+        ? existing.unitsLine
+        : units,
+  );
+}
+
+HomeActivityItem _mergeDeliveryActivityGroup(List<HomeActivityItem> group) {
+  if (group.length == 1) return group.single;
+  group.sort((a, b) => b.at.compareTo(a.at));
+  var best = group.first;
+  for (final g in group) {
+    if (warehouseActivityRowScore(
+          unitsLine: g.unitsLine,
+          verifiedBy: g.verifiedBy,
+          amountInr: g.amountInr,
+          supplierName: g.supplierName,
+        ) >
+        warehouseActivityRowScore(
+          unitsLine: best.unitsLine,
+          verifiedBy: best.verifiedBy,
+          amountInr: best.amountInr,
+          supplierName: best.supplierName,
+        )) {
+      best = g;
+    }
+  }
+  final unitParts = <String>{};
+  for (final g in group) {
+    final u = g.unitsLine?.trim();
+    if (u != null && u.isNotEmpty) unitParts.add(u);
+  }
+  return best.copyWith(
+    unitsLine: unitParts.isEmpty ? best.unitsLine : unitParts.join(' · '),
+  );
+}
+
+List<HomeActivityItem> _collapseDuplicateDeliveryActivity(
+  List<HomeActivityItem> items,
+) {
+  final out = <HomeActivityItem>[];
+  final deliveryGroups = <String, List<HomeActivityItem>>{};
+  for (final i in items) {
+    final hid = i.humanId?.trim();
+    if (i.kind == 'delivery_verified' &&
+        hid != null &&
+        hid.isNotEmpty) {
+      deliveryGroups.putIfAbsent(hid, () => []).add(i);
+    } else {
+      out.add(i);
+    }
+  }
+  for (final group in deliveryGroups.values) {
+    out.add(_mergeDeliveryActivityGroup(group));
+  }
+  out.sort((a, b) => b.at.compareTo(a.at));
+  return out;
+}
+
 Future<List<HomeActivityItem>> _fetchHomeWarehouseActivity(
   Ref ref, {
   int purchaseLimit = 15,
   int maxItems = 15,
+  Duration feedTimeout = const Duration(seconds: 15),
 }) async {
   _providerKeepAlive(ref, const Duration(minutes: 5));
-  final session = ref.watch(activeSessionProvider);
+  // Period drives refetch; do not watch session — resume JWT refresh must not
+  // cancel/restart this fetch (caused infinite skeletons on Warehouse activity).
+  final session = ref.read(activeSessionProvider);
   if (session == null) return [];
   ref.watch(homePeriodProvider);
   ref.watch(homeCustomDateRangeProvider);
@@ -504,7 +600,6 @@ Future<List<HomeActivityItem>> _fetchHomeWarehouseActivity(
     custom: ref.read(homeCustomDateRangeProvider),
   );
 
-  const feedTimeout = Duration(seconds: 15);
   late final List<Map<String, dynamic>> purchases;
   late final List<Map<String, dynamic>> auditRows;
   late final List<Map<String, dynamic>> staffPurchases;
@@ -562,12 +657,8 @@ Future<List<HomeActivityItem>> _fetchHomeWarehouseActivity(
             'Purchase',
         actor: _purchaseCreatedBy(p),
         createdBy: _purchaseCreatedBy(p),
-        qtyChange: p['human_id']?.toString() ??
-            p['invoice_number']?.toString() ??
-            p['bill_no']?.toString() ??
-            '',
         humanId: p['human_id']?.toString(),
-        unitsLine: _purchaseUnitsLine(p),
+        unitsLine: purchaseActivityUnitsLine(p),
         verifiedBy: delivered ? _purchaseVerifiedBy(p) : null,
         supplierName: p['supplier_name']?.toString(),
         at: local,
@@ -586,12 +677,18 @@ Future<List<HomeActivityItem>> _fetchHomeWarehouseActivity(
     final itemName = a['item_name']?.toString() ?? 'Item';
     final adjType = a['adjustment_type']?.toString();
     final received = _parsePurchaseReceivedReason(a);
+    final purchaseId = received?.purchaseId?.trim();
+    if (received != null &&
+        purchaseId != null &&
+        purchaseId.isNotEmpty &&
+        seenPurchaseIds.contains(purchaseId)) {
+      _enrichPurchaseActivityFromAudit(items, purchaseId, a);
+      continue;
+    }
     final kind = received != null
         ? 'delivery_verified'
         : _activityKindFromAdjustment(adjType);
-    final oldQ = coerceToDouble(a['old_qty']);
-    final newQ = coerceToDouble(a['new_qty']);
-    final delta = a['delta_qty'] ?? a['qty_change'] ?? a['change'] ?? (newQ - oldQ);
+    final unitsLine = stockAuditActivityUnitsLine(a);
     items.add(
       HomeActivityItem(
         kind: kind,
@@ -600,6 +697,7 @@ Future<List<HomeActivityItem>> _fetchHomeWarehouseActivity(
             : _activityTitleFromAdjustment(adjType, itemName),
         subtitle: itemName,
         humanId: received?.humanId,
+        unitsLine: unitsLine,
         verifiedBy: a['updated_by_name']?.toString() ??
             a['updated_by']?.toString() ??
             a['user_name']?.toString(),
@@ -611,7 +709,6 @@ Future<List<HomeActivityItem>> _fetchHomeWarehouseActivity(
             a['updated_by']?.toString() ??
             a['user_name']?.toString(),
         createdBy: a['updated_by_name']?.toString(),
-        qtyChange: delta?.toString(),
       ),
     );
   }
@@ -649,8 +746,8 @@ Future<List<HomeActivityItem>> _fetchHomeWarehouseActivity(
   };
   items.removeWhere((i) => !keepKinds.contains(i.kind));
 
-  items.sort((a, b) => b.at.compareTo(a.at));
-  return items.take(maxItems).toList();
+  final collapsed = _collapseDuplicateDeliveryActivity(items);
+  return collapsed.take(maxItems).toList();
 }
 
 final homeRecentActivityFeedProvider =
@@ -661,9 +758,18 @@ final homeRecentActivityFeedProvider =
 });
 
 /// Full warehouse activity list for Home → View all (respects shared period).
+///
+/// Not autoDispose — avoids reload loops when Home stays mounted under
+/// `/home/activity`. Pull-to-refresh or period change still refetches.
 final homeWarehouseActivityFullProvider =
-    FutureProvider.autoDispose<List<HomeActivityItem>>((ref) async {
-  return _fetchHomeWarehouseActivity(ref, purchaseLimit: 100, maxItems: 200);
+    FutureProvider<List<HomeActivityItem>>((ref) async {
+  ref.keepAlive();
+  return _fetchHomeWarehouseActivity(
+    ref,
+    purchaseLimit: 60,
+    maxItems: 200,
+    feedTimeout: const Duration(seconds: 30),
+  );
 });
 
 /// @deprecated Use [homeRecentActivityFeedProvider] only — kept for invalidation parity.

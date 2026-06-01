@@ -25,14 +25,43 @@ String _periodTitle(HomePeriod period) {
 }
 
 /// Full warehouse activity — opened from Home → View all / Show more.
-class HomeWarehouseActivityPage extends ConsumerWidget {
+class HomeWarehouseActivityPage extends ConsumerStatefulWidget {
   const HomeWarehouseActivityPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeWarehouseActivityPage> createState() =>
+      _HomeWarehouseActivityPageState();
+}
+
+class _HomeWarehouseActivityPageState
+    extends ConsumerState<HomeWarehouseActivityPage> {
+  List<HomeActivityItem>? _cachedItems;
+
+  Future<void> _reload() async {
+    ref.invalidate(homeWarehouseActivityFullProvider);
+    ref.invalidate(homeRecentActivityFeedProvider);
+    await ref.read(homeWarehouseActivityFullProvider.future);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final period = ref.watch(homePeriodProvider);
     final feedAsync = ref.watch(homeWarehouseActivityFullProvider);
     final title = _periodTitle(period);
+
+    feedAsync.whenData((items) {
+      if (_cachedItems != items) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          setState(() => _cachedItems = items);
+        });
+      }
+    });
+
+    final displayItems = feedAsync.valueOrNull ?? _cachedItems;
+    final showSkeleton = feedAsync.isLoading && displayItems == null;
+    final showRefreshBanner =
+        feedAsync.isLoading && displayItems != null && displayItems.isNotEmpty;
 
     return Scaffold(
       backgroundColor: HexaColors.brandBackground,
@@ -49,11 +78,7 @@ class HomeWarehouseActivityPage extends ConsumerWidget {
         ),
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(homeWarehouseActivityFullProvider);
-          ref.invalidate(homeRecentActivityFeedProvider);
-          await ref.read(homeWarehouseActivityFullProvider.future);
-        },
+        onRefresh: _reload,
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(
             parent: BouncingScrollPhysics(),
@@ -73,84 +98,85 @@ class HomeWarehouseActivityPage extends ConsumerWidget {
                         style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
                       ),
                     ),
+                    if (showRefreshBanner)
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                        child: LinearProgressIndicator(minHeight: 2),
+                      ),
                   ],
                 ),
               ),
             ),
-            feedAsync.when(
-              loading: () => const SliverToBoxAdapter(
+            if (showSkeleton)
+              const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.all(16),
                   child: HomeSectionSkeleton(rows: 8),
                 ),
-              ),
-              error: (e, _) => SliverFillRemaining(
+              )
+            else if (feedAsync.hasError && displayItems == null)
+              SliverFillRemaining(
                 hasScrollBody: false,
                 child: FriendlyLoadError(
                   message: 'Could not load activity',
-                  onRetry: () {
-                    ref.invalidate(homeWarehouseActivityFullProvider);
-                  },
+                  onRetry: _reload,
                 ),
-              ),
-              data: (items) {
-                if (items.isEmpty) {
-                  return const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: HexaEmptyState(
-                      icon: Icons.history_rounded,
-                      title: 'No activity in this period',
-                      subtitle:
-                          'Deliveries, purchases, and stock updates appear here.',
+              )
+            else if (displayItems == null || displayItems.isEmpty)
+              const SliverFillRemaining(
+                hasScrollBody: false,
+                child: HexaEmptyState(
+                  icon: Icons.history_rounded,
+                  title: 'No activity in this period',
+                  subtitle:
+                      'Deliveries, purchases, and stock updates appear here.',
+                ),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                sliver: SliverToBoxAdapter(
+                  child: Card(
+                    margin: EdgeInsets.zero,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
                     ),
-                  );
-                }
-                return SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-                  sliver: SliverToBoxAdapter(
-                    child: Card(
-                      margin: EdgeInsets.zero,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      clipBehavior: Clip.antiAlias,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Text(
-                                  title,
-                                  style: HexaOp.cardTitle(context),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(
+                                title,
+                                style: HexaOp.cardTitle(context),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${displayItems.length} events in period',
+                                style: HexaDsType.label(
+                                  11,
+                                  color: HexaDsColors.textMuted,
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '${items.length} events in period',
-                                  style: HexaDsType.label(
-                                    11,
-                                    color: HexaDsColors.textMuted,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 8),
-                          _ActivityTableHeader(),
-                          for (var i = 0; i < items.length; i++) ...[
-                            WarehouseActivityDetailRow(item: items[i]),
-                            if (i < items.length - 1)
-                              const Divider(height: 1),
-                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        _ActivityTableHeader(),
+                        for (var i = 0; i < displayItems.length; i++) ...[
+                          WarehouseActivityDetailRow(item: displayItems[i]),
+                          if (i < displayItems.length - 1)
+                            const Divider(height: 1),
                         ],
-                      ),
+                      ],
                     ),
                   ),
-                );
-              },
-            ),
+                ),
+              ),
           ],
         ),
       ),
