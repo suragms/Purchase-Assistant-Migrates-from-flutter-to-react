@@ -8,10 +8,11 @@ import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/stock_providers.dart';
 import '../../../../core/utils/stock_audit_rows.dart';
 import '../../../../core/widgets/hexa_error_card.dart';
+import '../../../../core/widgets/list_skeleton.dart';
 import '../../../../shared/widgets/hexa_empty_state.dart';
 import '../quick_stock_action_sheet.dart';
 
-/// **Changes** tab: recent stock audit events for [stockPagePeriodProvider].
+/// **Activity** tab: merged stock changes + movement feed for selected period.
 class StockChangesTab extends ConsumerWidget {
   const StockChangesTab({
     super.key,
@@ -26,17 +27,17 @@ class StockChangesTab extends ConsumerWidget {
     final feed = ref.watch(stockChangesFeedProvider);
 
     return feed.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const ListSkeleton(rowCount: 8, rowHeight: 72),
       error: (e, _) => HexaErrorCard.fromError(
         error: e,
-        title: 'Could not load stock changes',
+        title: 'Could not load stock activity',
         onRetry: () => ref.invalidate(stockChangesFeedProvider),
       ),
       data: (rows) {
         if (rows.isEmpty) {
           return HexaEmptyState(
             icon: Icons.history_rounded,
-            title: 'No stock changes',
+            title: 'No stock activity',
             subtitle:
                 'Nothing logged for ${period.label.toLowerCase()}. Try a wider period.',
             primaryActionLabel: 'Refresh',

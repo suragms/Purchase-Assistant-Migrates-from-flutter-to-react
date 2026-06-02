@@ -26,9 +26,9 @@ void main() {
       ),
     );
 
-    expect(find.text('System stock'), findsOneWidget);
-    expect(find.text('Physical count'), findsOneWidget);
-    expect(find.text('Last purchase'), findsOneWidget);
+    expect(find.text('Current Stock'), findsOneWidget);
+    expect(find.text('Physical Count'), findsOneWidget);
+    expect(find.text('Last Purchase'), findsOneWidget);
     expect(find.textContaining('Acme'), findsOneWidget);
   });
 }

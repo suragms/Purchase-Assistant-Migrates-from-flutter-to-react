@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shimmer/shimmer.dart';
 
 /// Lightweight, const-friendly placeholder blocks used while a provider is
 /// resolving. Keeps the scaffold/appbar/tabs mounted so pages feel instant
@@ -32,20 +33,28 @@ class ListSkeleton extends StatelessWidget {
     this.rowCount = 6,
     this.rowHeight = 84,
     this.padding = const EdgeInsets.fromLTRB(16, 12, 16, 100),
+    this.shimmer = true,
   });
 
   final int rowCount;
   final double rowHeight;
   final EdgeInsets padding;
+  final bool shimmer;
 
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
+    final list = ListView.separated(
       physics: const NeverScrollableScrollPhysics(),
       padding: padding,
       itemCount: rowCount,
       separatorBuilder: (_, __) => const SizedBox(height: 10),
       itemBuilder: (_, __) => _SkeletonBox(height: rowHeight, radius: 12),
+    );
+    if (!shimmer) return list;
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade200,
+      highlightColor: Colors.grey.shade100,
+      child: list,
     );
   }
 }

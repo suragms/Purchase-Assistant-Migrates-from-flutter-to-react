@@ -49,6 +49,7 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
   StockUpdateMode _mode = StockUpdateMode.physical;
   String? _reasonType;
   bool _saving = false;
+  bool _actionChosen = false;
 
   @override
   void initState() {
@@ -141,6 +142,31 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
           const SnackBar(content: Text('Select a reason for the difference')),
         );
         return;
+      }
+      if (diff.abs() > 0.5) {
+        final direction = diff > 0 ? 'decrease' : 'increase';
+        final ok = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: Text(
+              'Stock will $direction by ${_formatQty(diff.abs())} ${_unitLabel.isEmpty ? 'units' : _unitLabel}',
+            ),
+            content: const Text(
+              'This updates system stock to match your physical count. Continue?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Continue'),
+              ),
+            ],
+          ),
+        );
+        if (ok != true) return;
       }
     }
 
@@ -262,17 +288,147 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
+    final isReadOnly = session == null || sessionIsStockReadOnly(session);
     final privileged =
         session != null && sessionIsPrivilegedStockRole(session);
     final showReason = _mode == StockUpdateMode.system
         ? (_enteredQty != null && (_enteredQty! - _systemQty).abs() > 0.01)
         : _diff.abs() > 0.01;
 
+    final lpQty = coerceToDoubleNullable(widget.item['last_purchase_qty']);
+    final lpUnit = widget.item['last_purchase_unit']?.toString().trim() ?? _unit;
+    final lpDateRaw = widget.item['last_purchase_date']?.toString();
+    final lpDate = lpDateRaw != null ? DateTime.tryParse(lpDateRaw) : null;
+    final supplier = widget.item['supplier_name']?.toString().trim() ?? '';
+
+    if (isReadOnly) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ScanItemStockSummaryCard(item: widget.item),
+          const SizedBox(height: 12),
+          Text(
+            'Read-only account. Ask owner/admin to update stock.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      );
+    }
+
+    if (!_actionChosen) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ScanItemStockSummaryCard(item: widget.item),
+          const SizedBox(height: 10),
+          const Text(
+            'What would you like to do?',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 8),
+          _actionTile(
+            icon: Icons.inventory_2_outlined,
+            title: 'Update Physical Count',
+            subtitle: 'Most common: compare floor count with system',
+            onTap: () => setState(() {
+              _mode = StockUpdateMode.physical;
+              _actionChosen = true;
+            }),
+          ),
+          const SizedBox(height: 8),
+          _actionTile(
+            icon: Icons.article_outlined,
+            title: 'View Full Details',
+            subtitle: 'Open full item page with history',
+            onTap: () {
+              Navigator.pop(context);
+              context.push('/catalog/item/$_itemId');
+            },
+          ),
+          const SizedBox(height: 8),
+          _actionTile(
+            icon: Icons.shopping_cart_checkout_outlined,
+            title: 'Quick Purchase',
+            subtitle: 'Create purchase draft for this item',
+            onTap: () {
+              Navigator.pop(context);
+              context.push('/purchase/new');
+            },
+          ),
+          if (privileged) ...[
+            const SizedBox(height: 8),
+            _actionTile(
+              icon: Icons.tune_rounded,
+              title: 'System Stock Adjust',
+              subtitle: 'Ledger correction (owner/admin use only)',
+              onTap: () => setState(() {
+                _mode = StockUpdateMode.system;
+                _actionChosen = true;
+              }),
+            ),
+          ],
+        ],
+      );
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Row(
+          children: [
+            TextButton.icon(
+              onPressed: _saving
+                  ? null
+                  : () => setState(() {
+                        _actionChosen = false;
+                      }),
+              icon: const Icon(Icons.arrow_back_rounded, size: 16),
+              label: const Text('Back'),
+            ),
+          ],
+        ),
         ScanItemStockSummaryCard(item: widget.item),
+        if (lpQty != null && lpQty > 0) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFFED7AA)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.receipt_long_outlined, size: 16, color: Color(0xFFB45309)),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Last Purchased: ${formatQty(lpQty)} ${lpUnit.toUpperCase()}'
+                    '${supplier.isNotEmpty ? ' from $supplier' : ''}'
+                    '${lpDate != null ? ' (${ScanItemStockSummaryCard.daysAgoLabel(lpDate)})' : ''}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF92400E),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 10),
         if (!privileged && _mode == StockUpdateMode.system)
           Container(
@@ -415,6 +571,47 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
 
   String _formatQty(double q) =>
       q == q.roundToDouble() ? '${q.round()}' : q.toStringAsFixed(1);
+
+  Widget _actionTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xFFE2E8F0)),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: HexaColors.brandPrimary, size: 18),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 String formatQty(double q) =>

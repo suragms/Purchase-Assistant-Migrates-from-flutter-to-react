@@ -49,7 +49,7 @@ class _PublicItemScanPageState extends State<PublicItemScanPage> {
     return Scaffold(
       backgroundColor: HexaColors.brandBackground,
       appBar: AppBar(
-        title: const Text('Item stock'),
+        title: const Text('Item Lookup - Harisree'),
         backgroundColor: Colors.transparent,
         foregroundColor: HexaColors.brandPrimary,
         automaticallyImplyLeading: false,
@@ -85,7 +85,7 @@ class _PublicItemScanPageState extends State<PublicItemScanPage> {
                   ? const Color(0xFFD97706)
                   : const Color(0xFF059669);
           final system = coerceToDouble(data['current_stock']);
-          final unit = data['stock_unit']?.toString() ?? '';
+          final unit = data['unit']?.toString() ?? data['stock_unit']?.toString() ?? '';
 
           // Last purchase summary for the chip row
           final lpQty = coerceToDoubleNullable(data['last_purchase_qty']);
@@ -114,45 +114,52 @@ class _PublicItemScanPageState extends State<PublicItemScanPage> {
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5F2),
+                  color: const Color(0x140E4F46),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
-                    color: HexaColors.brandPrimary.withValues(alpha: 0.25),
+                    color: const Color(0x330E4F46),
                   ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Current stock',
-                      style:
-                          HexaDsType.label(12, color: HexaDsColors.textMuted),
+                      'CURRENT STOCK',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF0E4F46),
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      '${formatStockQtyNumber(system)}'
+                      '${formatQtyForDisplay(system)}'
                       '${unit.isNotEmpty ? ' ${unit.toUpperCase()}' : ''}',
-                      style: HexaDsType.heading(
-                        36,
-                        color: HexaColors.brandPrimary,
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.w900,
+                        color: Color(0xFF0E4F46),
                       ),
                     ),
                     const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(999),
-                        border: Border.all(
-                            color: statusColor.withValues(alpha: 0.4)),
-                      ),
-                      child: Text(
-                        statusLabel,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: statusColor,
+                    Align(
+                      alignment: Alignment.topRight,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                              color: statusColor.withValues(alpha: 0.4)),
+                        ),
+                        child: Text(
+                          statusLabel,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: statusColor,
+                          ),
                         ),
                       ),
                     ),
@@ -221,12 +228,24 @@ class _PublicItemScanPageState extends State<PublicItemScanPage> {
 
               // ── Meta ──────────────────────────────────────────────────
               Text('Item code: $code', style: HexaDsType.bodySm(context)),
+              Text(
+                'Barcode: ${data['barcode']?.toString() ?? '—'}',
+                style: HexaDsType.bodySm(context),
+              ),
               Text('Rack: $rack', style: HexaDsType.bodySm(context)),
               const SizedBox(height: 16),
               Text(
                 'Read-only · open the Harisree app to update stock.',
                 textAlign: TextAlign.center,
                 style: HexaDsType.body(12, color: HexaDsColors.textMuted),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: OutlinedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.open_in_new_rounded),
+                  label: const Text('Open App'),
+                ),
               ),
             ],
           );

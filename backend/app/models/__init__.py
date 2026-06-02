@@ -32,6 +32,7 @@ from app.models.staff_purchase_log import StaffPurchaseLog
 from app.models.user_session import StaffActivityLog, UserSession
 from app.models.notification import AppNotification
 from app.models.reorder_list import ReorderListEntry
+from app.models.purchase_lifecycle_event import PurchaseLifecycleEvent
 from app.models.operations import (
     DailyUsageLog,
     StaffChecklistCompletion,
@@ -81,6 +82,7 @@ __all__ = [
     "StaffActivityLog",
     "AppNotification",
     "ReorderListEntry",
+    "PurchaseLifecycleEvent",
     "DailyUsageLog",
     "StaffChecklistTemplate",
     "StaffChecklistCompletion",

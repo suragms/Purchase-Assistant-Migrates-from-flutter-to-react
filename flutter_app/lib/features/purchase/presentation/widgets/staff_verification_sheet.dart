@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dio/dio.dart';
 
 import '../../../../core/auth/session_notifier.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
 import '../../../../core/json_coerce.dart';
+import '../../../../core/auth/auth_error_messages.dart';
 import '../../../../core/providers/business_aggregates_invalidation.dart'
     show syncPurchaseStockAfterVerify;
 import '../../../../core/utils/unit_utils.dart';
@@ -50,6 +52,7 @@ class _StaffVerificationSheetState extends ConsumerState<_StaffVerificationSheet
   final _damaged = <String, TextEditingController>{};
   final _returned = <String, TextEditingController>{};
   bool _saving = false;
+  String? _submitError;
 
   @override
   void initState() {
@@ -107,12 +110,29 @@ class _StaffVerificationSheetState extends ConsumerState<_StaffVerificationSheet
             lines: payload,
             notes: _notesCtrl.text,
           );
+      final status = (body['delivery_status']?.toString() ?? '').toLowerCase();
+      if (status != 'stock_committed') {
+        if (!mounted) return;
+        setState(() {
+          _submitError =
+              'Verification saved, but stock was not committed yet. Please retry or ask owner to commit stock.';
+        });
+        return;
+      }
       syncPurchaseStockAfterVerify(
         ref,
         purchaseId: widget.purchaseId,
         verifyResponse: body,
       );
+      if (!mounted) return;
+      setState(() => _submitError = null);
       if (mounted) Navigator.pop(context, true);
+    } on DioException catch (e) {
+      if (!mounted) return;
+      setState(() => _submitError = friendlyApiError(e));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitError = e.toString());
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -130,6 +150,30 @@ class _StaffVerificationSheetState extends ConsumerState<_StaffVerificationSheet
               'Staff Verification',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
+            if (_submitError != null) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.error_outline, color: Color(0xFFB91C1C), size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _submitError!,
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF7F1D1D)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             for (final row in widget.lines) ...[
               _lineRow(row),

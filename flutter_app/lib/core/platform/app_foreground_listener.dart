@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/auth_failure_policy.dart';
-import '../auth/session_notifier.dart' show authRefresh, sessionProvider;
+import '../auth/session_notifier.dart' show sessionProvider;
 import 'app_foreground_provider.dart';
 import 'app_visibility_stub.dart'
     if (dart.library.html) 'app_visibility_web.dart' as app_visibility;
@@ -84,7 +84,7 @@ class _AppForegroundListenerState extends ConsumerState<AppForegroundListener>
       return;
     }
     try {
-      await ref.read(sessionProvider.notifier).refreshOnResume();
+      await ref.read(sessionProvider.notifier).silentRefreshIfNeeded();
     } catch (_) {
       // Keep session; Dio interceptor will refresh on next call.
     }

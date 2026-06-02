@@ -269,10 +269,10 @@ String friendlyApiError(Object error, {bool forAssistant = false}) {
     if (sc == 401 || sc == 403) {
       return forAssistant
           ? 'Assistant could not verify your session. Open Settings or sign in again.'
-          : 'You may need to sign in again.';
+          : 'Session expired. Please sign in again.';
     }
     if (sc == 404) {
-      return 'That record was not found. Try refreshing.';
+      return 'This item was not found.';
     }
     if (sc == 408) {
       return 'Request timed out. Please try again.';
@@ -300,7 +300,7 @@ String friendlyApiError(Object error, {bool forAssistant = false}) {
           }
         }
       }
-      return 'That conflicts with existing data. Try again.';
+      return 'Someone else updated this item. Please refresh and try again.';
     }
     if (sc == 400 || sc == 422) {
       // Prefer the domain-aware mapper (e.g. `Line 2: quantity must be > 0`);
@@ -321,7 +321,7 @@ String friendlyApiError(Object error, {bool forAssistant = false}) {
       }
       return forAssistant
           ? 'Assistant is temporarily unavailable. Try again in a moment.'
-          : 'Service is temporarily unavailable. Try again shortly.';
+          : 'Server is starting up. Retrying automatically…';
     }
     if (sc != null && sc >= 500) {
       return forAssistant
@@ -333,27 +333,27 @@ String friendlyApiError(Object error, {bool forAssistant = false}) {
       if (hint != null) {
         return forAssistant
             ? "Assistant couldn't reach the server. $hint"
-            : hint;
+            : 'No connection. Changes will sync when online.';
       }
       if (error.type == DioExceptionType.receiveTimeout ||
           error.type == DioExceptionType.sendTimeout) {
         return forAssistant
             ? 'The assistant request timed out. Try again in a moment.'
-            : 'Request timed out. Try again—large bill photos can take longer.';
+            : 'No connection. Changes will sync when online.';
       }
       if (kIsWeb) {
         final web = _webBrowserNetworkHint(error);
         if (web != null) {
           return forAssistant
               ? "Assistant couldn't reach the server. $web"
-              : web;
+              : 'No connection. Changes will sync when online.';
         }
       }
       return forAssistant
           ? "Can't reach the assistant. Check your connection and try again."
-          : 'Cannot complete the request. Check your network and try again.';
+          : 'No connection. Changes will sync when online.';
     }
-    return 'Request could not be completed. Try again.';
+    return 'Something went wrong. Please try again.';
   }
   return 'Something went wrong. Please try again.';
 }

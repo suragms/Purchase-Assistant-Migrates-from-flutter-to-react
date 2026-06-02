@@ -30,8 +30,6 @@ import '../stock_period_utils.dart';
 import 'widgets/stock_pagination_bar.dart';
 import 'widgets/stock_operational_top_bar.dart';
 import 'widgets/stock_changes_tab.dart';
-import 'widgets/stock_movement_tab.dart';
-import 'widgets/stock_today_tab.dart';
 import 'widgets/stock_row_actions.dart';
 import 'widgets/stock_warehouse_row.dart';
 import 'widgets/stock_warehouse_table_header.dart';
@@ -55,7 +53,7 @@ class StockPage extends ConsumerStatefulWidget {
   });
 
   final StockPageMode mode;
-  /// `list` | `changes` | `movement` | `today`
+  /// `list` | `activity`
   final String? initialTab;
 
   @override
@@ -78,11 +76,10 @@ class _StockPageState extends ConsumerState<StockPage>
   static int _tabIndex(String? tab) {
     switch (tab) {
       case 'changes':
-        return 1;
       case 'movement':
-        return 2;
       case 'today':
-        return 3;
+      case 'activity':
+        return 1;
       default:
         return 0;
     }
@@ -92,7 +89,7 @@ class _StockPageState extends ConsumerState<StockPage>
   void initState() {
     super.initState();
     _tabs = TabController(
-      length: 4,
+      length: 2,
       vsync: this,
       initialIndex: _tabIndex(widget.initialTab),
     );
@@ -367,8 +364,8 @@ class _StockPageState extends ConsumerState<StockPage>
   }
 
   void _openMovementTab() {
-    if (_tabs.index != 2) {
-      _tabs.animateTo(2);
+    if (_tabs.index != 1) {
+      _tabs.animateTo(1);
     }
   }
 
@@ -761,8 +758,6 @@ class _StockPageState extends ConsumerState<StockPage>
         children: [
           listTab,
           StockChangesTab(isStaffMode: _isStaffMode),
-          const StockMovementTab(),
-          const StockTodayTab(),
         ],
       ),
     );

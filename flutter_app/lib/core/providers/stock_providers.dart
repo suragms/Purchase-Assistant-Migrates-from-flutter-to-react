@@ -404,6 +404,7 @@ final stockListCacheProvider = FutureProvider.autoDispose
 
 /// Stock page list — reads [stockListCacheProvider] for the active [stockListQueryProvider].
 final stockListProvider = FutureProvider.autoDispose((ref) async {
+  providerKeepAlive(ref, const Duration(minutes: 3));
   final session = ref.watch(activeSessionProvider);
   if (session == null || providerSkipApi(ref)) {
     throw const StockListFetchBlockedException('no_session');

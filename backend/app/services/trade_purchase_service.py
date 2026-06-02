@@ -14,7 +14,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db_resilience import execute_with_retry
-from app.models import CatalogItem, SupplierItemDefault, TradePurchase, TradePurchaseDraft, TradePurchaseLine, User
+from app.models import (
+    CatalogItem,
+    PurchaseLifecycleEvent,
+    SupplierItemDefault,
+    TradePurchase,
+    TradePurchaseDraft,
+    TradePurchaseLine,
+    User,
+)
 from app.services.trade_unit_type import derive_trade_unit_type
 from app.schemas.trade_purchases import (
     TradeDuplicateCheckRequest,
@@ -33,6 +41,7 @@ from app.schemas.trade_purchases import (
     TradePurchaseVerifyIn,
     TradePurchasePaymentPatch,
     TradePurchaseUpdateRequest,
+    PurchaseLifecycleEventOut,
 )
 from app.read_cache_generation import bump_trade_read_caches_for_business
 from app.services import decimal_precision as dp
@@ -51,11 +60,70 @@ _ARRIVE_FROM = frozenset({"pending", "dispatched", "in_transit"})
 _VERIFY_FROM = frozenset({"arrived", "staff_verifying"})
 _COMMIT_FROM = frozenset({"staff_verified", "partial"})
 _CATALOG_SNAPSHOT_SKIP_STATUSES = ("deleted", "cancelled", "draft")
+_PURCHASE_LIFECYCLE_ALLOWED = {
+    "draft": frozenset({"active", "approved", "cancelled"}),
+    "active": frozenset({"approved", "ordered", "cancelled"}),
+    "approved": frozenset({"ordered", "cancelled"}),
+    "ordered": frozenset({"supplier_confirmed", "cancelled"}),
+    "supplier_confirmed": frozenset({"in_transit", "cancelled"}),
+    "in_transit": frozenset({"arrived", "cancelled"}),
+    "arrived": frozenset({"verification_pending", "verified", "cancelled"}),
+    "verification_pending": frozenset({"verified", "cancelled"}),
+    "verified": frozenset({"added_to_stock", "cancelled"}),
+    "added_to_stock": frozenset({"completed", "cancelled"}),
+    "completed": frozenset(),
+    "cancelled": frozenset(),
+}
 
 
 def _delivery_status(tp: TradePurchase) -> str:
     return (getattr(tp, "delivery_status", None) or "pending").strip().lower()
 
+
+def _normalize_purchase_status(raw: str | None) -> str:
+    s = (raw or "").strip().lower()
+    if s == "saved":
+        return "draft"
+    if s == "confirmed":
+        return "active"
+    if s == "delivered":
+        return "added_to_stock"
+    return s or "active"
+
+
+def _user_display_name(user) -> str | None:
+    if user is None:
+        return None
+    for attr in ("name", "username", "email"):
+        raw = getattr(user, attr, None)
+        if raw and str(raw).strip():
+            return str(raw).strip()
+    return None
+
+
+async def _append_lifecycle_event(
+    db: AsyncSession,
+    *,
+    business_id: uuid.UUID,
+    purchase_id: uuid.UUID,
+    from_status: str | None,
+    to_status: str,
+    actor: User | None,
+    notes: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> None:
+    db.add(
+        PurchaseLifecycleEvent(
+            business_id=business_id,
+            purchase_id=purchase_id,
+            from_status=from_status,
+            to_status=to_status,
+            actor_id=getattr(actor, "id", None),
+            actor_name=_user_display_name(actor),
+            notes=(notes or "").strip() or None,
+            event_metadata=metadata or {},
+        )
+    )
 
 def _assert_delivery_transition(current: str, allowed: frozenset[str]) -> None:
     if current in _DELIVERY_TERMINAL and current not in allowed:
@@ -241,17 +309,6 @@ def _trade_purchase_load_opts() -> tuple:
         selectinload(TradePurchase.creator_user),
         selectinload(TradePurchase.staff_verifier_user),
     )
-
-
-def _user_display_name(user) -> str | None:
-    if user is None:
-        return None
-    for attr in ("name", "username", "email"):
-        raw = getattr(user, attr, None)
-        if raw and str(raw).strip():
-            return str(raw).strip()
-    return None
-
 
 def _verified_by_from_delivery_notes(notes: str | None) -> str | None:
     if not notes or not notes.strip():
@@ -1045,6 +1102,15 @@ async def create_trade_purchase(
     )
     db.add(tp)
     await db.flush()
+    await _append_lifecycle_event(
+        db,
+        business_id=business_id,
+        purchase_id=tp.id,
+        from_status=None,
+        to_status=_normalize_purchase_status(tp.status),
+        actor=None,
+        notes="Purchase created",
+    )
     line_item_ids = {li.catalog_item_id for li in body.lines if li.catalog_item_id}
     catalog_by_id = await fetch_catalog_items_map(db, business_id, line_item_ids)
     for li in body.lines:
@@ -1191,6 +1257,7 @@ async def update_trade_purchase(
     tp.total_landing_subtotal = land_s
     tp.total_selling_subtotal = sell_s
     tp.total_line_profit = prof
+    prior_status = _normalize_purchase_status(tp.status)
     if body.status in ("draft", "saved", "confirmed"):
         tp.status = body.status
     await db.execute(delete(TradePurchaseLine).where(TradePurchaseLine.trade_purchase_id == tp.id))
@@ -1260,6 +1327,17 @@ async def update_trade_purchase(
         tp.paid_amount = dp.money(total_dec)
     tp.updated_at = utcnow()
     await _sync_purchase_memory(db, business_id, body, trade_purchase_id=tp.id)
+    next_status = _normalize_purchase_status(tp.status)
+    if next_status != prior_status:
+        await _append_lifecycle_event(
+            db,
+            business_id=business_id,
+            purchase_id=tp.id,
+            from_status=prior_status,
+            to_status=next_status,
+            actor=None,
+            notes="Purchase updated",
+        )
     stock_updates: list[dict] = []
     try:
         if was_committed or was_delivered or stock_applied:
@@ -1274,7 +1352,7 @@ async def update_trade_purchase(
                 new_lines_snapshot,
                 purchase_human_id=tp.human_id,
                 purchase_id=tp.id,
-                actor=user,
+                actor=None,
             )
             catalog_ids = await catalog_ids_affected_by_purchase_lines(
                 db, business_id, old_lines_snapshot + new_lines_snapshot
@@ -1510,6 +1588,7 @@ async def commit_trade_purchase_delivery(
     if committed_qty <= 0 and tp.staff_verified_qty is not None:
         committed_qty = _dec(tp.staff_verified_qty)
     tp.delivery_status = "stock_committed"
+    tp.status = "completed" if _normalize_purchase_status(tp.status) == "completed" else "added_to_stock"
     tp.is_delivered = True
     tp.delivered_at = now
     tp.stock_committed_at = now
@@ -1530,6 +1609,15 @@ async def commit_trade_purchase_delivery(
             "delivered_qty_committed": str(tp.delivered_qty_committed or 0),
             "action_route": f"/purchase/detail/{purchase_id}",
         },
+    )
+    await _append_lifecycle_event(
+        db,
+        business_id=business_id,
+        purchase_id=purchase_id,
+        from_status="verified",
+        to_status="added_to_stock",
+        actor=user,
+        notes="Stock committed from verified delivery",
     )
     await db.commit()
     bump_trade_read_caches_for_business(business_id)
@@ -1707,6 +1795,7 @@ async def verify_trade_purchase_delivery(
 
     now = utcnow()
     tp.delivery_status = "partial" if short else "staff_verified"
+    tp.status = "verification_pending" if short else "verified"
     tp.staff_verified_at = now
     tp.staff_verified_by = user.id
     tp.staff_verified_by_name = user.name or user.username or user.email
@@ -1732,40 +1821,18 @@ async def verify_trade_purchase_delivery(
             "delivery_status": tp.delivery_status,
         },
     )
+    await _append_lifecycle_event(
+        db,
+        business_id=business_id,
+        purchase_id=purchase_id,
+        from_status="arrived",
+        to_status=tp.status,
+        actor=user,
+        notes="Staff verification submitted",
+    )
     await db.commit()
     bump_trade_read_caches_for_business(business_id)
     from app.services.notification_emitter import PRIORITY_INFO
-
-    committed_out: TradePurchaseOut | None = None
-    try:
-        committed_out = await commit_trade_purchase_delivery(
-            db, business_id, purchase_id, user
-        )
-    except ValueError:
-        committed_out = None
-
-    if committed_out is not None and committed_out.delivery_status == "stock_committed":
-        await _emit_delivery_notification(
-            db,
-            business_id=business_id,
-            tp=tp,
-            kind="delivery_verified",
-            title=f"Verified: {tp.human_id}",
-            body=f"{tp.staff_verified_by_name} verified receipt — system stock updated",
-            priority=PRIORITY_INFO,
-            dedupe_key=f"delivery_verified:{purchase_id}",
-        )
-        await _emit_delivery_notification(
-            db,
-            business_id=business_id,
-            tp=tp,
-            kind="delivery_received",
-            title=f"Stock updated: {tp.human_id}",
-            body="Verified quantities added to warehouse system stock",
-            priority=PRIORITY_INFO,
-            dedupe_key=f"delivery_received:{purchase_id}",
-        )
-        return committed_out
 
     await _emit_delivery_notification(
         db,
@@ -1941,6 +2008,7 @@ async def cancel_trade_purchase(
     was_delivered = bool(getattr(tp, "is_delivered", False)) or _delivery_status(
         tp
     ) == "stock_committed"
+    prev = _normalize_purchase_status(tp.status)
     tp.status = "cancelled"
     tp.is_delivered = False
     tp.delivered_at = None
@@ -1960,6 +2028,15 @@ async def cancel_trade_purchase(
             await db.rollback()
             raise
     await refresh_catalog_last_trade_snapshots(db, business_id, catalog_ids)
+    await _append_lifecycle_event(
+        db,
+        business_id=business_id,
+        purchase_id=purchase_id,
+        from_status=prev,
+        to_status="cancelled",
+        actor=None,
+        notes="Purchase cancelled",
+    )
     await db.commit()
     bump_trade_read_caches_for_business(business_id)
     return await get_trade_purchase(db, business_id, purchase_id)
@@ -1991,6 +2068,7 @@ async def delete_trade_purchase(
     was_delivered = bool(getattr(tp, "is_delivered", False)) or _delivery_status(
         tp
     ) == "stock_committed"
+    prev = _normalize_purchase_status(tp.status)
     tp.status = "deleted"
     tp.is_delivered = False
     tp.delivered_at = None
@@ -2011,6 +2089,16 @@ async def delete_trade_purchase(
             await db.rollback()
             raise
     await refresh_catalog_last_trade_snapshots(db, business_id, catalog_ids)
+    await _append_lifecycle_event(
+        db,
+        business_id=business_id,
+        purchase_id=purchase_id,
+        from_status=prev,
+        to_status="cancelled",
+        actor=None,
+        notes="Purchase soft-deleted",
+        metadata={"soft_deleted": True},
+    )
     await db.commit()
     bump_trade_read_caches_for_business(business_id)
     return True
@@ -2209,7 +2297,7 @@ def trade_purchase_to_out(
     total_dec = _dec(tp.total_amount)
     paid_dec = _dec(getattr(tp, "paid_amount", None))
     remaining = dp.money(max(total_dec - paid_dec, Decimal("0")))
-    stored = tp.status or "confirmed"
+    stored = _normalize_purchase_status(tp.status)
     due = getattr(tp, "due_date", None)
     derived = compute_status(
         stored_status=stored,
@@ -2325,6 +2413,105 @@ def trade_purchase_to_out(
             for u in (stock_updates or [])
         ],
     )
+
+
+async def list_purchase_lifecycle_events(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    purchase_id: uuid.UUID,
+) -> list[PurchaseLifecycleEventOut]:
+    r = await db.execute(
+        select(PurchaseLifecycleEvent)
+        .where(
+            PurchaseLifecycleEvent.business_id == business_id,
+            PurchaseLifecycleEvent.purchase_id == purchase_id,
+        )
+        .order_by(PurchaseLifecycleEvent.created_at.asc())
+    )
+    out: list[PurchaseLifecycleEventOut] = []
+    for row in r.scalars().all():
+        out.append(
+            PurchaseLifecycleEventOut(
+                id=row.id,
+                purchase_id=row.purchase_id,
+                business_id=row.business_id,
+                from_status=row.from_status,
+                to_status=row.to_status,
+                actor_id=row.actor_id,
+                actor_name=row.actor_name,
+                notes=row.notes,
+                metadata=row.event_metadata or {},
+                created_at=row.created_at,
+            )
+        )
+    return out
+
+
+async def transition_purchase_lifecycle(
+    db: AsyncSession,
+    *,
+    business_id: uuid.UUID,
+    purchase_id: uuid.UUID,
+    to_status: str,
+    actor: User,
+    notes: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> TradePurchaseOut | None:
+    tp = await _load_trade_purchase(db, business_id, purchase_id)
+    if not tp:
+        return None
+    current = _normalize_purchase_status(tp.status)
+    target = _normalize_purchase_status(to_status)
+    if current == target:
+        return trade_purchase_to_out(tp, stock_updates=[])
+    allowed = _PURCHASE_LIFECYCLE_ALLOWED.get(current, frozenset())
+    if target not in allowed:
+        raise ValueError(f"Invalid transition: {current} -> {target}")
+
+    if target == "in_transit":
+        tp.delivery_status = "in_transit"
+    elif target == "arrived":
+        tp.delivery_status = "arrived"
+        tp.arrived_at = utcnow()
+    elif target == "verification_pending":
+        tp.delivery_status = "staff_verifying"
+    elif target == "verified":
+        tp.delivery_status = "staff_verified"
+    elif target == "added_to_stock":
+        # Reuse stock commit flow to keep ledger updates/idempotency in one place.
+        out = await commit_trade_purchase_delivery(db, business_id, purchase_id, actor)
+        if out is None:
+            return None
+        tp.status = "added_to_stock"
+        await _append_lifecycle_event(
+            db,
+            business_id=business_id,
+            purchase_id=purchase_id,
+            from_status=current,
+            to_status=target,
+            actor=actor,
+            notes=notes,
+            metadata=metadata,
+        )
+        await db.commit()
+        bump_trade_read_caches_for_business(business_id)
+        return await get_trade_purchase(db, business_id, purchase_id)
+
+    tp.status = target
+    tp.updated_at = utcnow()
+    await _append_lifecycle_event(
+        db,
+        business_id=business_id,
+        purchase_id=purchase_id,
+        from_status=current,
+        to_status=target,
+        actor=actor,
+        notes=notes,
+        metadata=metadata,
+    )
+    await db.commit()
+    bump_trade_read_caches_for_business(business_id)
+    return await get_trade_purchase(db, business_id, purchase_id)
 
 
 async def get_draft(db: AsyncSession, business_id: uuid.UUID, user_id: uuid.UUID) -> TradeDraftOut | None:

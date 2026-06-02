@@ -32,6 +32,8 @@ import 'warehouse_alerts_provider.dart';
 // Debounce guard: prevent stampede when called from multiple sources within 400ms.
 Timer? _invalidateDebounce;
 const _invalidateDebounceMs = 150;
+DateTime? _lastDashboardInvalidateAt;
+const _dashboardInvalidateMinGap = Duration(seconds: 60);
 
 /// KPIs and tables that depend on [analyticsDateRangeProvider] and/or entries.
 /// [ref] is any Riverpod `Ref` / `WidgetRef` with `invalidate`.
@@ -76,8 +78,14 @@ void _doInvalidateBusinessAggregates(dynamic ref) {
     );
   }
   invalidateAnalyticsData(ref);
-  ref.invalidate(homeDashboardDataProvider);
-  ref.invalidate(homeShellReportsProvider);
+  final now = DateTime.now();
+  final allowDashboardInvalidate = _lastDashboardInvalidateAt == null ||
+      now.difference(_lastDashboardInvalidateAt!) >= _dashboardInvalidateMinGap;
+  if (allowDashboardInvalidate) {
+    _lastDashboardInvalidateAt = now;
+    ref.invalidate(homeDashboardDataProvider);
+    ref.invalidate(homeShellReportsProvider);
+  }
   ref.invalidate(homeInventorySummaryProvider);
   ref.invalidate(contactsSuppliersEnrichedProvider);
   ref.invalidate(contactsBrokersEnrichedProvider);

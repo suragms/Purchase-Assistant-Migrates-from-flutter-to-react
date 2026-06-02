@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
+
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Literal
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import CatalogItem, User
+from app.models import CatalogItem, Membership, User
 from app.models.stock_adjustment import StockAdjustmentLog
 from app.models.stock_movement import StockMovement
 from app.services.staff_audit import log_staff_activity
@@ -22,10 +24,17 @@ MovementMode = Literal["absolute", "delta"]
 
 
 class StaleStockVersionError(ValueError):
-    def __init__(self, *, current_version: int, current_qty: Decimal):
+    def __init__(
+        self,
+        *,
+        current_version: int,
+        current_qty: Decimal,
+        item_name: str | None = None,
+    ):
         super().__init__("Stock changed. Refresh and try again.")
         self.current_version = current_version
         self.current_qty = current_qty
+        self.item_name = (item_name or "").strip() or "item"
 
 
 @dataclass(frozen=True)
@@ -33,6 +42,27 @@ class StockMovementResult:
     movement: StockMovement
     item: CatalogItem
     duplicate: bool = False
+
+
+class NegativeStockError(ValueError):
+    def __init__(
+        self,
+        *,
+        item_name: str,
+        current_qty: Decimal,
+        attempted_delta: Decimal,
+        unit: str | None,
+    ) -> None:
+        self.item_name = item_name
+        self.current_qty = current_qty
+        self.attempted_delta = attempted_delta
+        self.unit = (unit or "").strip().upper()
+        msg = (
+            f"This would reduce {item_name} stock below zero. "
+            f"Current stock: {current_qty} {self.unit or ''}. "
+            f"You tried to remove: {abs(attempted_delta)} {self.unit or ''}."
+        ).strip()
+        super().__init__(" ".join(msg.split()))
 
 
 def _actor_name(user: User) -> str:
@@ -107,6 +137,7 @@ async def apply_stock_movement(
     source_id: uuid.UUID | None = None,
     idempotency_key: str | None = None,
     metadata: dict[str, Any] | None = None,
+    unit_mismatch_flag: bool = False,
     last_seen_stock_version: int | None = None,
     create_projection: bool = True,
     create_activity: bool = True,
@@ -141,7 +172,24 @@ async def apply_stock_movement(
         business_id=business_id,
         movement_kind=movement_kind,
         source_type=source_type,
+        actor_user_id=user.id,
     )
+
+    # Serialize concurrent writers per business+item to reduce high-contention
+    # stale-version storms before row-level lock acquisition.
+    dialect_name = ""
+    try:
+        bind = db.get_bind()
+        if bind is not None and bind.dialect is not None:
+            dialect_name = (bind.dialect.name or "").lower()
+    except Exception:
+        dialect_name = ""
+    if dialect_name == "postgresql":
+        lock_key = f"stock_item:{business_id}:{item_id}"
+        await db.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:lock_key)::bigint)"),
+            {"lock_key": lock_key},
+        )
 
     item = await _locked_item(db, business_id=business_id, item_id=item_id)
     if item is None:
@@ -150,7 +198,11 @@ async def apply_stock_movement(
     current_version = int(getattr(item, "stock_version", 0) or 0)
     before = catalog_stock_qty(item)
     if last_seen_stock_version is not None and last_seen_stock_version != current_version:
-        raise StaleStockVersionError(current_version=current_version, current_qty=before)
+        raise StaleStockVersionError(
+            current_version=current_version,
+            current_qty=before,
+            item_name=item.name,
+        )
 
     raw_qty = Decimal(qty)
     if mode == "absolute":
@@ -160,7 +212,12 @@ async def apply_stock_movement(
         delta = raw_qty
         after = before + delta
     if after < 0:
-        raise ValueError("Stock cannot be negative")
+        raise NegativeStockError(
+            item_name=item.name or "Item",
+            current_qty=before,
+            attempted_delta=delta,
+            unit=catalog_stock_unit(item),
+        )
 
     display = _actor_name(user)
     now = datetime.now(timezone.utc)
@@ -186,6 +243,7 @@ async def apply_stock_movement(
         idempotency_key=idem,
         actor_id=user.id,
         actor_name=display,
+        unit_mismatch_flag=unit_mismatch_flag,
         metadata_json=metadata or None,
         created_at=now,
     )
@@ -257,5 +315,6 @@ async def apply_stock_movement_with_retry(
                 raise
             kwargs = dict(kwargs)
             kwargs["last_seen_stock_version"] = None
+            await asyncio.sleep(0.1)
     assert last_err is not None
     raise last_err

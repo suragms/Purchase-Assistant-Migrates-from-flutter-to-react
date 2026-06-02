@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../auth/session_notifier.dart';
@@ -14,7 +16,9 @@ import '../auth/session_notifier.dart';
 /// Kept alive — categories change rarely; avoids cold-load on every catalog open.
 final itemCategoriesListProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  ref.keepAlive();
+  final link = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 3), link.close);
+  ref.onDispose(timer.cancel);
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   return ref
@@ -25,7 +29,9 @@ final itemCategoriesListProvider =
 /// Kept alive so the purchase wizard never cold-loads catalog twice per session.
 final catalogItemsListProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  ref.keepAlive();
+  final link = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 3), link.close);
+  ref.onDispose(timer.cancel);
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   return ref
@@ -36,7 +42,9 @@ final catalogItemsListProvider =
 /// Per-category types (Category → Type → items).
 final categoryTypesListProvider = FutureProvider.autoDispose
     .family<List<Map<String, dynamic>>, String>((ref, categoryId) async {
-  ref.keepAlive();
+  final link = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 5), link.close);
+  ref.onDispose(timer.cancel);
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   return ref.read(hexaApiProvider).listCategoryTypes(
@@ -48,7 +56,9 @@ final categoryTypesListProvider = FutureProvider.autoDispose
 /// Flat index: every type with `category_id` + `category_name` (quick-add, search).
 final categoryTypesIndexProvider =
     FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  ref.keepAlive();
+  final link = ref.keepAlive();
+  final timer = Timer(const Duration(minutes: 5), link.close);
+  ref.onDispose(timer.cancel);
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   return ref.read(hexaApiProvider).listCategoryTypesIndex(

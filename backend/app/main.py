@@ -407,6 +407,32 @@ async def harisree_request_monitor_middleware(request: Request, call_next):
     return response
 
 
+@app.middleware("http")
+async def app_requested_with_guard(request: Request, call_next):
+    """Lightweight CSRF hardening for browser-origin state-changing requests."""
+    method = request.method.upper()
+    if method not in {"GET", "HEAD", "OPTIONS"}:
+        path = request.url.path
+        exempt = (
+            path.startswith("/internal/")
+            or path.startswith("/health")
+            or path.startswith("/static/")
+            or path.startswith("/v1/auth/")
+            or path.startswith("/public/")
+        )
+        origin = request.headers.get("origin", "").strip()
+        referer = request.headers.get("referer", "").strip()
+        browser_like = bool(origin or referer)
+        if browser_like and not exempt:
+            xrw = request.headers.get("x-requested-with", "").strip().lower()
+            if xrw != "harisree-app":
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Missing required app request header"},
+                )
+    return await call_next(request)
+
+
 _backend_root = Path(__file__).resolve().parent.parent
 _static_root = _backend_root / "static"
 _static_root.mkdir(exist_ok=True)

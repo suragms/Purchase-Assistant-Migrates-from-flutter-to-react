@@ -316,6 +316,40 @@ class StaffHomePage extends ConsumerWidget {
               StaffHomeToolsGrid(lowCount: lowCount, focus: focus),
               const SizedBox(height: HexaOp.cardGap),
               const StaffHomeSectionHeader(
+                title: 'Quick actions',
+                subtitle: 'Fast jump for floor work',
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: _QuickActionTile(
+                      icon: Icons.inventory_2_outlined,
+                      label: 'Deliveries',
+                      count: pendingDeliveries,
+                      onTap: () => context.push('/staff/pending-deliveries'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _QuickActionTile(
+                      icon: Icons.warning_amber_rounded,
+                      label: 'Low stock',
+                      count: lowCount,
+                      onTap: () => context.go('/stock'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _QuickActionTile(
+                      icon: Icons.qr_code_scanner_rounded,
+                      label: 'Scan',
+                      onTap: () => context.go('/staff/scan'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: HexaOp.cardGap),
+              const StaffHomeSectionHeader(
                 title: 'Start here',
                 subtitle: 'Scan and quick actions',
               ),
@@ -402,6 +436,53 @@ class StaffHomePage extends ConsumerWidget {
                 subtitle: 'Latest stock and warehouse updates',
               ),
               const StaffHomeRecentActivitySection(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _QuickActionTile extends StatelessWidget {
+  const _QuickActionTile({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.count = 0,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Container(
+          height: 72,
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(icon, size: 18, color: HexaColors.brandPrimary),
+              Text(
+                count > 0 ? '$label ($count)' : label,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
             ],
           ),
         ),

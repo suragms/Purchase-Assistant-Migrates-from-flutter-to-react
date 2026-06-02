@@ -138,7 +138,7 @@ async def maybe_notify_staff_system_stock_edit(
     await emit_notification(
         db,
         business_id=business_id,
-        kind="stock_correction",
+        kind="staff_system_stock_edit",
         title="Staff updated system stock",
         body=(
             f"{actor_display} set {item_name} "

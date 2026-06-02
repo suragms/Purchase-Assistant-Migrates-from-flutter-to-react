@@ -485,3 +485,28 @@ class TradePurchaseValidateOut(DecimalModel):
     ok: bool
     errors: list[dict[str, Any]]
     warnings: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class PurchaseLifecycleTransitionIn(DecimalModel):
+    to_status: str = Field(
+        ...,
+        pattern=(
+            "^(draft|active|approved|ordered|supplier_confirmed|in_transit|arrived|"
+            "verification_pending|verified|added_to_stock|completed|cancelled)$"
+        ),
+    )
+    notes: str | None = Field(None, max_length=2000)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class PurchaseLifecycleEventOut(DecimalModel):
+    id: uuid.UUID
+    purchase_id: uuid.UUID
+    business_id: uuid.UUID
+    from_status: str | None = None
+    to_status: str
+    actor_id: uuid.UUID | None = None
+    actor_name: str | None = None
+    notes: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime

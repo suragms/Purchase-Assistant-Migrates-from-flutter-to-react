@@ -309,14 +309,14 @@ class SessionNotifier extends Notifier<Session?> {
     );
   }
 
-  static DateTime? _lastResumeRefreshAt;
+  DateTime? _lastResumeCheck;
 
-  /// After tab focus / app resume: refresh JWT before parallel home/stock polls.
-  Future<void> refreshOnResume() async {
+  /// Refresh JWT quietly on resume without forcing a full app reload.
+  Future<void> silentRefreshIfNeeded() async {
     if (_disposed || state == null) return;
     final now = DateTime.now();
-    if (_lastResumeRefreshAt != null &&
-        now.difference(_lastResumeRefreshAt!) <
+    if (_lastResumeCheck != null &&
+        now.difference(_lastResumeCheck!) <
             const Duration(seconds: 30)) {
       return;
     }
@@ -333,7 +333,7 @@ class SessionNotifier extends Notifier<Session?> {
       final priorAccess = state?.accessToken;
       await applyRefreshedTokens(pair.access, pair.refresh);
       _clearAuthFailureFlags();
-      _lastResumeRefreshAt = now;
+      _lastResumeCheck = now;
       // Avoid invalidating all session-scoped providers on every tab focus.
       if (priorAccess != pair.access) {
         authRefresh.value++;
@@ -353,6 +353,9 @@ class SessionNotifier extends Notifier<Session?> {
       }
     }
   }
+
+  /// Backward-compatible alias for older callers.
+  Future<void> refreshOnResume() => silentRefreshIfNeeded();
 
   Future<bool> _readIsSuperAdmin(HexaApi api) async {
     try {

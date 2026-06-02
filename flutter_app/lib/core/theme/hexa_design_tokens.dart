@@ -26,4 +26,16 @@ abstract final class HexaDesignTokens {
 
   static EdgeInsets get pagePadding =>
       const EdgeInsets.fromLTRB(screenPadding, 8, screenPadding, 16);
+
+  // Semantic status colors
+  static const Color statusSuccess = Color(0xFF0E4F46);
+  static const Color statusWarning = Color(0xFFB45309);
+  static const Color statusError = Color(0xFFA32D2D);
+  static const Color statusInfo = Color(0xFF2563EB);
+
+  // Soft background tints
+  static const Color successTint = Color(0xFFE8F5F0);
+  static const Color warningTint = Color(0xFFFFF8E6);
+  static const Color errorTint = Color(0xFFFFF0F0);
+  static const Color infoTint = Color(0xFFEFF6FF);
 }

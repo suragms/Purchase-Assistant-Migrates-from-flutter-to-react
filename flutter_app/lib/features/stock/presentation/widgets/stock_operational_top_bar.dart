@@ -84,10 +84,8 @@ class StockOperationalTopBar extends StatelessWidget implements PreferredSizeWid
                   fontWeight: FontWeight.w600,
                 ),
                 tabs: const [
-                  Tab(text: 'List'),
-                  Tab(text: 'Changes'),
-                  Tab(text: 'Movement'),
-                  Tab(text: 'Today'),
+                  Tab(text: 'Stock'),
+                  Tab(text: 'Activity'),
                 ],
               ),
           ],

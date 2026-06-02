@@ -156,8 +156,6 @@ class _HexaBootstrapState extends State<_HexaBootstrap> {
     final cap = kIsWeb ? const Duration(seconds: 15) : const Duration(minutes: 2);
 
     try {
-      await ensurePdfLocalesInitialized().timeout(const Duration(seconds: 8));
-      _bootstrapLog('pdf locales OK');
       await OfflineStore.init().timeout(cap);
       _bootstrapLog('OfflineStore.init OK');
       final prefs = await SharedPreferences.getInstance().timeout(cap);
@@ -235,6 +233,13 @@ class _HexaBootstrapState extends State<_HexaBootstrap> {
       if (!mounted) return;
       _bootstrapLog('starting HexaApp');
       setState(() => _container = container);
+      // Defer PDF locale setup: avoids blocking cold start path.
+      unawaited(() async {
+        try {
+          await ensurePdfLocalesInitialized().timeout(const Duration(seconds: 8));
+          _bootstrapLog('pdf locales OK (deferred)');
+        } catch (_) {}
+      }());
     } catch (e, st) {
       debugPrint('Bootstrap failed: $e\n$st');
       if (!mounted) return;

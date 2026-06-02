@@ -33,6 +33,8 @@ from app.schemas.trade_purchases import (
     TradePurchasePreviewOut,
     TradePurchaseUpdateRequest,
     TradePurchaseValidateOut,
+    PurchaseLifecycleEventOut,
+    PurchaseLifecycleTransitionIn,
 )
 from app.services import trade_purchase_service as tps
 from app.services.staff_view import (
@@ -46,6 +48,7 @@ from app.services.trade_preview_service import (
     coerce_raw_to_trade_purchase_create,
 )
 from app.services.realtime_events import publish_business_event
+from app.services.stock_movement_service import NegativeStockError, StaleStockVersionError
 
 router = APIRouter(prefix="/v1/businesses/{business_id}/trade-purchases", tags=["trade-purchases"])
 _log = logging.getLogger(__name__)
@@ -370,6 +373,8 @@ async def create_trade_purchase(
                 "existing_human_id": e.existing_human_id,
             },
         ) from e
+    except NegativeStockError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
@@ -386,6 +391,8 @@ async def patch_trade_purchase_payment(
     del user
     try:
         out = await tps.patch_trade_purchase_payment(db, business_id, purchase_id, body)
+    except NegativeStockError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     if not out:
@@ -416,6 +423,8 @@ async def patch_trade_purchase_delivery(
     del user
     try:
         out = await tps.patch_trade_purchase_delivery(db, business_id, purchase_id, body)
+    except NegativeStockError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     if not out:
@@ -469,12 +478,17 @@ async def commit_trade_purchase_delivery(
     purchase_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
-    _m: Annotated[Membership, Depends(require_permission("stock_edit"))],
+    _m: Annotated[Membership, Depends(require_role("owner", "manager", "super_admin"))],
 ):
     try:
         out = await tps.commit_trade_purchase_delivery(
             db, business_id, purchase_id, user
         )
+    except StaleStockVersionError as e:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=f"Stock conflict on {e.item_name}. Please retry.",
+        ) from e
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     if not out:
@@ -499,6 +513,11 @@ async def verify_trade_purchase_delivery(
             user,
             body,
         )
+    except StaleStockVersionError as e:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail=f"Stock conflict on {e.item_name}. Please retry.",
+        ) from e
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     if not out:
@@ -609,4 +628,42 @@ async def get_trade_purchase(
     )
     if not out:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase not found")
+    return _purchase_detail_response(_m.role, out)
+
+
+@router.get("/{purchase_id}/lifecycle-events", response_model=list[PurchaseLifecycleEventOut])
+async def list_purchase_lifecycle_events(
+    business_id: uuid.UUID,
+    purchase_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _m: Annotated[Membership, Depends(require_membership)],
+):
+    del _m
+    return await tps.list_purchase_lifecycle_events(db, business_id, purchase_id)
+
+
+@router.post("/{purchase_id}/lifecycle", response_model=TradePurchaseOut)
+async def transition_purchase_lifecycle(
+    business_id: uuid.UUID,
+    purchase_id: uuid.UUID,
+    body: PurchaseLifecycleTransitionIn,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _m: Annotated[Membership, Depends(require_role("owner", "manager", "super_admin"))],
+):
+    try:
+        out = await tps.transition_purchase_lifecycle(
+            db,
+            business_id=business_id,
+            purchase_id=purchase_id,
+            to_status=body.to_status,
+            actor=user,
+            notes=body.notes,
+            metadata=body.metadata,
+        )
+    except ValueError as e:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    if not out:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Purchase not found")
+    _publish_purchase_changed(business_id, out)
     return _purchase_detail_response(_m.role, out)

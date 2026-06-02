@@ -131,6 +131,9 @@ class Settings(BaseSettings):
     otp_api_key: str | None = None
     otp_sender_id: str = "HEXA"
     otp_requests_per_minute_per_ip: int = 10
+    otp_requests_per_10_minutes_per_phone: int = 3
+    otp_failed_attempts_lockout_threshold: int = 5
+    otp_failed_attempts_lockout_minutes: int = 30
 
     superadmin_bootstrap_phone: str | None = None  # legacy; prefer SUPERADMIN_BOOTSTRAP_EMAIL
     superadmin_bootstrap_email: str | None = None
@@ -226,8 +229,10 @@ class Settings(BaseSettings):
             raise RuntimeError("DEV_RETURN_OTP must be false in production")
         if "change-me" in self.jwt_secret.lower() or "change-me" in self.jwt_refresh_secret.lower():
             raise RuntimeError("JWT secrets must be changed in production")
-        if len(self.jwt_secret) < 32 or len(self.jwt_refresh_secret) < 32:
-            raise RuntimeError("JWT secrets must be at least 32 characters in production")
+        if len(self.jwt_secret) < 48 or len(self.jwt_refresh_secret) < 48:
+            raise RuntimeError("JWT secrets must be at least 48 characters in production")
+        if self.jwt_secret == self.jwt_refresh_secret:
+            raise RuntimeError("JWT access and refresh secrets must be different in production")
         if self.database_ssl_insecure:
             raise RuntimeError("DATABASE_SSL_INSECURE must be false in production")
 

@@ -3077,7 +3077,35 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final w in warnings) SheetWarningPill(message: w),
+        for (final w in warnings)
+          Container(
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade300),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: Colors.orange.shade700,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    w,
+                    style: TextStyle(
+                      color: Colors.orange.shade900,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(

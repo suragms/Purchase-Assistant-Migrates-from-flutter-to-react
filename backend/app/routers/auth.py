@@ -75,7 +75,10 @@ async def register(
             detail="An account with this email or username already exists",
         )
 
-    pwd_hash = hash_password(body.password)
+    try:
+        pwd_hash = hash_password(body.password)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     user = User(
         email=body.email,
         username=body.username,
@@ -166,7 +169,10 @@ async def reset_password_with_token(
             status.HTTP_400_BAD_REQUEST,
             detail="This account cannot set a password here.",
         )
-    user.password_hash = hash_password(body.new_password)
+    try:
+        user.password_hash = hash_password(body.new_password)
+    except ValueError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     pr.used_at = now
     await db.commit()
     return {

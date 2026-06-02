@@ -125,6 +125,9 @@ class HexaApi {
             baseUrl: baseUrl ?? AppConfig.resolvedApiBaseUrl,
             connectTimeout: const Duration(seconds: 12),
             receiveTimeout: const Duration(seconds: 20),
+            headers: const {
+              'X-Requested-With': 'harisree-app',
+            },
           ),
         ),
         _plain = Dio(
@@ -132,6 +135,9 @@ class HexaApi {
             baseUrl: baseUrl ?? AppConfig.resolvedApiBaseUrl,
             connectTimeout: const Duration(seconds: 12),
             receiveTimeout: const Duration(seconds: 20),
+            headers: const {
+              'X-Requested-With': 'harisree-app',
+            },
           ),
         ) {
     _dio.interceptors.add(

@@ -53,12 +53,16 @@ class BarcodeLabelData {
     return BarcodePdfService.sanitizePrintPayload(itemCode.trim());
   }
 
-  /// QR payload when [publicToken] is set (browser scan route).
+  /// QR payload (browser scan route), fallback to barcode or item code.
   String? qrScanUrl(String webBase) {
-    final token = publicToken?.trim();
-    if (token == null || token.isEmpty) return null;
+    final key = (publicToken?.trim().isNotEmpty == true)
+        ? publicToken!.trim()
+        : (barcode?.trim().isNotEmpty == true)
+            ? barcode!.trim()
+            : itemCode.trim();
+    if (key.isEmpty) return null;
     final base = webBase.endsWith('/') ? webBase.substring(0, webBase.length - 1) : webBase;
-    return '$base/item/$token';
+    return '$base/item/${Uri.encodeComponent(key)}';
   }
 
   Map<String, dynamic> toJson() => {

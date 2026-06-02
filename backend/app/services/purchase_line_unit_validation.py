@@ -17,4 +17,17 @@ def validate_purchase_line_unit(
     ok, msg = line_unit_allowed(profile, line_unit)
     if ok:
         return None
-    return msg or "Unit not allowed for this item."
+    item_name = (getattr(item, "name", None) or "item").strip()
+    unit = (line_unit or "").strip().upper() or "UNKNOWN"
+    stock_unit = (
+        getattr(item, "stock_unit", None)
+        or getattr(item, "default_unit", None)
+        or getattr(item, "selling_unit", None)
+        or ""
+    )
+    stock_unit = stock_unit.strip().upper() or "UNKNOWN"
+    return (
+        msg
+        or f"Unit mismatch for {item_name}: {unit} is incompatible with stock unit {stock_unit}. "
+        "Add/verify conversion factor before saving."
+    )

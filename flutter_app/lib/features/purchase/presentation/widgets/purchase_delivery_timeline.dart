@@ -35,15 +35,57 @@ class PurchaseDeliveryTimeline extends StatelessWidget {
   List<_DeliveryEvent> _events() {
     final p = purchase;
     final out = <_DeliveryEvent>[];
-
-    if (p.createdAt != null) {
-      out.add(_DeliveryEvent(
-        at: p.createdAt!,
-        icon: Icons.receipt_long_outlined,
-        title: 'Purchase created',
-        detail: p.humanId.isNotEmpty ? '#${p.humanId}' : null,
-      ));
+    final status = p.storedStatus.trim().toLowerCase();
+    final stageOrder = <String>[
+      'draft',
+      'active',
+      'approved',
+      'ordered',
+      'supplier_confirmed',
+      'in_transit',
+      'arrived',
+      'verification_pending',
+      'verified',
+      'added_to_stock',
+      'completed',
+    ];
+    final statusIndex = stageOrder.indexOf(status);
+    bool stageDone(String stage) {
+      final i = stageOrder.indexOf(stage);
+      if (i < 0 || statusIndex < 0) return false;
+      return statusIndex >= i;
     }
+    DateTime stageAt(String stage) {
+      switch (stage) {
+        case 'draft':
+        case 'active':
+          return p.createdAt ?? p.purchaseDate;
+        case 'in_transit':
+          return p.dispatchedAt ?? p.updatedAt ?? p.purchaseDate;
+        case 'arrived':
+          return p.arrivedAt ?? p.updatedAt ?? p.purchaseDate;
+        case 'verification_pending':
+        case 'verified':
+          return p.staffVerifiedAt ?? p.updatedAt ?? p.purchaseDate;
+        case 'added_to_stock':
+          return p.stockCommittedAt ?? p.deliveredAt ?? p.updatedAt ?? p.purchaseDate;
+        case 'completed':
+          return p.paidAt ?? p.updatedAt ?? p.purchaseDate;
+        default:
+          return p.updatedAt ?? p.purchaseDate;
+      }
+    }
+    void addStage(String stage, IconData icon, String label, {String? detail}) {
+      if (!stageDone(stage)) return;
+      out.add(_DeliveryEvent(at: stageAt(stage), icon: icon, title: label, detail: detail));
+    }
+
+    addStage('draft', Icons.drafts_outlined, 'Draft created');
+    addStage('active', Icons.play_circle_outline, 'Submitted');
+    addStage('approved', Icons.verified_outlined, 'Approved');
+    addStage('ordered', Icons.shopping_cart_checkout_outlined, 'Ordered');
+    addStage('supplier_confirmed', Icons.task_alt_outlined, 'Supplier confirmed');
+
     if (p.dispatchedAt != null) {
       final parts = <String>[];
       if ((p.truckNumber ?? '').trim().isNotEmpty) {
@@ -62,14 +104,17 @@ class PurchaseDeliveryTimeline extends StatelessWidget {
         detail: parts.isEmpty ? null : parts.join(' · '),
       ));
     }
-    if (p.arrivedAt != null) {
-      out.add(_DeliveryEvent(
-        at: p.arrivedAt!,
-        icon: Icons.inventory_2_outlined,
-        title: 'Arrived at warehouse',
-        detail: p.deliveryNotes,
-      ));
-    }
+    addStage(
+      'arrived',
+      Icons.inventory_2_outlined,
+      'Arrived at warehouse',
+      detail: p.deliveryNotes,
+    );
+    addStage(
+      'verification_pending',
+      Icons.pending_actions_outlined,
+      'Verification pending',
+    );
     if (p.staffVerifiedAt != null) {
       final who = (p.staffVerifiedByName ?? '').trim();
       var detail = who.isEmpty ? null : 'By $who';
@@ -98,6 +143,7 @@ class PurchaseDeliveryTimeline extends StatelessWidget {
         detail: detail,
       ));
     }
+    addStage('completed', Icons.check_circle_rounded, 'Purchase completed');
 
     out.sort((a, b) => a.at.compareTo(b.at));
     return out;

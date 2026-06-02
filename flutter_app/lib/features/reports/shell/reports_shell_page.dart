@@ -24,6 +24,7 @@ import '../../../core/router/shell_navigation.dart';
 import '../../../core/services/reports_pdf.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/utils/unit_utils.dart';
+import '../../../core/utils/currency_utils.dart';
 import '../../../features/analytics/presentation/analytics_report_helpers.dart';
 import '../../../shared/widgets/hexa_empty_state.dart';
 import '../filters/reports_filter_sheet.dart';
@@ -564,6 +565,50 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
     }
   }
 
+  Widget _heroSpendCard(TradeReportAgg agg) {
+    final spend = agg.totals.inr;
+    final deals = agg.totals.deals;
+    final tone = spend > 0 ? const Color(0xFF0E4F46) : HexaColors.textSecondary;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE6EBE8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'TOTAL SPEND THIS ${_presetLabel(_preset).toUpperCase()}',
+            style: const TextStyle(
+              fontSize: 11,
+              letterSpacing: 0.3,
+              fontWeight: FontWeight.w800,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            formatRupee(spend, decimals: false),
+            style: TextStyle(
+              fontSize: 38,
+              height: 1.0,
+              fontWeight: FontWeight.w900,
+              color: tone,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            deals > 0 ? '$deals purchases in selected range' : 'No purchases in selected range',
+            style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<AsyncValue<ReportsPurchasePayload>>(
@@ -628,6 +673,7 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
                 onSyncHome: _syncRangeWithHome,
                 compact: true,
               ),
+              _heroSpendCard(aggAll),
               ReportsPrimaryTabs(
                 selected: _biTab,
                 onSelected: _selectBiTab,

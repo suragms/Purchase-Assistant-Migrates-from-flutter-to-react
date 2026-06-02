@@ -17,7 +17,7 @@ class ScanItemStockSummaryCard extends StatelessWidget {
   final bool showTitle;
 
   static String daysAgoLabel(DateTime? at) {
-    if (at == null) return '';
+    if (at == null) return 'Never';
     final d = DateTime.now().difference(at.toLocal());
     if (d.inDays == 0) return 'today';
     if (d.inDays == 1) return '1 day ago';
@@ -79,7 +79,7 @@ class ScanItemStockSummaryCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _StockTile(
-                  label: 'System stock',
+                  label: 'Current Stock',
                   qty: system,
                   unit: unit,
                   accent: const Color(0xFF0E4F46),
@@ -89,8 +89,17 @@ class ScanItemStockSummaryCard extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Expanded(
+                child: _PurchaseTile(
+                  qty: lpQty,
+                  unit: lpUnit,
+                  date: lpDate,
+                  rate: lpRate,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
                 child: _StockTile(
-                  label: 'Physical count',
+                  label: 'Physical Count',
                   qty: physical,
                   unit: unit,
                   accent: const Color(0xFF2563EB),
@@ -101,18 +110,6 @@ class ScanItemStockSummaryCard extends StatelessWidget {
                         ].where((s) => s.isNotEmpty).join(' · ')
                       : 'Not counted yet',
                   emptyHint: '—',
-                  compact: true,
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: _StockTile(
-                  label: 'Last purchase',
-                  qty: lpQty != null && lpQty > 0 ? lpQty : null,
-                  unit: lpUnit,
-                  accent: const Color(0xFFB45309),
-                  subtitle: _lastPurchaseSubtitle(lpDate, supplier, lpRate),
-                  emptyHint: 'Never',
                   compact: true,
                 ),
               ),
@@ -231,6 +228,75 @@ class _StockTile extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PurchaseTile extends StatelessWidget {
+  const _PurchaseTile({
+    this.qty,
+    required this.unit,
+    this.date,
+    this.rate,
+  });
+
+  final double? qty;
+  final String unit;
+  final DateTime? date;
+  final double? rate;
+
+  @override
+  Widget build(BuildContext context) {
+    const accent = Color(0xFFB45309);
+    final unitUp = unit.isNotEmpty ? unit.toUpperCase() : '';
+    final value = qty != null && qty! > 0
+        ? '${formatStockQtyNumber(qty!)}${unitUp.isNotEmpty ? ' $unitUp' : ''}'
+        : 'Never';
+    final sub = [
+      ScanItemStockSummaryCard.daysAgoLabel(date),
+      if (rate != null && rate! > 0)
+        '₹${rate!.toStringAsFixed(rate == rate!.roundToDouble() ? 0 : 2)}',
+    ].where((s) => s.isNotEmpty).join(' · ');
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: accent.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Last Purchase',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              color: accent,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+              color: accent,
+              height: 1.1,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            sub,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 10, color: Color(0xFF64748B)),

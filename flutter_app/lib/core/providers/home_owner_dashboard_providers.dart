@@ -23,6 +23,46 @@ void _providerKeepAlive(Ref ref, Duration ttl) {
   ref.onDispose(timer.cancel);
 }
 
+const _ownerOverviewTtl = Duration(minutes: 3);
+final Map<String, Map<String, dynamic>> _ownerOverviewSnapCache = {};
+final Map<String, DateTime> _ownerOverviewFetchedAt = {};
+final Map<String, Future<Map<String, dynamic>>> _ownerOverviewInflight = {};
+
+String _ownerOverviewKey(String businessId, String from, String to) =>
+    '$businessId|$from|$to';
+
+Future<Map<String, dynamic>> _fetchOwnerOverviewSnapshot({
+  required Ref ref,
+  required String businessId,
+  required String from,
+  required String to,
+}) {
+  final key = _ownerOverviewKey(businessId, from, to);
+  final fetchedAt = _ownerOverviewFetchedAt[key];
+  if (fetchedAt != null &&
+      DateTime.now().difference(fetchedAt) < _ownerOverviewTtl) {
+    final cached = _ownerOverviewSnapCache[key];
+    if (cached != null) return Future.value(cached);
+  }
+  final existing = _ownerOverviewInflight[key];
+  if (existing != null) return existing;
+  final future = (() async {
+    final snap = await ref.read(hexaApiProvider).reportsHomeOverview(
+          businessId: businessId,
+          from: from,
+          to: to,
+          compact: true,
+          shellBundle: false,
+        );
+    final normalized = Map<String, dynamic>.from(snap);
+    _ownerOverviewSnapCache[key] = normalized;
+    _ownerOverviewFetchedAt[key] = DateTime.now();
+    return normalized;
+  })().whenComplete(() => _ownerOverviewInflight.remove(key));
+  _ownerOverviewInflight[key] = future;
+  return future;
+}
+
 String? _activityUnitsOrNull(String? raw) {
   final u = dedupeActivityUnitsLine(raw);
   return u.isEmpty ? null : u;
@@ -112,13 +152,12 @@ final homeTodayDashboardDataProvider =
   final day = DateTime(now.year, now.month, now.day);
   final from = _apiDate(day);
   final to = from;
-  final snap = await ref.read(hexaApiProvider).reportsHomeOverview(
-        businessId: session.primaryBusiness.id,
-        from: from,
-        to: to,
-        compact: true,
-        shellBundle: false,
-      );
+  final snap = await _fetchOwnerOverviewSnapshot(
+    ref: ref,
+    businessId: session.primaryBusiness.id,
+    from: from,
+    to: to,
+  );
   return homeDashboardDataFromApiSnapshot(HomePeriod.today, snap);
 });
 
@@ -319,13 +358,12 @@ final homeMonthDashboardDataProvider =
   final now = DateTime.now();
   final start = DateTime(now.year, now.month, 1);
   final end = DateTime(now.year, now.month, now.day);
-  final snap = await ref.read(hexaApiProvider).reportsHomeOverview(
-        businessId: session.primaryBusiness.id,
-        from: _apiDate(start),
-        to: _apiDate(end),
-        compact: true,
-        shellBundle: false,
-      );
+  final snap = await _fetchOwnerOverviewSnapshot(
+    ref: ref,
+    businessId: session.primaryBusiness.id,
+    from: _apiDate(start),
+    to: _apiDate(end),
+  );
   return homeDashboardDataFromApiSnapshot(HomePeriod.month, snap);
 });
 
@@ -753,7 +791,7 @@ Future<List<HomeActivityItem>> _fetchHomeWarehouseActivity(
     final purchaseId = received?.purchaseId?.trim();
     if (received != null) {
       final pid = purchaseId?.trim() ?? '';
-      final hid = received.humanId?.trim() ?? '';
+      final hid = received.humanId.trim();
       final linked = (pid.isNotEmpty && seenPurchaseIds.contains(pid)) ||
           (hid.isNotEmpty &&
               _purchaseActivityIndex(items, humanId: hid) >= 0);

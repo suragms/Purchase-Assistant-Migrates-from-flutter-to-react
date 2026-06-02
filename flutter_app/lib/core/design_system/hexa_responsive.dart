@@ -248,6 +248,22 @@ Future<T?> showHexaBottomSheet<T>({
   double maxWidth = HexaResponsive.maxSheetWidth,
   ShapeBorder? shape,
 }) {
+  if (HexaBreakpoints.isDesktop(context)) {
+    return showDialog<T>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 240, vertical: 80),
+        shape: shape ??
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          child: child,
+        ),
+      ),
+    );
+  }
   return showModalBottomSheet<T>(
     context: context,
     isScrollControlled: true,

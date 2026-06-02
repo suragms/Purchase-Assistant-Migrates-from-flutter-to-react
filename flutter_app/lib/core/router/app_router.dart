@@ -71,6 +71,7 @@ import '../../features/barcode/presentation/barcode_print_page.dart';
 import '../../features/barcode/presentation/bulk_barcode_print_page.dart';
 import '../../features/barcode/presentation/barcode_scan_page.dart';
 import '../../features/barcode/presentation/barcode_scan_history_page.dart';
+import '../../features/barcode/presentation/public_barcode_lookup_page.dart';
 import '../../features/barcode/presentation/public_item_scan_page.dart';
 import '../../features/barcode/presentation/stock_audit_session_page.dart';
 import '../../features/barcode/presentation/stock_audit_summary_page.dart';
@@ -177,7 +178,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           loc == '/forgot-password' ||
           loc == '/reset-password' ||
           loc.startsWith('/scan/') ||
-          loc.startsWith('/item/');
+          loc.startsWith('/item/') ||
+          loc == '/lookup';
 
       ProviderContainer container;
       try {
@@ -322,6 +324,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           if (c.isEmpty) return '/login';
           return '/item/$c';
         },
+      ),
+      GoRoute(
+        path: '/lookup',
+        pageBuilder: (context, state) => iosPushPage(
+          key: state.pageKey,
+          child: PublicBarcodeLookupPage(
+            barcode: state.uri.queryParameters['barcode'] ?? '',
+            businessSlug: state.uri.queryParameters['business'] ?? '',
+          ),
+        ),
       ),
       GoRoute(
         path: '/barcode/scan',

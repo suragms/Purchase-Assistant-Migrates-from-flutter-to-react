@@ -95,6 +95,7 @@ from app.services.low_stock_ops_enrichment import (
     reorder_status_map,
 )
 from app.services.stock_movement_service import (
+    NegativeStockError,
     StaleStockVersionError,
     apply_stock_movement,
 )
@@ -2778,6 +2779,8 @@ async def create_staff_purchase_log(
                 "amount": str(body.amount) if body.amount is not None else None,
             },
         )
+    except NegativeStockError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     except ValueError as e:
         if str(e) == "Item not found":
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found") from e
@@ -3113,6 +3116,8 @@ async def set_opening_stock(
             source_type="opening_stock_setup",
             idempotency_key=idem,
         )
+    except NegativeStockError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     item = result.item
@@ -3242,6 +3247,8 @@ async def update_physical_stock(
                 "stock_version": e.current_version,
             },
         ) from e
+    except NegativeStockError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     except ValueError as e:
         if str(e) == "Item not found":
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found") from e
@@ -3423,6 +3430,8 @@ async def patch_stock_item(
             reason=body.reason or body.adjustment_type,
             source_type="stock_patch",
         )
+    except NegativeStockError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     except ValueError as e:
         if str(e) == "Item not found":
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found") from e
@@ -3526,6 +3535,8 @@ async def undo_last_stock_change(
             source_id=log.id,
             idempotency_key=f"undo:{log.id}",
         )
+    except NegativeStockError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     except ValueError as e:
         if str(e) == "Item not found":
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found") from e

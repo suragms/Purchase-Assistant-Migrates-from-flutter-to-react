@@ -267,6 +267,8 @@ class _ShellBottomBar extends StatelessWidget {
                                     icon: Icons.grid_view_outlined,
                                     selectedIcon: Icons.grid_view_rounded,
                                     label: 'Home',
+                                    badgeCount: stockBadgeCount,
+                                    dotOnly: true,
                                     onTap: () => onDestinationSelected(0),
                                   ),
                                 ),
@@ -277,7 +279,6 @@ class _ShellBottomBar extends StatelessWidget {
                                     icon: Icons.inventory_2_outlined,
                                     selectedIcon: Icons.inventory_2_rounded,
                                     label: 'Stock',
-                                    badgeCount: stockBadgeCount,
                                     onTap: () => onDestinationSelected(1),
                                   ),
                                 ),
@@ -345,6 +346,7 @@ class _ShellNavTile extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.badgeCount = 0,
+    this.dotOnly = false,
   });
 
   final bool selected;
@@ -353,6 +355,7 @@ class _ShellNavTile extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final int badgeCount;
+  final bool dotOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -380,21 +383,49 @@ class _ShellNavTile extends StatelessWidget {
                       : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Badge(
-                  isLabelVisible: badgeCount > 0,
-                  label: Text(
-                    badgeCount > 99 ? '99+' : '$badgeCount',
-                    style: const TextStyle(
-                        fontSize: 9, fontWeight: FontWeight.w800),
-                  ),
-                  child: Icon(
-                    ic,
-                    size: 20,
-                    color: selected
-                        ? HexaColors.brandPrimary
-                        : cs.onSurfaceVariant,
-                  ),
-                ),
+                child: dotOnly
+                    ? Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Icon(
+                            ic,
+                            size: 20,
+                            color: selected
+                                ? HexaColors.brandPrimary
+                                : cs.onSurfaceVariant,
+                          ),
+                          if (badgeCount > 0)
+                            Positioned(
+                              right: -2,
+                              top: -2,
+                              child: Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(
+                                  color: Colors.red,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                            ),
+                        ],
+                      )
+                    : Badge(
+                        isLabelVisible: badgeCount > 0,
+                        label: Text(
+                          badgeCount > 99 ? '99+' : '$badgeCount',
+                          style: const TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        child: Icon(
+                          ic,
+                          size: 20,
+                          color: selected
+                              ? HexaColors.brandPrimary
+                              : cs.onSurfaceVariant,
+                        ),
+                      ),
               ),
               const SizedBox(height: 2),
               Text(

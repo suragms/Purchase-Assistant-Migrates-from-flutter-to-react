@@ -1,18 +1,33 @@
 import html
+import uuid
 
-from fastapi import APIRouter, HTTPException, status
-from sqlalchemy import desc, select
+from fastapi import APIRouter, HTTPException, Query, Request, status
+from sqlalchemy import String, desc, func, select
 from starlette.responses import HTMLResponse, JSONResponse
 
 from app.database import async_session_factory
-from app.models import CatalogItem, ItemCategory, Supplier
+from app.models import Business, CatalogItem, ItemCategory, Supplier
 from app.models.stock_physical_count import StockPhysicalCount
 from app.services.stock_inventory import (
     movement_delivered_qty_map,
     stock_status,
 )
+from app.middleware.rate_limit import SlidingWindowLimiter
 
 router = APIRouter(prefix="/public/items", tags=["public-items"])
+_PUBLIC_IP_LIMITER = SlidingWindowLimiter(max_requests=60, window_seconds=60.0)
+
+
+def _enforce_public_rate_limit(request: Request) -> None:
+    xff = request.headers.get("x-forwarded-for", "")
+    ip = xff.split(",")[0].strip() if xff else ""
+    if not ip:
+        ip = request.client.host if request.client else "unknown"
+    if not _PUBLIC_IP_LIMITER.allow(f"public:{ip}"):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requests. Please try again shortly.",
+        )
 
 
 async def _latest_physical_qty(
@@ -99,6 +114,12 @@ async def _load_public_item(
     clean = token.strip()
     if not clean or len(clean) > 64:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found")
+    try:
+        parsed = uuid.UUID(clean)
+        if parsed.version != 4:
+            raise ValueError("non-v4")
+    except Exception:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found")
     async with async_session_factory() as db:
         by_token = await db.execute(
             select(CatalogItem, ItemCategory.name)
@@ -110,35 +131,10 @@ async def _load_public_item(
         )
         row = by_token.first()
         if row is None:
-            by_barcode = await db.execute(
-                select(CatalogItem, ItemCategory.name)
-                .join(ItemCategory, ItemCategory.id == CatalogItem.category_id)
-                .where(
-                    CatalogItem.barcode == clean,
-                    CatalogItem.deleted_at.is_(None),
-                )
-                .limit(2)
+            raise HTTPException(
+                status.HTTP_404_NOT_FOUND,
+                detail="Item not found — scan the QR on the label",
             )
-            barcode_rows = by_barcode.all()
-            if len(barcode_rows) == 1:
-                row = barcode_rows[0]
-            else:
-                by_code = await db.execute(
-                    select(CatalogItem, ItemCategory.name)
-                    .join(ItemCategory, ItemCategory.id == CatalogItem.category_id)
-                    .where(
-                        CatalogItem.item_code == clean,
-                        CatalogItem.deleted_at.is_(None),
-                    )
-                    .limit(2)
-                )
-                code_rows = by_code.all()
-                if len(code_rows) != 1:
-                    raise HTTPException(
-                        status.HTTP_404_NOT_FOUND,
-                        detail="Item not found — scan the QR on the label",
-                    )
-                row = code_rows[0]
         item, category_name = row[0], row[1]
         delivered_map = await movement_delivered_qty_map(
             db, item.business_id, [item.id]
@@ -149,8 +145,27 @@ async def _load_public_item(
         return item, category_name, delivered, phys_qty, phys_at, supplier
 
 
+async def _resolve_business_id(db, business: str) -> str:
+    raw = business.strip()
+    if not raw:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Business not found")
+    by_id = await db.execute(select(Business.id).where(func.cast(Business.id, String) == raw))
+    bid = by_id.scalar_one_or_none()
+    if bid is not None:
+        return str(bid)
+    slug = raw.replace("-", " ").strip().lower()
+    by_name = await db.execute(
+        select(Business.id).where(func.lower(Business.name) == slug)
+    )
+    bid = by_name.scalar_one_or_none()
+    if bid is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Business not found")
+    return str(bid)
+
+
 @router.get("/{token}.json")
-async def public_item_json(token: str) -> JSONResponse:
+async def public_item_json(token: str, request: Request) -> JSONResponse:
+    _enforce_public_rate_limit(request)
     item, category_name, delivered, phys_qty, phys_at, supplier = await _load_public_item(
         token
     )
@@ -168,8 +183,48 @@ async def public_item_json(token: str) -> JSONResponse:
     )
 
 
+@router.get("/lookup")
+async def public_lookup(
+    request: Request,
+    barcode: str = Query(..., min_length=1, max_length=100),
+    business: str = Query(..., min_length=1, max_length=255),
+) -> JSONResponse:
+    _enforce_public_rate_limit(request)
+    clean = barcode.strip()
+    async with async_session_factory() as db:
+        business_id = await _resolve_business_id(db, business)
+        row = await db.execute(
+            select(CatalogItem, ItemCategory.name)
+            .join(ItemCategory, ItemCategory.id == CatalogItem.category_id)
+            .where(
+                CatalogItem.business_id == business_id,
+                CatalogItem.barcode == clean,
+                CatalogItem.deleted_at.is_(None),
+            )
+            .limit(2)
+        )
+        rows = row.all()
+        if len(rows) != 1:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found")
+        item, category_name = rows[0][0], rows[0][1]
+        delivered_map = await movement_delivered_qty_map(db, item.business_id, [item.id])
+        delivered = float(delivered_map.get(item.id, 0))
+        phys_qty, phys_at = await _latest_physical_qty(db, item.business_id, item.id)
+        supplier = await _supplier_name_for_item(db, item)
+        payload = _safe_item_payload(
+            item,
+            category_name,
+            delivered_qty=delivered,
+            physical_qty=phys_qty,
+            physical_counted_at=phys_at,
+            supplier_name=supplier,
+        )
+    return JSONResponse(payload, headers={"Cache-Control": "public, max-age=60"})
+
+
 @router.get("/{token}", response_class=HTMLResponse)
-async def public_item_page(token: str) -> HTMLResponse:
+async def public_item_page(token: str, request: Request) -> HTMLResponse:
+    _enforce_public_rate_limit(request)
     item, category_name, delivered, phys_qty, phys_at, supplier = await _load_public_item(
         token
     )
