@@ -60,7 +60,7 @@ class _PublicItemScanPageState extends State<PublicItemScanPage> {
           if (snap.connectionState != ConnectionState.done) {
             return const Padding(
               padding: EdgeInsets.all(20),
-              child: ListSkeleton(rowCount: 4, rowHeight: 72),
+              child: ListSkeleton(rowCount: 5, rowHeight: 72),
             );
           }
           if (snap.hasError) {
@@ -74,47 +74,157 @@ class _PublicItemScanPageState extends State<PublicItemScanPage> {
           final category = data['category']?.toString() ?? 'Catalog item';
           final code = data['item_code']?.toString() ?? '—';
           final rack = data['rack_location']?.toString() ?? '—';
-          final status = (data['status']?.toString() ?? 'healthy')
-              .replaceAll('_', ' ')
-              .toUpperCase();
+          final rawStatus = data['status']?.toString() ?? 'healthy';
+          final statusLabel =
+              rawStatus.replaceAll('_', ' ').toUpperCase();
+          final isLow = rawStatus == 'low_stock';
+          final isOut = rawStatus == 'out_of_stock';
+          final statusColor = isOut
+              ? const Color(0xFF6B7280)
+              : isLow
+                  ? const Color(0xFFD97706)
+                  : const Color(0xFF059669);
           final system = coerceToDouble(data['current_stock']);
           final unit = data['stock_unit']?.toString() ?? '';
 
+          // Last purchase summary for the chip row
+          final lpQty = coerceToDoubleNullable(data['last_purchase_qty']);
+          final lpUnit =
+              data['last_purchase_unit']?.toString().trim() ?? unit;
+          final lpRate = coerceToDoubleNullable(data['last_purchase_rate']);
+          final lpDateRaw = data['last_purchase_date']?.toString();
+          final lpDate =
+              lpDateRaw != null ? DateTime.tryParse(lpDateRaw) : null;
+          final supplier =
+              data['supplier_name']?.toString().trim() ?? '';
+
           return ListView(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
             children: [
+              // ── Category + name ──────────────────────────────────────
               Text(
                 category,
-                style: HexaDsType.body(14, color: HexaDsColors.textMuted),
+                style: HexaDsType.body(13, color: HexaDsColors.textMuted),
               ),
               const SizedBox(height: 4),
-              Text(
-                name,
-                style: HexaDsType.heading(22),
-              ),
+              Text(name, style: HexaDsType.heading(22)),
               const SizedBox(height: 16),
-              Text(
-                'Current stock',
-                style: HexaDsType.label(12, color: HexaDsColors.textMuted),
+
+              // ── Current stock hero card ───────────────────────────────
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5F2),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: HexaColors.brandPrimary.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Current stock',
+                      style:
+                          HexaDsType.label(12, color: HexaDsColors.textMuted),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${formatStockQtyNumber(system)}'
+                      '${unit.isNotEmpty ? ' ${unit.toUpperCase()}' : ''}',
+                      style: HexaDsType.heading(
+                        36,
+                        color: HexaColors.brandPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                            color: statusColor.withValues(alpha: 0.4)),
+                      ),
+                      child: Text(
+                        statusLabel,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: statusColor,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                '${formatStockQtyNumber(system)}${unit.isNotEmpty ? ' ${unit.toUpperCase()}' : ''}',
-                style: HexaDsType.heading(32, color: HexaColors.brandPrimary),
-              ),
-              const SizedBox(height: 16),
-              ScanItemStockSummaryCard(item: data, showTitle: false),
               const SizedBox(height: 12),
+
+              // ── Last purchase chip row ────────────────────────────────
+              if (lpQty != null && lpQty > 0) ...[
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF7ED),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFED7AA)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.receipt_long_outlined,
+                          size: 18, color: Color(0xFFB45309)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text.rich(
+                          TextSpan(
+                            style: const TextStyle(
+                                fontSize: 13, color: Color(0xFF92400E)),
+                            children: [
+                              const TextSpan(
+                                  text: 'Last purchase  ',
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.w600)),
+                              TextSpan(
+                                text:
+                                    '${formatStockQtyNumber(lpQty)} ${lpUnit.toUpperCase()}',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    fontSize: 15),
+                              ),
+                              if (lpRate != null && lpRate > 0)
+                                TextSpan(
+                                  text:
+                                      '  ·  ₹${lpRate.toStringAsFixed(lpRate == lpRate.roundToDouble() ? 0 : 2)}',
+                                ),
+                              if (supplier.isNotEmpty)
+                                TextSpan(text: '  ·  $supplier'),
+                              if (lpDate != null)
+                                TextSpan(
+                                  text:
+                                      '  ·  ${ScanItemStockSummaryCard.daysAgoLabel(lpDate)}',
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // ── Full summary card (system + physical + last purchase tiles) ──
+              ScanItemStockSummaryCard(item: data, showTitle: false),
+              const SizedBox(height: 16),
+
+              // ── Meta ──────────────────────────────────────────────────
               Text('Item code: $code', style: HexaDsType.bodySm(context)),
               Text('Rack: $rack', style: HexaDsType.bodySm(context)),
-              const SizedBox(height: 8),
-              Text(
-                'Status: $status',
-                style: HexaDsType.label(12, color: HexaDsColors.textMuted),
-              ),
               const SizedBox(height: 16),
               Text(
-                'Read-only · open the Harisree app to update physical or system stock.',
+                'Read-only · open the Harisree app to update stock.',
                 textAlign: TextAlign.center,
                 style: HexaDsType.body(12, color: HexaDsColors.textMuted),
               ),

@@ -57,6 +57,17 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   String _manualQuery = '';
   bool _torch = false;
   bool _busy = false;
+  void _setBusy(bool value) {
+    if (!mounted) return;
+    setState(() {
+      _busy = value;
+    });
+    if (value) {
+      _scanLineCtrl.stop();
+    } else {
+      _scanLineCtrl.repeat(reverse: true);
+    }
+  }
   String? _lastCode;
   DateTime? _lastAt;
   List<BarcodeRecentScan> _recent = [];
@@ -74,7 +85,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     _scanLineCtrl = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
+    )..repeat(reverse: true); // paused via _setBusy when camera is processing
     _manualCtrl.addListener(_onManualChanged);
     unawaited(_loadRecent());
     unawaited(_initCamera());
@@ -237,7 +248,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   }
 
   Future<void> _resumeScan() async {
-    _busy = false;
+    _setBusy(false);
     _lastCode = null; // Reset debounce so same code can be scanned again
     _lastAt = null;
 
@@ -423,8 +434,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     final session = ref.read(sessionProvider);
     if (session == null) return;
 
-    _busy = true;
-    if (mounted) setState(() {});
+    _setBusy(true);
 
     // Do NOT stop camera on iOS — just ignore new detects via _busy flag
     // Only stop on non-web (Android) where stop/start is reliable
@@ -582,13 +592,16 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final cam = _camera;
-    if (cam == null) return;
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive ||
         state == AppLifecycleState.hidden) {
-      unawaited(cam.stop());
+      if (cam != null) unawaited(cam.stop());
+      _scanLineCtrl.stop();
     } else if (state == AppLifecycleState.resumed) {
-      unawaited(cam.start());
+      if (cam != null) unawaited(cam.start());
+      if (!_busy) {
+        _scanLineCtrl.repeat(reverse: true);
+      }
     }
   }
 

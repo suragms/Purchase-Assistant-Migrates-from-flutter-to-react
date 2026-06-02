@@ -111,9 +111,7 @@ class ScanItemStockSummaryCard extends StatelessWidget {
                   qty: lpQty != null && lpQty > 0 ? lpQty : null,
                   unit: lpUnit,
                   accent: const Color(0xFFB45309),
-                  subtitle: lpDate != null
-                      ? daysAgoLabel(lpDate)
-                      : _lastPurchaseSubtitle(lpDate, supplier, lpRate),
+                  subtitle: _lastPurchaseSubtitle(lpDate, supplier, lpRate),
                   emptyHint: 'Never',
                   compact: true,
                 ),
