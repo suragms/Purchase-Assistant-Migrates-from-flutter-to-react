@@ -16,7 +16,7 @@ from app.database import get_db
 
 logger = logging.getLogger(__name__)
 from app.deps import get_current_user, require_membership, require_permission, require_role
-from app.services.staff_audit import log_staff_activity
+from app.services.staff_audit import log_staff_activity, log_staff_activity_best_effort
 from app.services.notification_emitter import CATEGORY_STAFF
 from app.services.stock_inventory import movement_delivered_qty_map
 from app.models import (
@@ -3387,26 +3387,19 @@ async def record_physical_stock_count(
     )
     db.add(entry)
     await db.flush()
-    try:
-        await log_staff_activity(
-            db,
-            business_id=business_id,
-            user=user,
-            action_type="PHYSICAL_STOCK_COUNT",
-            item_id=item_id,
-            item_name=item.name,
-            before_data={"system_qty": float(system_qty)},
-            after_data={
-                "counted_qty": float(counted),
-                "difference_qty": float(counted - system_qty),
-            },
-        )
-    except Exception:
-        logger.warning(
-            "staff activity log failed after physical count item_id=%s",
-            item_id,
-            exc_info=True,
-        )
+    await log_staff_activity_best_effort(
+        db,
+        business_id=business_id,
+        user=user,
+        action_type="PHYSICAL_STOCK_COUNT",
+        item_id=item_id,
+        item_name=item.name,
+        before_data={"system_qty": float(system_qty)},
+        after_data={
+            "counted_qty": float(counted),
+            "difference_qty": float(counted - system_qty),
+        },
+    )
     await db.commit()
     await db.refresh(entry)
     return _physical_count_out(item, entry)

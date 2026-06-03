@@ -1,10 +1,13 @@
 """Server-side staff activity audit."""
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.models import Membership, User
 from app.models.user_session import StaffActivityLog
@@ -39,6 +42,41 @@ async def log_staff_activity(
             details=merged or None,
         )
     )
+
+
+async def log_staff_activity_best_effort(
+    db: AsyncSession,
+    *,
+    business_id: uuid.UUID,
+    user: User,
+    action_type: str,
+    item_id: uuid.UUID | None = None,
+    item_name: str | None = None,
+    details: dict | None = None,
+    before_data: dict | None = None,
+    after_data: dict | None = None,
+) -> None:
+    """Write activity in a savepoint so CHECK/audit failures never roll back the main txn."""
+    try:
+        async with db.begin_nested():
+            await log_staff_activity(
+                db,
+                business_id=business_id,
+                user=user,
+                action_type=action_type,
+                item_id=item_id,
+                item_name=item_name,
+                details=details,
+                before_data=before_data,
+                after_data=after_data,
+            )
+            await db.flush()
+    except Exception:
+        logger.warning(
+            "staff activity log skipped action_type=%s",
+            action_type,
+            exc_info=True,
+        )
 
 
 async def log_staff_login_if_applicable(

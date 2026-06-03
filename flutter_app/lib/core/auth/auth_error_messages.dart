@@ -284,6 +284,10 @@ String friendlyApiError(Object error, {bool forAssistant = false}) {
       final resp = error.response?.data;
       if (resp is Map) {
         final detail = resp['detail'];
+        if (detail is String && detail.trim() == 'integrity_error') {
+          return 'Stock save was blocked by server audit settings. '
+              'Ask the owner to run the latest database update, then try again.';
+        }
         if (detail is Map) {
           final code = detail['code']?.toString();
           final raw = detail['message']?.toString() ?? '';

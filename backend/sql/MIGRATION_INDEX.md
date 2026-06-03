@@ -8,7 +8,7 @@ See also: [migrations_and_backfill.md](../docs/migrations_and_backfill.md), [ale
 
 ---
 
-## A — Alembic chain (001 → 058, head)
+## A — Alembic chain (001 → 059, head)
 
 Revisions **026** and **027** are absent in git (jump **025** → **028**). Do not renumber production revisions.
 
@@ -67,7 +67,8 @@ Revisions **026** and **027** are absent in git (jump **025** → **028**). Do n
 | 055 | `business_whatsapp_contact` | `accounts_whatsapp_number` |
 | 056 | `purchase_damage_reports` | Damage reports table |
 | 057 | `purchase_damage_reports_v2` | Damage report workflow columns |
-| 058 | `barcode_lookup_indexes` | Barcode lookup performance indexes (**head**) |
+| 058 | `barcode_lookup_indexes` | Barcode lookup performance indexes |
+| 059 | `staff_activity_action_types_v2` | Extend `staff_activity_log` action_type CHECK (**head**) |
 
 Inspect live chain: `cd backend && python -m alembic heads`
 
@@ -117,6 +118,7 @@ Inspect live chain: `cd backend && python -m alembic heads`
 | `056_purchase_damage_reports.sql` | **056** | Damage reports |
 | `057_purchase_damage_reports_v2.sql` | **057** | Damage reports v2 |
 | `058_barcode_lookup_perf.sql` | **058** | Barcode / item_code lookup indexes |
+| `059_staff_activity_action_types_v2.sql` | **059** | Staff activity action_type CHECK v2 |
 
 **Note:** `033_catalog_public_qr` is the Alembic **033** revision. `033b_*` is a sibling supplemental script — do not rename to `033_` (avoids runner sort confusion).
 

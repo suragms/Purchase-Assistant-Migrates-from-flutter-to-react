@@ -53,7 +53,7 @@ from app.services.stock_inventory import (
 )
 from app.services.purchase_line_unit_validation import validate_purchase_line_unit
 from app.services.unit_normalization import fetch_catalog_items_map, line_qty_in_stock_unit
-from app.services.staff_audit import log_staff_activity
+from app.services.staff_audit import log_staff_activity_best_effort
 
 _DELIVERY_TERMINAL = frozenset({"stock_committed", "cancelled"})
 _ARRIVE_FROM = frozenset({"pending", "dispatched", "in_transit"})
@@ -1438,7 +1438,7 @@ async def dispatch_trade_purchase(
     if body.dispatch_note is not None:
         tp.dispatch_note = body.dispatch_note.strip() or None
     tp.updated_at = now
-    await log_staff_activity(
+    await log_staff_activity_best_effort(
         db,
         business_id=business_id,
         user=user,
@@ -1516,7 +1516,7 @@ async def arrive_trade_purchase(
         block = "\n".join(arrival_lines)
         tp.delivery_notes = f"{existing}\n{block}".strip() if existing else block
     tp.updated_at = now
-    await log_staff_activity(
+    await log_staff_activity_best_effort(
         db,
         business_id=business_id,
         user=user,
@@ -1612,7 +1612,7 @@ async def commit_trade_purchase_delivery(
     if committer and not (tp.staff_verified_by_name or "").strip():
         tp.staff_verified_by = user.id
         tp.staff_verified_by_name = committer
-    await log_staff_activity(
+    await log_staff_activity_best_effort(
         db,
         business_id=business_id,
         user=user,
@@ -1823,7 +1823,7 @@ async def verify_trade_purchase_delivery(
     existing = (tp.delivery_notes or "").strip()
     tp.delivery_notes = f"{existing}\n{vnote}".strip() if existing else vnote
     tp.updated_at = now
-    await log_staff_activity(
+    await log_staff_activity_best_effort(
         db,
         business_id=business_id,
         user=user,
