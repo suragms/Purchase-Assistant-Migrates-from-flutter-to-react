@@ -38,6 +38,8 @@ The repo root [`vercel.json`](../vercel.json) runs `scripts/vercel-flutter-build
 2. **Environment variables (Production):** `API_BASE_URL=https://my-purchases-api.onrender.com` and `GOOGLE_OAUTH_CLIENT_ID=<your Web client ID>` (same as backend `GOOGLE_OAUTH_CLIENT_IDS`).
 3. Redeploy. A `404 NOT_FOUND` at the project URL usually meant the static `build/web` output was missing or the Root Directory pointed at the wrong folder.
 
+**Production URL (bookmarked):** [https://purchase-assiastant.vercel.app](https://purchase-assiastant.vercel.app) — note the spelling (`assiastant`, not `assistant`). The hostname `purchase-assistant.vercel.app` is a different Vercel project and serves HTML instead of `main.dart.js`, which shows a blank gray screen with no tabs.
+
 ## Sign in with Google (App Store / Play / web)
 
 Fast onboarding uses **Google Sign-In** in the app and **`POST /v1/auth/google`** on the API.

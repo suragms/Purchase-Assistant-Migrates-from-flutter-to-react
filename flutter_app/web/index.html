@@ -87,6 +87,23 @@
       color: #14523E;
       letter-spacing: 0.02em;
     }
+    #boot {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 18px;
+      z-index: 99999;
+      text-align: center;
+      font: 600 13px system-ui, sans-serif;
+      color: #14523E;
+      pointer-events: none;
+    }
+    #boot.boot-error {
+      color: #b91c1c;
+      pointer-events: auto;
+      padding: 0 16px;
+      line-height: 1.4;
+    }
   </style>
 </head>
 <body>
@@ -110,6 +127,30 @@
       }
       window.addEventListener('flutter-first-frame', hideSplash);
       window.setTimeout(hideSplash, 15000);
+    })();
+  </script>
+  <script>
+    (function () {
+      var boot = document.getElementById('boot');
+      function showBootError(msg) {
+        if (!boot) return;
+        boot.classList.add('boot-error');
+        boot.textContent = msg;
+      }
+      fetch('main.dart.js', { method: 'HEAD', cache: 'no-store' })
+        .then(function (r) {
+          var ct = (r.headers.get('content-type') || '').toLowerCase();
+          if (!r.ok || ct.indexOf('javascript') === -1) {
+            showBootError(
+              'Web build missing on this host. Open https://purchase-assiastant.vercel.app or redeploy from GitHub main.'
+            );
+          }
+        })
+        .catch(function () {
+          showBootError(
+            'Could not load the app bundle. Check network, then open https://purchase-assiastant.vercel.app'
+          );
+        });
     })();
   </script>
   <script>

@@ -62,6 +62,10 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
     ref.watch(notificationCenterCoordinatorProvider);
     final navigationShell = widget.navigationShell;
     final idx = navigationShell.currentIndex;
+    // Keep staff branch index aligned with IndexedStack in the same frame (web).
+    if (ref.read(staffShellCurrentBranchProvider) != idx) {
+      ref.read(staffShellCurrentBranchProvider.notifier).state = idx;
+    }
     final routePath = GoRouterState.of(context).uri.path;
 
     final sessionHint = ref.watch(apiDegradedProvider);
