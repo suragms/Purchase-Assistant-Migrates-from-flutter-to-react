@@ -8,7 +8,7 @@ See also: [migrations_and_backfill.md](../docs/migrations_and_backfill.md), [ale
 
 ---
 
-## A — Alembic chain (001 → 057, head)
+## A — Alembic chain (001 → 058, head)
 
 Revisions **026** and **027** are absent in git (jump **025** → **028**). Do not renumber production revisions.
 
@@ -66,9 +66,10 @@ Revisions **026** and **027** are absent in git (jump **025** → **028**). Do n
 | 054 | `enable_rls_business_policies` | RLS business policies |
 | 055 | `business_whatsapp_contact` | `accounts_whatsapp_number` |
 | 056 | `purchase_damage_reports` | Damage reports table |
-| 057 | `purchase_damage_reports_v2` | Damage report workflow columns (**head**) |
+| 057 | `purchase_damage_reports_v2` | Damage report workflow columns |
+| 058 | `barcode_lookup_indexes` | Barcode lookup performance indexes (**head**) |
 
-Inspect live chain: `cd backend && python -m alembic history`
+Inspect live chain: `cd backend && python -m alembic heads`
 
 ---
 

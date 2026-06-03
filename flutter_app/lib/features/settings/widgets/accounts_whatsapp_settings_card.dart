@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/providers/purchase_whatsapp_prefs.dart';
 import '../../../core/services/whatsapp_phone_normalize.dart';
 import '../../../core/theme/theme_context_ext.dart';
 import 'accounts_whatsapp_field.dart';
@@ -113,6 +114,17 @@ class _AccountsWhatsappSettingsCardState
               onValidityChanged: (v) {
                 if (mounted) setState(() => _valid = v);
               },
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Auto share on Save & Share'),
+              subtitle: const Text(
+                'After saving a purchase, send PDF and summary to this WhatsApp number',
+              ),
+              value: ref.watch(autoSharePurchaseWhatsappProvider),
+              onChanged: (v) =>
+                  ref.read(autoSharePurchaseWhatsappProvider.notifier).setValue(v),
             ),
             const SizedBox(height: 12),
             FilledButton(

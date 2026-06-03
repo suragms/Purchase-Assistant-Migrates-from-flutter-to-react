@@ -537,13 +537,27 @@ String? _purchasePdfTotalsWeightFooterLine(TradePurchase p) {
   return safePdfText('Total: ${parts.join(pdfInlineSep)}');
 }
 
-pw.Widget _footerBlock(BusinessProfile biz, TradePurchase p) {
+pw.Widget _footerBlock(
+  BusinessProfile biz,
+  TradePurchase p, {
+  String? generatedByName,
+}) {
   final wLine = _purchasePdfTotalsWeightFooterLine(p);
+  final generatedAt = _dateTimeFmt.format(DateTime.now());
   return pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.stretch,
     children: [
       pw.Container(height: 0.5, color: _border),
       pw.SizedBox(height: 4),
+      pw.Text(
+        'Generated: $generatedAt',
+        style: const pw.TextStyle(fontSize: 7.5, color: _muted),
+      ),
+      if (generatedByName != null && generatedByName.trim().isNotEmpty)
+        pw.Text(
+          'Created by: ${safePdfText(generatedByName.trim())}',
+          style: const pw.TextStyle(fontSize: 7.5, color: _muted),
+        ),
       pw.Text(
         'Amount in words: ${amountInWordsInr(p.totalAmount)}',
         style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.black, height: 1.25),
@@ -602,6 +616,7 @@ Future<pw.Document> buildProfessionalPurchaseInvoiceDoc({
   required BusinessProfile business,
   pw.ImageProvider? logo,
   pw.ThemeData? pdfTheme,
+  String? generatedByName,
 }) async {
   final doc = pw.Document(theme: pdfTheme);
   final req = _purchaseToCalcRequest(purchase);
@@ -628,7 +643,7 @@ Future<pw.Document> buildProfessionalPurchaseInvoiceDoc({
           totalMatches: !showMismatch,
         ),
         pw.SizedBox(height: 8),
-        _footerBlock(business, purchase),
+        _footerBlock(business, purchase, generatedByName: generatedByName),
       ],
     ),
   );

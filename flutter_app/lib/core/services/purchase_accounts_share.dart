@@ -85,6 +85,88 @@ String buildAccountsWhatsAppSummary(TradePurchase p, BusinessProfile biz) {
   return buf.toString().trim();
 }
 
+/// Short PO message for Save & Share → accounts WhatsApp (fixed recipient).
+String buildPurchaseOrderWhatsAppMessage(TradePurchase p, BusinessProfile biz) {
+  final po = p.humanId.trim().isNotEmpty ? p.humanId.trim() : p.id;
+  final supplier = (p.supplierName ?? '').trim().isNotEmpty
+      ? p.supplierName!.trim()
+      : '—';
+  final broker = (p.brokerName ?? '').trim();
+  final itemCount = p.lines.length;
+  final qtyLine = _aggregateQuantityLine(p);
+  final expected = p.dueDate != null
+      ? DateFormat('dd-MMM-yyyy').format(p.dueDate!)
+      : '—';
+  final total = _inr.format(p.totalAmount);
+
+  final buf = StringBuffer()
+    ..writeln('New Purchase Order Created')
+    ..writeln()
+    ..writeln('PO Number:')
+    ..writeln(po)
+    ..writeln()
+    ..writeln('Supplier:')
+    ..writeln(supplier);
+  if (broker.isNotEmpty) {
+    buf
+      ..writeln()
+      ..writeln('Broker:')
+      ..writeln(broker);
+  }
+  buf
+    ..writeln()
+    ..writeln('Items:')
+    ..writeln('$itemCount')
+    ..writeln()
+    ..writeln('Quantity:')
+    ..writeln(qtyLine)
+    ..writeln()
+    ..writeln('Total:')
+    ..writeln(total)
+    ..writeln()
+    ..writeln('Expected Delivery:')
+    ..writeln(expected)
+    ..writeln()
+    ..writeln('Please verify when goods arrive.')
+    ..writeln()
+    ..writeln('PDF attached');
+
+  final title = biz.displayTitle.trim().isNotEmpty
+      ? biz.displayTitle.trim()
+      : biz.legalName.trim();
+  final body = buf.toString().trim();
+  if (title.isEmpty) return body;
+  return '$title\n\n$body';
+}
+
+String _aggregateQuantityLine(TradePurchase p) {
+  if (p.lines.isEmpty) return '—';
+  final byUnit = <String, double>{};
+  for (final l in p.lines) {
+    final u = l.unit.trim().isEmpty ? 'units' : l.unit.trim();
+    byUnit[u] = (byUnit[u] ?? 0) + l.qty.toDouble();
+  }
+  if (byUnit.length == 1) {
+    final e = byUnit.entries.first;
+    final q = e.value == e.value.roundToDouble()
+        ? e.value.round().toString()
+        : e.value.toStringAsFixed(2);
+    return '$q ${e.key}';
+  }
+  final parts = <String>[];
+  byUnit.forEach((u, q) {
+    final s = q == q.roundToDouble() ? q.round().toString() : q.toStringAsFixed(2);
+    parts.add('$s $u');
+  });
+  return parts.join(', ');
+}
+
+String maskWhatsappRecipient(String waMeDigits) {
+  final d = waMeDigits.replaceAll(RegExp(r'\D'), '');
+  if (d.length <= 4) return '****';
+  return '***${d.substring(d.length - 4)}';
+}
+
 Uri whatsappUriForPhone(String waMeDigits, String message) {
   return Uri.parse(
     'https://wa.me/$waMeDigits?text=${Uri.encodeComponent(message)}',
@@ -151,11 +233,12 @@ Future<bool> ensureAccountsWhatsappConfigured(
   return normalizedFromStoredAccountsWhatsapp(after) != null;
 }
 
-/// Saves flow: PDF bytes → Web Share (PWA) → native share with file → wa.me text.
+/// Save & Share: PDF + summary to [biz.accountsWhatsappNumber] only.
 Future<PdfActionResult> sharePurchaseToAccountsStaff(
   TradePurchase p,
-  BusinessProfile biz,
-) async {
+  BusinessProfile biz, {
+  String? generatedByName,
+}) async {
   final phone = normalizedFromStoredAccountsWhatsapp(biz.accountsWhatsappNumber) ??
       normalizeAccountsWhatsappPhone(biz.accountsWhatsappNumber);
   if (phone == null) {
@@ -166,10 +249,15 @@ Future<PdfActionResult> sharePurchaseToAccountsStaff(
   }
 
   try {
-    final bytes = await buildPurchasePdfBytes(p, biz);
+    final bytes = await buildPurchasePdfBytes(
+      p,
+      biz,
+      generatedByName: generatedByName,
+    );
     final filename = buildPurchaseSharePdfFileName(p);
-    final message = buildAccountsWhatsAppSummary(p, biz);
+    final message = buildPurchaseOrderWhatsAppMessage(p, biz);
     final subject = '${p.supplierName ?? 'Purchase'} - ${p.humanId}';
+    final waUri = whatsappUriForPhone(phone.waMeDigits, message);
 
     if (kIsWeb) {
       final shared = await web_share.tryWebSharePurchasePdf(
@@ -179,9 +267,12 @@ Future<PdfActionResult> sharePurchaseToAccountsStaff(
         title: subject,
       );
       if (shared) {
+        if (await canLaunchUrl(waUri)) {
+          await launchUrl(waUri, mode: LaunchMode.externalApplication);
+        }
         return const PdfActionResult(
           ok: true,
-          message: 'Shared purchase PDF to accounts',
+          message: 'Purchase shared to accounts WhatsApp',
         );
       }
     }
@@ -206,14 +297,13 @@ Future<PdfActionResult> sharePurchaseToAccountsStaff(
       );
     }
 
-    final waUri = whatsappUriForPhone(phone.waMeDigits, message);
     if (await canLaunchUrl(waUri)) {
       await launchUrl(waUri, mode: LaunchMode.externalApplication);
     }
 
     return const PdfActionResult(
       ok: true,
-      message: 'PDF shared — WhatsApp opened with summary',
+      message: 'Purchase shared to accounts WhatsApp',
     );
   } catch (e, st) {
     logPdfFailure('purchase_accounts_share', 'share', e, st);

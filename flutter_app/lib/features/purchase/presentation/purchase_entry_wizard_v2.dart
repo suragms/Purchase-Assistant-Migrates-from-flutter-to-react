@@ -32,6 +32,7 @@ import '../../../core/providers/business_aggregates_invalidation.dart'
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/providers/prefs_provider.dart';
+import '../../../core/providers/purchase_whatsapp_prefs.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/providers/suppliers_list_provider.dart';
 import '../../../core/providers/business_profile_provider.dart';
@@ -1513,6 +1514,83 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
     }
   }
 
+  String? _purchaseCreatorDisplayName(Map<String, dynamic> saved) {
+    for (final k in ['created_by_name', 'user_name', 'staff_name']) {
+      final v = saved[k]?.toString().trim();
+      if (v != null && v.isNotEmpty) return v;
+    }
+    return ref.read(sessionProvider)?.primaryBusiness.name;
+  }
+
+  TradePurchase _tradePurchaseFromSaved(
+    Map<String, dynamic> saved,
+    PurchaseDraft draftSnap,
+  ) {
+    final merged = enrichSavedTradePurchaseJson(
+      saved,
+      supplierNameFallback: draftSnap.supplierName,
+      brokerNameFallback: draftSnap.brokerName,
+      purchaseDateFallback: draftSnap.purchaseDate,
+    );
+    return TradePurchase.fromJson(merged);
+  }
+
+  Future<void> _shareToAccountsWhatsapp({
+    required Map<String, dynamic> saved,
+    required PurchaseDraft draftSnap,
+  }) async {
+    final p = _tradePurchaseFromSaved(saved, draftSnap);
+    final biz = ref.read(invoiceBusinessProfileProvider);
+    final phone = normalizedFromStoredAccountsWhatsapp(biz.accountsWhatsappNumber) ??
+        normalizeAccountsWhatsappPhone(biz.accountsWhatsappNumber);
+    final pdfResult = await sharePurchaseToAccountsStaff(
+      p,
+      biz,
+      generatedByName: _purchaseCreatorDisplayName(saved),
+    );
+    final pid = saved['id']?.toString() ?? '';
+    final hid = saved['human_id']?.toString();
+    unawaited(
+      StaffActivityLogger.logPurchaseWhatsappShare(
+        ref,
+        purchaseId: pid,
+        success: pdfResult.ok,
+        humanId: hid,
+        recipientMasked:
+            phone != null ? maskWhatsappRecipient(phone.waMeDigits) : null,
+        errorMessage: pdfResult.ok ? null : pdfResult.message,
+      ),
+    );
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (pdfResult.ok) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Purchase saved. Shared to accounts WhatsApp.'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    } else {
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Purchase saved successfully. WhatsApp delivery failed.',
+          ),
+          duration: const Duration(seconds: 8),
+          action: SnackBarAction(
+            label: 'Retry Send',
+            onPressed: () {
+              unawaited(
+                _shareToAccountsWhatsapp(saved: saved, draftSnap: draftSnap),
+              );
+            },
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _validateAndSave({bool shareAfterSave = false}) async {
     if (_isSaving) return;
     setState(() {
@@ -1843,23 +1921,24 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
       }
       if (!mounted) return;
       if (shareAfterSave && pid.isNotEmpty) {
-        final configured = await ensureAccountsWhatsappConfigured(context, ref);
-        if (configured && mounted) {
-          final merged = enrichSavedTradePurchaseJson(
-            saved,
-            supplierNameFallback: draftSnap.supplierName,
-            brokerNameFallback: draftSnap.brokerName,
-            purchaseDateFallback: draftSnap.purchaseDate,
-          );
-          final p = TradePurchase.fromJson(merged);
-          final biz = ref.read(invoiceBusinessProfileProvider);
-          final pdfResult = await sharePurchaseToAccountsStaff(p, biz);
-          if (mounted && !pdfResult.ok) {
+        if (!ref.read(autoSharePurchaseWhatsappProvider)) {
+          if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(pdfResult.message),
-                duration: const Duration(seconds: 5),
+              const SnackBar(
+                content: Text(
+                  'Purchase saved. Turn on auto WhatsApp share in Settings to send on Save & Share.',
+                ),
+                duration: Duration(seconds: 5),
               ),
+            );
+          }
+        } else {
+          final configured =
+              await ensureAccountsWhatsappConfigured(context, ref);
+          if (configured && mounted) {
+            await _shareToAccountsWhatsapp(
+              saved: saved,
+              draftSnap: draftSnap,
             );
           }
         }
@@ -1867,16 +1946,18 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
       if (!mounted) return;
       final quick = ref.read(quickSavePurchaseProvider);
       if (quick) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isEdit
-                  ? 'Purchase updated · history refreshed'
-                  : 'Purchase saved · history refreshed',
+        if (!shareAfterSave) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                isEdit
+                    ? 'Purchase updated · history refreshed'
+                    : 'Purchase saved · history refreshed',
+              ),
+              backgroundColor: Colors.green[700],
             ),
-            backgroundColor: Colors.green[700],
-          ),
-        );
+          );
+        }
         if (!isEdit && pid.isNotEmpty) {
           await _scheduleDeliveryPrompt(pid);
         }

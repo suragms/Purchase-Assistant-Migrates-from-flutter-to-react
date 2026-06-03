@@ -38,6 +38,30 @@ class StaffActivityLogger {
     await log(ref, actionType: 'STAFF_LOGOUT');
   }
 
+  static Future<void> logPurchaseWhatsappShare(
+    dynamic ref, {
+    required String purchaseId,
+    required bool success,
+    String? humanId,
+    String? recipientMasked,
+    String? errorMessage,
+  }) async {
+    final session = ref.read(sessionProvider);
+    if (session == null) return;
+    await log(
+      ref,
+      actionType: success ? 'PURCHASE_WHATSAPP_SENT' : 'PURCHASE_WHATSAPP_FAILED',
+      details: {
+        'purchase_id': purchaseId,
+        if (humanId != null && humanId.isNotEmpty) 'human_id': humanId,
+        if (recipientMasked != null) 'recipient': recipientMasked,
+        if (errorMessage != null && errorMessage.isNotEmpty)
+          'error': errorMessage,
+        'channel': 'accounts_whatsapp',
+      },
+    );
+  }
+
   static Future<void> logPurchase(dynamic ref, Map<String, dynamic> saved) async {
     final session = ref.read(sessionProvider);
     if (session == null || !sessionIsStaff(session)) return;

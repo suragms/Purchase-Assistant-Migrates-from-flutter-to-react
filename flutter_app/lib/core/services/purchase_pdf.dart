@@ -189,7 +189,10 @@ Future<pw.Document> buildPurchaseReceiptDoc(
 
 /// Professional A4 purchase order; footer uses server [TradePurchase.totalAmount].
 Future<pw.Document> buildPurchaseDoc(
-    TradePurchase p, BusinessProfile biz) async {
+  TradePurchase p,
+  BusinessProfile biz, {
+  String? generatedByName,
+}) async {
   final logo = await tryFetchPdfLogo(biz.logoUrl);
   final pdfTheme = await loadPurchasePdfTheme();
   final doc = await buildProfessionalPurchaseInvoiceDoc(
@@ -197,14 +200,22 @@ Future<pw.Document> buildPurchaseDoc(
     business: biz,
     logo: logo,
     pdfTheme: pdfTheme,
+    generatedByName: generatedByName,
   );
   return doc;
 }
 
 Future<Uint8List> buildPurchasePdfBytes(
-    TradePurchase p, BusinessProfile biz) async {
+  TradePurchase p,
+  BusinessProfile biz, {
+  String? generatedByName,
+}) async {
   await ensurePdfLocalesInitialized();
-  final doc = await buildPurchaseDoc(p, biz);
+  final doc = await buildPurchaseDoc(
+    p,
+    biz,
+    generatedByName: generatedByName,
+  );
   return doc.save();
 }
 

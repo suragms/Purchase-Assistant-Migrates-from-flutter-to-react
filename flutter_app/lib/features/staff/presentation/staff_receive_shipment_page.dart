@@ -128,7 +128,7 @@ class _StaffReceiveShipmentPageState
         if (mounted) {
           showTopSnack(
             context,
-            'Received — system stock updated for verified quantities',
+            'Received — quantities verified. Owner will commit stock to warehouse.',
           );
           context.pop();
         }
