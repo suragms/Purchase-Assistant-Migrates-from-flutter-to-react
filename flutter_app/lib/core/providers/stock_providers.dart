@@ -422,6 +422,39 @@ final stockListProvider = FutureProvider.autoDispose((ref) async {
   );
 });
 
+/// Optimistic list-row overlays until the next `/stock/list` fetch replaces them.
+final stockListRowPatchProvider =
+    StateProvider<Map<String, Map<String, dynamic>>>((ref) => const {});
+
+void applyStockListRowPatch(
+  dynamic ref, {
+  required String itemId,
+  required Map<String, dynamic> patch,
+}) {
+  if (itemId.isEmpty || patch.isEmpty) return;
+  ref.read(stockListRowPatchProvider.notifier).update((current) {
+    return {
+      ...current,
+      itemId: {...?current[itemId], ...patch},
+    };
+  });
+}
+
+void clearStockListRowPatchesForIds(
+  dynamic ref,
+  Iterable<String> itemIds,
+) {
+  final ids = itemIds.where((id) => id.isNotEmpty).toSet();
+  if (ids.isEmpty) return;
+  ref.read(stockListRowPatchProvider.notifier).update((current) {
+    final next = Map<String, Map<String, dynamic>>.from(current);
+    for (final id in ids) {
+      next.remove(id);
+    }
+    return next;
+  });
+}
+
 /// Server-side pending/delivered truck counts (refreshed on period change + 30s poll).
 final stockDeliveryIndicatorCountsProvider = FutureProvider.autoDispose<
     ({int pending, int delivered})>((ref) async {

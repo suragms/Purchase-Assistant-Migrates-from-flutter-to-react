@@ -28,6 +28,7 @@ import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/widgets/list_skeleton.dart';
 import '../../../shared/widgets/hexa_empty_state.dart';
 import '../stock_list_merge.dart';
+import '../stock_list_row_patch.dart';
 import '../stock_period_utils.dart';
 import 'widgets/stock_pagination_bar.dart';
 import 'widgets/stock_operational_top_bar.dart';
@@ -217,6 +218,12 @@ class _StockPageState extends ConsumerState<StockPage>
   }
 
   List<Map<String, dynamic>> _prepareItems(List<Map<String, dynamic>> raw) {
+    final patches = ref.watch(stockListRowPatchProvider);
+    if (patches.isNotEmpty) {
+      raw = raw
+          .map((m) => applyStockListRowPatch(m, patches))
+          .toList(growable: false);
+    }
     final op = ref.read(stockOperationalFiltersProvider);
     final q = ref.read(stockListQueryProvider);
     final deliveryFilter = ref.read(stockDeliveryFilterProvider);
@@ -666,11 +673,17 @@ class _StockPageState extends ConsumerState<StockPage>
       final restoreOffset = _pendingScrollOffset;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        final incoming = next.value;
+        final ids = <String>[
+          for (final e in (incoming['items'] as List? ?? []))
+            if (e is Map) e['id']?.toString() ?? '',
+        ].where((id) => id.isNotEmpty);
+        clearStockListRowPatchesForIds(ref, ids);
         setState(() {
           _loadingMore = false;
           _mergedData = mergeStockListPage(
             previous: q.page > 1 ? _mergedData : null,
-            incoming: next.value,
+            incoming: incoming,
             page: q.page,
           );
         });

@@ -8,8 +8,11 @@ import '../../../../core/stock/stock_version_retry.dart';
 import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
 import '../../../../core/json_coerce.dart';
-import '../../../../core/providers/business_aggregates_invalidation.dart';
+import '../../../../core/providers/business_aggregates_invalidation.dart'
+    show invalidateWarehouseSurfacesLight;
+import '../../../../core/providers/stock_providers.dart' show applyStockListRowPatch;
 import '../../../../core/utils/unit_utils.dart';
+import '../../stock_list_row_patch.dart';
 import '../stock_undo_snackbar.dart';
 
 /// After a successful barcode lookup — fast +/- stock without leaving scanner flow.
@@ -78,7 +81,7 @@ class _ScanStockResultBodyState extends ConsumerState<_ScanStockResultBody> {
       final id = _item['id']?.toString() ?? '';
       final api = ref.read(hexaApiProvider);
       final bid = session.primaryBusiness.id;
-      await api.patchStockItemWithRetry(
+      final saved = await api.patchStockItemWithRetry(
         businessId: bid,
         itemId: id,
         newQty: newQty,
@@ -86,7 +89,12 @@ class _ScanStockResultBodyState extends ConsumerState<_ScanStockResultBody> {
         reason: delta >= 0 ? 'Scan quick add' : 'Scan quick remove',
         initialStockVersion: stockVersionFromItem(_item),
       );
-      invalidateWarehouseSurfaces(ref, itemId: id);
+      applyStockListRowPatch(
+        widget.parentRef,
+        itemId: id,
+        patch: stockListPatchFromStockDetail(saved, fallbackQty: newQty),
+      );
+      invalidateWarehouseSurfacesLight(ref, itemId: id);
       if (!mounted) return;
       setState(() => _current = newQty);
       await HapticFeedback.lightImpact();

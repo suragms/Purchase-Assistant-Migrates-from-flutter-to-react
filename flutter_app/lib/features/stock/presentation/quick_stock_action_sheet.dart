@@ -10,11 +10,14 @@ import '../../../core/auth/session_notifier.dart';
 import '../../../core/stock/stock_version_retry.dart';
 import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/json_coerce.dart';
-import '../../../core/providers/business_aggregates_invalidation.dart';
+import '../../../core/providers/business_aggregates_invalidation.dart'
+    show invalidateWarehouseSurfacesLight;
 import '../../../core/notifications/local_notifications_service.dart';
 import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/providers/staff_home_providers.dart';
-import '../../../core/providers/stock_providers.dart';
+import '../../../core/providers/stock_providers.dart'
+    show applyStockListRowPatch, stockListQueryProvider;
+import '../stock_list_row_patch.dart';
 import '../../../core/providers/notification_center_provider.dart';
 import '../../../core/providers/server_notifications_provider.dart';
 import '../../../core/utils/unit_utils.dart';
@@ -217,15 +220,15 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
         '${diff.abs() > 0.001 ? ' ($sign${formatStockQtyForUnit(_unit, diff)} diff)' : ''}';
   }
 
-  Future<void> _persistStock(num parsed) async {
+  Future<Map<String, dynamic>?> _persistStock(num parsed) async {
     final session = ref.read(sessionProvider);
-    if (session == null) return;
+    if (session == null) return null;
     final note = _notesCtrl.text.trim();
     final reasonLabel = _reasonLabel;
     final api = ref.read(hexaApiProvider);
     final bid = session.primaryBusiness.id;
     if (_mode == StockUpdateMode.system) {
-      await api.patchStockItemWithRetry(
+      final detail = await api.patchStockItemWithRetry(
         businessId: bid,
         itemId: _itemId,
         newQty: parsed,
@@ -233,20 +236,61 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
         reason: note.isNotEmpty ? '$reasonLabel — $note' : reasonLabel,
         initialStockVersion: _stockVersion(),
       );
-      if (!mounted) return;
+      if (!mounted) return null;
       ref.invalidate(appNotificationsListProvider);
       ref.invalidate(notificationCenterCoordinatorProvider);
-    } else {
-      final listQ = ref.read(stockListQueryProvider);
-      await api.recordPhysicalStockCount(
-        businessId: bid,
-        itemId: _itemId,
-        countedQty: parsed,
-        notes: note.isNotEmpty ? '$reasonLabel — $note' : reasonLabel,
-        periodStart: listQ.periodStart,
-        periodEnd: listQ.periodEnd,
+      return detail;
+    }
+    final listQ = ref.read(stockListQueryProvider);
+    return api.recordPhysicalStockCount(
+      businessId: bid,
+      itemId: _itemId,
+      countedQty: parsed,
+      notes: note.isNotEmpty ? '$reasonLabel — $note' : reasonLabel,
+      periodStart: listQ.periodStart,
+      periodEnd: listQ.periodEnd,
+    );
+  }
+
+  void _applyOptimisticListPatch(Map<String, dynamic>? saved, num parsed) {
+    if (_itemId.isEmpty) return;
+    var patch = _mode == StockUpdateMode.physical
+        ? stockListPatchFromPhysicalCount(saved ?? const {})
+        : stockListPatchFromStockDetail(
+            saved ?? const {},
+            fallbackQty: parsed,
+          );
+    if (patch.isEmpty && _mode == StockUpdateMode.physical) {
+      final system = coerceToDouble(_item['current_stock']);
+      final now = DateTime.now().toUtc().toIso8601String();
+      patch = {
+        'physical_stock_qty': parsed,
+        'physical_stock_difference_qty': parsed - system,
+        'physical_stock_counted_at': now,
+      };
+    }
+    if (patch.isEmpty) return;
+    applyStockListRowPatch(widget.parentRef, itemId: _itemId, patch: patch);
+  }
+
+  void _refreshListInBackground() {
+    invalidateWarehouseSurfacesLight(widget.parentRef, itemId: _itemId);
+    widget.parentRef.invalidate(stockAuditPeriodProvider);
+    widget.parentRef.invalidate(stockChangesFeedProvider);
+    widget.parentRef.invalidate(staffTodayActivityProvider);
+    widget.parentRef.invalidate(staffTodaySummaryProvider);
+  }
+
+  Future<void> _afterSaveBackground(num parsed) async {
+    _refreshListInBackground();
+    final reorder = coerceToDouble(_item['reorder_level']);
+    if (reorder > 0 && parsed <= reorder) {
+      final unitLabel = _unit.isNotEmpty ? _unit.toUpperCase() : '';
+      await LocalNotificationsService.instance.showLowStockItem(
+        itemName: _name,
+        detail:
+            '${formatStockQtyForUnit(_unit, parsed)} $unitLabel (reorder ${formatStockQtyForUnit(_unit, reorder)})',
       );
-      if (!mounted) return;
     }
   }
 
@@ -270,25 +314,10 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     if (!mounted) return;
     setState(() => _saving = true);
     try {
-      if (_mode == StockUpdateMode.system) {
-        await _refreshItemFromServer();
-      }
-      await _persistStock(parsed);
+      final saved = await _persistStock(parsed);
       if (!mounted) return;
-      invalidateWarehouseSurfaces(ref, itemId: _itemId);
-      ref.invalidate(stockAuditPeriodProvider);
-      ref.invalidate(stockChangesFeedProvider);
-      ref.invalidate(staffTodayActivityProvider);
-      ref.invalidate(staffTodaySummaryProvider);
-      final reorder = coerceToDouble(_item['reorder_level']);
-      if (reorder > 0 && parsed <= reorder) {
-        final unitLabel = _unit.isNotEmpty ? _unit.toUpperCase() : '';
-        await LocalNotificationsService.instance.showLowStockItem(
-          itemName: _name,
-          detail:
-              '${formatStockQtyForUnit(_unit, parsed)} $unitLabel (reorder ${formatStockQtyForUnit(_unit, reorder)})',
-        );
-      }
+      _applyOptimisticListPatch(saved, parsed);
+      unawaited(_afterSaveBackground(parsed));
       if (!context.mounted) return;
       await HapticFeedback.mediumImpact();
       if (!context.mounted) return;

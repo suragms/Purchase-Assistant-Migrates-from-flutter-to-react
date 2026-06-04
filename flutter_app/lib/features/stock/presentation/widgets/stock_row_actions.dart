@@ -71,6 +71,7 @@ Future<void> showStockRowActions({
               ref: ref,
               item: item,
               initialMode: StockUpdateMode.physical,
+              skipInitialRefresh: true,
             );
           },
         ),
@@ -85,6 +86,7 @@ Future<void> showStockRowActions({
                 ref: ref,
                 item: item,
                 initialMode: StockUpdateMode.system,
+                skipInitialRefresh: true,
               );
             },
           ),
