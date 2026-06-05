@@ -1600,12 +1600,15 @@ class HexaApi {
     String? from,
     String? to,
     String? supplierId,
+    int? tzOffsetMinutes,
   }) async {
     final res = await _dio.get<Map<String, dynamic>>(
       '/v1/businesses/$businessId/reports/trade-summary',
       queryParameters: {
         if (from != null && from.isNotEmpty) 'from': from,
         if (to != null && to.isNotEmpty) 'to': to,
+        if (tzOffsetMinutes != null)
+          'tz_offset_minutes': tzOffsetMinutes.toString(),
         if (supplierId != null && supplierId.isNotEmpty)
           'supplier_id': supplierId,
       },
@@ -1788,10 +1791,16 @@ class HexaApi {
     required String businessId,
     required String from,
     required String to,
+    int? tzOffsetMinutes,
   }) async {
     final res = await _dio.get<Map<String, dynamic>>(
       '/v1/businesses/$businessId/reports/movement-summary',
-      queryParameters: {'from': from, 'to': to},
+      queryParameters: {
+        'from': from,
+        'to': to,
+        if (tzOffsetMinutes != null)
+          'tz_offset_minutes': tzOffsetMinutes.toString(),
+      },
     );
     return res.data ?? {};
   }
@@ -1814,10 +1823,16 @@ class HexaApi {
     required String businessId,
     required String from,
     required String to,
+    int? tzOffsetMinutes,
   }) async {
     final res = await _dio.get<Map<String, dynamic>>(
       '/v1/businesses/$businessId/reports/trade-dashboard-snapshot',
-      queryParameters: {'from': from, 'to': to},
+      queryParameters: {
+        'from': from,
+        'to': to,
+        if (tzOffsetMinutes != null)
+          'tz_offset_minutes': tzOffsetMinutes.toString(),
+      },
     );
     return Map<String, dynamic>.from(res.data ?? {});
   }
@@ -1830,10 +1845,13 @@ class HexaApi {
     bool compact = false,
     bool shellBundle = false,
     int? maxSpanDays,
+    int? tzOffsetMinutes,
   }) async {
     final qp = <String, dynamic>{
       'from': from,
       'to': to,
+      if (tzOffsetMinutes != null)
+        'tz_offset_minutes': tzOffsetMinutes.toString(),
       if (compact) 'compact': true,
       if (shellBundle) 'shell_bundle': true,
       if (maxSpanDays != null) 'max_span_days': maxSpanDays,

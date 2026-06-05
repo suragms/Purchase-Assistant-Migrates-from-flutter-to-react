@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from collections import OrderedDict
 from copy import deepcopy
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from difflib import SequenceMatcher
 from time import monotonic
@@ -62,6 +62,22 @@ class SalesCompareIn(BaseModel):
 
 def _norm_name(value: str) -> str:
     return " ".join(value.lower().replace("-", " ").replace("_", " ").split())
+
+
+def _utc_range_from_local_dates(
+    date_from: date,
+    date_to: date,
+    tz_offset_minutes: int = 0,
+) -> tuple[datetime, datetime]:
+    """Convert local calendar dates to UTC instants using client tz offset."""
+    tz_offset = timedelta(minutes=tz_offset_minutes)
+    start_dt = datetime.combine(date_from, time.min) - tz_offset
+    end_dt = datetime.combine(date_to, time.max) - tz_offset
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    return start_dt, end_dt
 
 
 def _normalize_optional_uuid_str(value: Any) -> str | None:
@@ -1157,11 +1173,13 @@ async def reports_movement_summary(
     db: Annotated[AsyncSession, Depends(get_db)],
     date_from: date = Query(..., alias="from"),
     date_to: date = Query(..., alias="to"),
+    tz_offset_minutes: int = Query(0, ge=-720, le=840),
 ) -> dict[str, Any]:
     """Stock adjustment totals by type for the period (no financial totals)."""
     del _m
-    start_dt = datetime.combine(date_from, datetime.min.time(), tzinfo=timezone.utc)
-    end_dt = datetime.combine(date_to, datetime.max.time(), tzinfo=timezone.utc)
+    start_dt, end_dt = _utc_range_from_local_dates(
+        date_from, date_to, tz_offset_minutes
+    )
     r = await db.execute(
         select(
             StockAdjustmentLog.adjustment_type,
@@ -1206,13 +1224,15 @@ async def reports_activity_feed(
     db: Annotated[AsyncSession, Depends(get_db)],
     date_from: date = Query(..., alias="from"),
     date_to: date = Query(..., alias="to"),
+    tz_offset_minutes: int = Query(0, ge=-720, le=840),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> dict[str, Any]:
     """Unified activity timeline: purchases + stock adjustments."""
     del _m
-    start_dt = datetime.combine(date_from, datetime.min.time(), tzinfo=timezone.utc)
-    end_dt = datetime.combine(date_to, datetime.max.time(), tzinfo=timezone.utc)
+    start_dt, end_dt = _utc_range_from_local_dates(
+        date_from, date_to, tz_offset_minutes
+    )
     daily_r = await db.execute(
         select(
             func.date(StockAdjustmentLog.updated_at),

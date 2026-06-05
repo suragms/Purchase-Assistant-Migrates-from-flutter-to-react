@@ -85,12 +85,15 @@ class _ShellRealtimeListenerState extends ConsumerState<ShellRealtimeListener> {
   }
 
   void _applyWarehouseSignal(RealtimeInvalidationSignal signal) {
-    final ids = signal.affectedItemIds;
-    if (ids.isEmpty) {
+    final ids = signal.affectedItemIds.where((id) => id.isNotEmpty).toSet();
+    if (ids.length == 1) {
+      patchStockItemInCache(ref, ids.first, const {});
+    } else if (ids.isEmpty) {
       invalidateWarehouseSurfacesLight(ref);
     } else {
+      invalidateWarehouseSurfacesLight(ref);
       for (final id in ids) {
-        invalidateWarehouseSurfacesLight(ref, itemId: id);
+        invalidateWarehouseItemSurfacesLight(ref, itemId: id);
       }
     }
     ref.invalidate(homeRecentActivityFeedProvider);

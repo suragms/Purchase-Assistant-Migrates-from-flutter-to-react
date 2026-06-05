@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 
 import '../auth/session_notifier.dart';
 import '../json_coerce.dart';
+import '../utils/report_date_params.dart';
 
 /// Selected date range for the Analytics tab (`from`/`to` inclusive calendar days).
 /// Default matches Home “Month”: last 30 days through today (`homePeriodRange`).
@@ -51,6 +52,7 @@ final analyticsKpiProvider =
     businessId: session.primaryBusiness.id,
     from: fmt.format(range.from),
     to: fmt.format(range.to),
+    tzOffsetMinutes: localTzOffsetMinutes,
   );
   final u = m['unit_totals'];
   Map<String, dynamic> ut = {};

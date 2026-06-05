@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1764,24 +1763,6 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
               forceDuplicate: forceDuplicate,
             );
     final isEdit = _isEditMode();
-
-    if (kDebugMode) {
-      final d = ref.read(purchaseDraftProvider);
-      debugPrint(
-        '[PurchaseWizard] submit supplier id=${d.supplierId} name="${d.supplierName}"',
-      );
-      debugPrint(
-        '[PurchaseWizard] submit broker id=${d.brokerId} name="${d.brokerName}"',
-      );
-      final lines = d.lines;
-      for (var i = 0; i < lines.length; i++) {
-        final l = lines[i];
-        debugPrint(
-          '[PurchaseWizard] line[$i] catalogId=${l.catalogItemId} name="${l.itemName}"',
-        );
-      }
-      debugPrint('[PurchaseWizard] submit body: $body');
-    }
 
     try {
       Map<String, dynamic> saved;

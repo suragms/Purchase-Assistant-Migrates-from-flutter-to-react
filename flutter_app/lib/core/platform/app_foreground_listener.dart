@@ -27,6 +27,7 @@ class _AppForegroundListenerState extends ConsumerState<AppForegroundListener>
   Timer? _resumeDebounce;
   bool _foreground = true;
   DateTime? _lastForegroundRefreshAt;
+  DateTime? _lastWarehouseInvalidateAt;
 
   @override
   void initState() {
@@ -103,6 +104,13 @@ class _AppForegroundListenerState extends ConsumerState<AppForegroundListener>
       return;
     }
     _lastForegroundRefreshAt = now;
+    if (_lastWarehouseInvalidateAt != null &&
+        now.difference(_lastWarehouseInvalidateAt!) <
+            const Duration(seconds: 30)) {
+      ref.invalidate(realtimeInvalidationProvider);
+      return;
+    }
+    _lastWarehouseInvalidateAt = now;
     invalidateStaffDeliverySurfacesLight(ref);
     invalidateWarehouseSurfacesLight(ref);
     ref.invalidate(realtimeInvalidationProvider);

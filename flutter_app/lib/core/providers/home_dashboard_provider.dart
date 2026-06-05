@@ -14,6 +14,7 @@ import '../json_coerce.dart';
 import '../models/trade_purchase_models.dart';
 import '../services/offline_store.dart';
 import '../utils/line_display.dart';
+import '../utils/report_date_params.dart';
 import '../reporting/trade_report_aggregate.dart';
 import 'api_degraded_provider.dart';
 import 'catalog_providers.dart';
@@ -822,6 +823,7 @@ Future<HomeDashboardPayload> _homeDashboardPullFresh({
           to: to,
           compact: true,
           shellBundle: true,
+          tzOffsetMinutes: localTzOffsetMinutes,
         )
         .timeout(
           const Duration(seconds: 12),

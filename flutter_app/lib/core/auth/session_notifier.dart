@@ -19,6 +19,7 @@ import '../providers/staff_home_providers.dart' show invalidateStaffHomeCaches;
 import '../providers/suppliers_list_provider.dart';
 import '../router/post_auth_route.dart' show sessionIsStaff;
 import '../services/staff_activity_logger.dart';
+import '../../features/barcode/barcode_camera_session.dart';
 import 'auth_failure_policy.dart';
 import 'google_sign_in_helper.dart';
 import 'jwt_access_token.dart';
@@ -370,6 +371,28 @@ class SessionNotifier extends Notifier<Session?> {
 
   /// Backward-compatible alias for older callers.
   Future<void> refreshOnResume() => silentRefreshIfNeeded();
+
+  /// Refresh JWT before export/download if access token is near expiry.
+  Future<void> ensureFreshSessionForExport() async {
+    if (_disposed || state == null) {
+      throw StateError('No active session');
+    }
+    final store = ref.read(tokenStoreProvider);
+    final api = ref.read(hexaApiProvider);
+    final t = await store.read();
+    if (t.access == null || t.refresh == null) {
+      throw StateError('No active session');
+    }
+    if (!isAccessTokenExpiredOrNearExpiry(t.access)) {
+      return;
+    }
+    final pair = await api.refreshTokens(refreshToken: t.refresh!);
+    if (_disposed) return;
+    await store.write(access: pair.access, refresh: pair.refresh);
+    api.setAuthToken(pair.access);
+    await applyRefreshedTokens(pair.access, pair.refresh);
+    authRefresh.value++;
+  }
 
   Future<bool> _readIsSuperAdmin(HexaApi api) async {
     try {
@@ -848,6 +871,7 @@ class SessionNotifier extends Notifier<Session?> {
     state = null;
     api.setAuthToken(null);
     authRefresh.value++;
+    unawaited(BarcodeCameraSession.reset());
     if (prev != null) {
       _notifyStaffAuthEvent(prev, signedIn: false);
       if (sessionIsStaff(prev)) {

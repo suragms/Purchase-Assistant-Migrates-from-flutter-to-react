@@ -12,7 +12,13 @@ import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/services/offline_store.dart';
 import '../../../core/errors/errors.dart';
 import '../../../core/json_coerce.dart';
-import '../../../core/providers/business_aggregates_invalidation.dart';
+import '../../../core/providers/business_aggregates_invalidation.dart'
+    show
+        invalidateWarehouseItemSurfacesLight,
+        invalidateWarehouseSurfacesLight;
+import '../../../core/providers/stock_providers.dart' show applyStockListRowPatch;
+import '../../stock/stock_list_row_patch.dart'
+    show stockListPatchFromPhysicalCount, stockListPatchFromStockDetail;
 import '../../../core/providers/notification_center_provider.dart';
 import '../../../core/providers/server_notifications_provider.dart';
 import '../../../core/providers/stock_audit_providers.dart';
@@ -85,6 +91,12 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
         _seedQtyFromItem();
       });
     } catch (_) {}
+  }
+
+  Future<void> _refreshAfterSave() async {
+    invalidateWarehouseSurfacesLight(ref);
+    invalidateWarehouseItemSurfacesLight(ref, itemId: _itemId);
+    ref.invalidate(activeStockAuditProvider);
   }
 
   @override
@@ -269,7 +281,7 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
           }
         }
         final api = ref.read(hexaApiProvider);
-        await api.patchStockItemWithRetry(
+        final saved = await api.patchStockItemWithRetry(
           businessId: bid,
           itemId: _itemId,
           newQty: qty,
@@ -280,10 +292,16 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
         if (!mounted) return;
         ref.invalidate(appNotificationsListProvider);
         ref.invalidate(notificationCenterCoordinatorProvider);
+        applyStockListRowPatch(
+          ref,
+          itemId: _itemId,
+          patch: stockListPatchFromStockDetail(saved, fallbackQty: qty),
+        );
       } else {
+        Map<String, dynamic>? saved;
         final audit = ref.read(activeStockAuditProvider).valueOrNull;
         if (audit != null && audit['id'] != null) {
-          await ref.read(hexaApiProvider).upsertStockAuditLine(
+          saved = await ref.read(hexaApiProvider).upsertStockAuditLine(
                 businessId: bid,
                 auditId: audit['id'].toString(),
                 itemId: _itemId,
@@ -293,7 +311,7 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
                 notes: note.isEmpty ? null : note,
               );
         } else {
-          await ref.read(hexaApiProvider).verifyStockCountWithRetry(
+          saved = await ref.read(hexaApiProvider).verifyStockCountWithRetry(
                 businessId: bid,
                 itemId: _itemId,
                 countedQty: qty,
@@ -304,22 +322,17 @@ class _WarehouseScanActionBodyState extends ConsumerState<_WarehouseScanActionBo
               );
         }
         if (!mounted) return;
+        applyStockListRowPatch(
+          ref,
+          itemId: _itemId,
+          patch: stockListPatchFromPhysicalCount(saved),
+        );
       }
 
-      invalidateWarehouseSurfaces(ref, itemId: _itemId);
-      ref.invalidate(activeStockAuditProvider);
       if (!mounted) return;
       await HapticFeedback.mediumImpact();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            _mode == StockUpdateMode.system
-                ? 'System stock updated'
-                : 'Physical count saved',
-          ),
-        ),
-      );
       Navigator.pop(context, true);
+      unawaited(_refreshAfterSave());
     } on StaleStockConflict {
       if (!mounted) return;
       await _refreshItemFromServer();

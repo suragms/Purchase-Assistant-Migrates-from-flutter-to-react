@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
+import '../../../../core/router/shell_navigation.dart';
+import '../../../../features/shell/shell_branch_provider.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart'
     show
@@ -257,6 +259,14 @@ class _HealthTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           onTap: () {
             Navigator.of(context).pop();
+            if (route == '/reports' || route.startsWith('/reports/')) {
+              goShellTabFromContext(
+                context,
+                branch: ShellBranch.reports,
+                location: route,
+              );
+              return;
+            }
             context.go(route);
           },
           child: Container(

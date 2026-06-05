@@ -177,7 +177,17 @@ class _BulkBarcodePrintPageState extends ConsumerState<BulkBarcodePrintPage> {
     bool deliverOnceAtEnd = false,
     bool previewMode = false,
   }) async {
-    if (_selected.isEmpty || _busy) return;
+    if (_busy) return;
+    if (_selected.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Select at least one item to print labels'),
+          ),
+        );
+      }
+      return;
+    }
     final selectedCount = ref.read(bulkBarcodeSelectionProvider).length;
     if (!mounted) return;
     final largeChoice = await confirmLargeBulkPrint(context, selectedCount);

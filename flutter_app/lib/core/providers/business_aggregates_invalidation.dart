@@ -226,6 +226,34 @@ void invalidateWarehouseSurfaces(dynamic ref, {String? itemId}) {
   invalidateBusinessAggregates(ref);
 }
 
+/// Item-scoped bust — detail/activity only (no full list refetch storm).
+void invalidateWarehouseItemSurfacesLight(dynamic ref, {required String itemId}) {
+  if (itemId.isEmpty) return;
+  ref.invalidate(stockItemDetailProvider(itemId));
+  ref.invalidate(stockItemIntelligenceProvider(itemId));
+  ref.invalidate(stockItemActivityProvider(itemId));
+  ref.invalidate(itemDetailBundleProvider(itemId));
+  ref.invalidate(tradePurchasesForItemProvider(itemId));
+}
+
+/// Patches a single item row without busting [stockListProvider] (no list flash).
+void patchStockItemInCache(
+  dynamic ref,
+  String itemId,
+  Map<String, dynamic> newValues,
+) {
+  if (itemId.isEmpty) return;
+  if (newValues.isNotEmpty) {
+    applyStockListRowPatch(ref, itemId: itemId, patch: newValues);
+  }
+  emitBusinessWriteEvent(
+    ref,
+    kind: 'stock_patch',
+    affectedItemIds: {itemId},
+  );
+  invalidateWarehouseItemSurfacesLight(ref, itemId: itemId);
+}
+
 /// Background/realtime/home poll: refresh stock + alerts only (no KPI storm).
 void invalidateWarehouseSurfacesLight(dynamic ref, {String? itemId}) {
   // Keep [stockListCacheProvider] entries alive so Stock tab does not flash
@@ -247,11 +275,7 @@ void invalidateWarehouseSurfacesLight(dynamic ref, {String? itemId}) {
   ref.invalidate(lowStockOperationsSummaryProvider);
   ref.invalidate(lowStockOperationsPageProvider);
   if (itemId != null && itemId.isNotEmpty) {
-    ref.invalidate(stockItemDetailProvider(itemId));
-    ref.invalidate(stockItemIntelligenceProvider(itemId));
-    ref.invalidate(stockItemActivityProvider(itemId));
-    ref.invalidate(itemDetailBundleProvider(itemId));
-    ref.invalidate(tradePurchasesForItemProvider(itemId));
+    invalidateWarehouseItemSurfacesLight(ref, itemId: itemId);
   }
 }
 

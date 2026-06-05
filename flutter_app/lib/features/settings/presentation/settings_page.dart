@@ -59,31 +59,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final canManageUsers = session != null && sessionCanAdminUsers(session);
     final notifOptIn = ref.watch(localNotificationsOptInProvider);
     final notifKinds = ref.watch(notificationKindTogglesProvider);
+    final isDesktop = MediaQuery.sizeOf(context).width >= 720;
 
-    return Scaffold(
-      backgroundColor: context.adaptiveScaffold,
-      appBar: AppBar(
-        backgroundColor: context.adaptiveAppBarBg,
-        surfaceTintColor: Colors.transparent,
-        title: Text(
-          'Settings',
-          style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        leading: IconButton(
-          tooltip: 'Back',
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => context.popOrGo('/home'),
-        ),
+    final settingsList = ListView(
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
       ),
-      body: HexaResponsiveCenter(
-        maxWidth: 720,
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-        child: ListView(
-          physics: const BouncingScrollPhysics(
-            parent: AlwaysScrollableScrollPhysics(),
-          ),
-          shrinkWrap: true,
-          children: [
+      shrinkWrap: true,
+      children: [
           if (isOwner) const BackupMonthlyBanner(),
           _SectionTitle('Account'),
           _SettingsCard(
@@ -342,14 +325,126 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             label: const Text('Sign out'),
           ),
         ],
+    );
+
+    return Scaffold(
+      backgroundColor: context.adaptiveScaffold,
+      appBar: AppBar(
+        backgroundColor: context.adaptiveAppBarBg,
+        surfaceTintColor: Colors.transparent,
+        title: Text(
+          'Settings',
+          style: tt.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => context.popOrGo('/home'),
         ),
       ),
+      body: isDesktop
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SettingsSidebar(
+                  isOwner: isOwner,
+                  canManageUsers: canManageUsers,
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  child: HexaResponsiveCenter(
+                    maxWidth: 720,
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                    child: settingsList,
+                  ),
+                ),
+              ],
+            )
+          : HexaResponsiveCenter(
+              maxWidth: 720,
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+              child: settingsList,
+            ),
     );
   }
 
   Future<void> _setNotificationsOptIn(bool enabled) async {
     await ref.read(localNotificationsOptInProvider.notifier).setValue(enabled);
     await LocalNotificationsService.instance.setOptIn(enabled);
+  }
+}
+
+class _SettingsSidebar extends StatelessWidget {
+  const _SettingsSidebar({
+    required this.isOwner,
+    required this.canManageUsers,
+  });
+
+  final bool isOwner;
+  final bool canManageUsers;
+
+  @override
+  Widget build(BuildContext context) {
+    final route = GoRouterState.of(context).uri.path;
+    return SizedBox(
+      width: 220,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(8, 16, 8, 16),
+        children: [
+          _SidebarTile(
+            icon: Icons.business_rounded,
+            label: 'Business profile',
+            route: '/settings/business',
+            currentRoute: route,
+          ),
+          if (canManageUsers)
+            _SidebarTile(
+              icon: Icons.people_outline_rounded,
+              label: 'Users',
+              route: '/settings/users',
+              currentRoute: route,
+            ),
+          if (isOwner)
+            _SidebarTile(
+              icon: Icons.cloud_download_outlined,
+              label: 'Backup & export',
+              route: '/settings/backup',
+              currentRoute: route,
+            ),
+          _SidebarTile(
+            icon: Icons.help_outline_rounded,
+            label: 'Help guide',
+            route: '/settings/help',
+            currentRoute: route,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SidebarTile extends StatelessWidget {
+  const _SidebarTile({
+    required this.icon,
+    required this.label,
+    required this.route,
+    required this.currentRoute,
+  });
+
+  final IconData icon;
+  final String label;
+  final String route;
+  final String currentRoute;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = currentRoute == route || currentRoute.startsWith('$route/');
+    return ListTile(
+      leading: Icon(icon),
+      title: Text(label),
+      selected: selected,
+      onTap: () => context.push(route),
+    );
   }
 }
 

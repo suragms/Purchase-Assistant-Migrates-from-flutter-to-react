@@ -15,11 +15,17 @@ class BusinessWriteStockListener extends ConsumerWidget {
     ref.listen<BusinessWriteEvent>(businessWriteEventProvider, (prev, next) {
       if (prev != null && prev.revision == next.revision) return;
       final kind = next.kind;
-      if (kind == 'purchase' || kind == 'stock') {
-        invalidateWarehouseSurfacesLight(ref);
+      if (kind == 'stock_patch') {
         for (final id in next.affectedItemIds) {
-          if (id.isEmpty) continue;
-          invalidateWarehouseSurfacesLight(ref, itemId: id);
+          if (id.isNotEmpty) {
+            invalidateWarehouseItemSurfacesLight(ref, itemId: id);
+          }
+        }
+      } else if (kind == 'purchase' || kind == 'stock') {
+        final ids = next.affectedItemIds.where((id) => id.isNotEmpty).toSet();
+        invalidateWarehouseSurfacesLight(ref);
+        for (final id in ids) {
+          invalidateWarehouseItemSurfacesLight(ref, itemId: id);
         }
       }
     });

@@ -4,14 +4,39 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/shell/shell_branch_provider.dart';
 
+/// Pushed/modal routes — keep current shell branch; do not call [goBranch].
+bool shellIsPushedModalPath(String path) {
+  if (path.startsWith('/settings')) return true;
+  if (path.startsWith('/notifications')) return true;
+  if (path.startsWith('/barcode')) return true;
+  return false;
+}
+
 /// Maps a route path to the shell branch that should be active (stack pushes included).
 int? shellBranchIndexForPath(String path) {
-  if (path.startsWith('/stock')) return ShellBranch.stock;
-  if (path.startsWith('/home')) return ShellBranch.home;
-  if (path.startsWith('/reports')) return ShellBranch.reports;
-  if (path.startsWith('/purchase')) return ShellBranch.history;
-  if (path.startsWith('/search')) return ShellBranch.search;
-  return null;
+  final int? branch;
+  if (path.startsWith('/settings')) {
+    branch = null;
+  } else if (path.startsWith('/notifications')) {
+    branch = null;
+  } else if (path.startsWith('/stock')) {
+    branch = ShellBranch.stock;
+  } else if (path.startsWith('/catalog')) {
+    branch = ShellBranch.stock;
+  } else if (path.startsWith('/home')) {
+    branch = ShellBranch.home;
+  } else if (path.startsWith('/reports')) {
+    branch = ShellBranch.reports;
+  } else if (path.startsWith('/purchase')) {
+    branch = ShellBranch.history;
+  } else if (path.startsWith('/barcode')) {
+    branch = ShellBranch.history;
+  } else if (path.startsWith('/search')) {
+    branch = ShellBranch.search;
+  } else {
+    branch = null;
+  }
+  return branch;
 }
 
 /// Default shell location for each IndexedStack branch.

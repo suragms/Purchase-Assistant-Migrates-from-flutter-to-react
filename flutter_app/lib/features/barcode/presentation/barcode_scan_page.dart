@@ -294,7 +294,11 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
 
   Future<void> _startNativeMobileScanner() async {
     if (!mounted) return;
-    _camera = _newScannerController();
+    _camera = BarcodeCameraSession.mobile ?? _newScannerController();
+    BarcodeCameraSession.retainMobile(_camera!);
+    if (!_camera!.value.isRunning) {
+      await _camera!.start();
+    }
     await _markCameraPermGranted();
     if (mounted) {
       setState(() {
@@ -314,17 +318,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
           _safariUploadNudgeShown) {
         return;
       }
-      _safariUploadNudgeShown = true;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Tap to upload image for scanning'),
-          behavior: SnackBarBehavior.floating,
-          action: SnackBarAction(
-            label: 'Upload',
-            onPressed: () => unawaited(_scanFromImage()),
-          ),
-        ),
-      );
+      setState(() => _safariUploadNudgeShown = true);
     });
   }
 
@@ -345,7 +339,6 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
       if (persisted) {
         _cameraPermissionGrantedThisSession = true;
       }
-
       if (kIsWeb) {
         if (BarcodeCameraSession.hasLiveWebDetector &&
             BarcodeCameraSession.webDetector != null) {
@@ -397,8 +390,17 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
       }
 
       if (_cameraPermissionGrantedThisSession || persisted) {
-        await _startNativeMobileScanner();
-        return;
+        final recheck = await Permission.camera.status;
+        if (recheck.isGranted || recheck.isLimited) {
+          await _markCameraPermGranted();
+          await _startNativeMobileScanner();
+          return;
+        }
+        if (persisted) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_kCameraPermGrantedKey, false);
+        }
+        _cameraPermissionGrantedThisSession = false;
       }
 
       final req = await Permission.camera.request();
@@ -851,7 +853,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
       _camera = null;
     } else {
       unawaited(_stopWebLiveScanner());
-      unawaited(_camera?.dispose());
+      unawaited(_camera?.stop());
       _camera = null;
     }
     super.dispose();
@@ -1179,6 +1181,36 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
                               ),
                             ],
                           ],
+                        ),
+                      ),
+                    if (_safariUploadNudgeShown && !_hadDetectThisVisit)
+                      Positioned(
+                        left: 12,
+                        right: 12,
+                        bottom: 12,
+                        child: Material(
+                          elevation: 2,
+                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.orange.shade50,
+                          child: ListTile(
+                            leading: const Icon(
+                              Icons.camera_alt_outlined,
+                              color: Colors.orange,
+                            ),
+                            title: const Text(
+                              'Camera scanning not supported on this browser',
+                              style: TextStyle(fontWeight: FontWeight.w700),
+                            ),
+                            subtitle: const Text(
+                              'Upload a photo of the barcode, or type the item name below',
+                            ),
+                            trailing: ElevatedButton(
+                              onPressed: _busy
+                                  ? null
+                                  : () => unawaited(_scanFromImage()),
+                              child: const Text('Upload'),
+                            ),
+                          ),
                         ),
                       ),
                   ],

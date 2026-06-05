@@ -475,11 +475,12 @@ async def find_matching_duplicate_trade_purchase(
         return (inter / union) if union else 0.0
 
     in_kg = _in_total_kg(lines)
+    window_start = datetime.now(timezone.utc) - timedelta(hours=24)
     q = (
         select(TradePurchase)
         .where(
             TradePurchase.business_id == business_id,
-            TradePurchase.purchase_date == purchase_date,
+            TradePurchase.created_at >= window_start,
             not_(TradePurchase.status.in_(tuple(_STATUS_EXCLUDED_FROM_DUP_MATCH))),
         )
         .options(selectinload(TradePurchase.lines))

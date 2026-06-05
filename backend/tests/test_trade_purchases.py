@@ -958,6 +958,33 @@ def test_delete_clears_catalog_last_trade_snapshot():
     assert row.get("last_purchase_human_id") in (None, "")
 
 
+def test_duplicate_trade_purchase_returns_409_without_force():
+    h, bid = _register_and_business()
+    sid = _supplier_id(h, bid)
+    iid = _catalog_item_id(h, bid)
+    payload = {
+        "purchase_date": "2026-05-20",
+        "supplier_id": sid,
+        "lines": [_line_body(iid)],
+    }
+    first = client.post(
+        f"/v1/businesses/{bid}/trade-purchases",
+        headers=h,
+        json=payload,
+    )
+    assert first.status_code == 201, first.text
+    dup = client.post(
+        f"/v1/businesses/{bid}/trade-purchases",
+        headers=h,
+        json=payload,
+    )
+    assert dup.status_code == 409, dup.text
+    body = dup.json()
+    assert body.get("detail", {}).get("code") == "DUPLICATE_PURCHASE_DETECTED" or (
+        "DUPLICATE" in str(body.get("detail", body))
+    )
+
+
 def test_stock_period_purchased_counts_only_delivered_purchase_lines():
     h, bid = _register_and_business()
     sid = _supplier_id(h, bid)

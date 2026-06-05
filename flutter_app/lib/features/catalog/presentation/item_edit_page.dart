@@ -37,6 +37,7 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
   late final TextEditingController _sellCtrl;
   bool _saving = false;
   bool _controllersBound = false;
+  String? _nameError;
 
   @override
   void initState() {
@@ -50,10 +51,18 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
     _wptCtrl = TextEditingController();
     _landCtrl = TextEditingController();
     _sellCtrl = TextEditingController();
+    _nameCtrl.addListener(_onNameChanged);
+  }
+
+  void _onNameChanged() {
+    if (_nameError != null && _nameCtrl.text.trim().isNotEmpty) {
+      setState(() => _nameError = null);
+    }
   }
 
   @override
   void dispose() {
+    _nameCtrl.removeListener(_onNameChanged);
     _nameCtrl.dispose();
     _codeCtrl.dispose();
     _hsnCtrl.dispose();
@@ -125,12 +134,13 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
     final form = _formKey.currentState;
     if (form == null) return;
     if (_nameCtrl.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Item name is required')),
-      );
+      setState(() => _nameError = 'Item name is required');
       return;
     }
-    setState(() => _saving = true);
+    setState(() {
+      _nameError = null;
+      _saving = true;
+    });
     try {
       final ok = await saveCatalogItemDefaults(
         ref: ref,
@@ -215,6 +225,7 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
           return CatalogItemDefaultsEditForm(
             key: _formKey,
             pickerContext: context,
+            nameError: _nameError,
             nameCtrl: _nameCtrl,
             codeCtrl: _codeCtrl,
             hsnCtrl: _hsnCtrl,

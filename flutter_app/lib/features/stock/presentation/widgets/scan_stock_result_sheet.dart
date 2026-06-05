@@ -1,8 +1,10 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/auth/auth_error_messages.dart';
 import '../../../../core/auth/session_notifier.dart';
 import '../../../../core/stock/stock_version_retry.dart';
 import '../../../../core/design_system/hexa_operational_tokens.dart';
@@ -113,10 +115,16 @@ class _ScanStockResultBodyState extends ConsumerState<_ScanStockResultBody> {
           const SnackBar(content: Text(StaleStockConflict.userMessage)),
         );
       }
-    } catch (e) {
+    } on DioException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not update stock')),
+          SnackBar(content: Text(friendlyApiError(e))),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not update stock. Try again.')),
         );
       }
     } finally {

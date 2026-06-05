@@ -31,6 +31,7 @@ class CatalogItemDefaultsEditForm extends StatefulWidget {
     this.openingStockLabel,
     this.canSetOpeningStock = false,
     this.onSetOpeningStock,
+    this.nameError,
   });
 
   final BuildContext pickerContext;
@@ -50,6 +51,7 @@ class CatalogItemDefaultsEditForm extends StatefulWidget {
   final String? openingStockLabel;
   final bool canSetOpeningStock;
   final VoidCallback? onSetOpeningStock;
+  final String? nameError;
 
   @override
   State<CatalogItemDefaultsEditForm> createState() =>
@@ -139,7 +141,10 @@ class CatalogItemDefaultsEditFormState
           controller: widget.nameCtrl,
           focusNode: _nameFocus,
           scrollPadding: sp,
-          decoration: const InputDecoration(labelText: 'Name *'),
+          decoration: InputDecoration(
+            labelText: 'Name *',
+            errorText: widget.nameError,
+          ),
           textCapitalization: TextCapitalization.words,
           autofocus: true,
         ),

@@ -74,14 +74,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     final routePath = GoRouterState.of(context).uri.path;
     final pathBranch = shellBranchIndexForPath(routePath);
-    // Sync IndexedStack branch with the visible route (e.g. /stock/low-stock stack push).
-    if (pathBranch != null && pathBranch != idx) {
+    final isPushedModal = shellIsPushedModalPath(routePath);
+    final navSelectedIndex =
+        (pathBranch != null && !isPushedModal) ? pathBranch : idx;
+    // Sync IndexedStack only for real branch routes — not barcode/settings pushes.
+    if (pathBranch != null && !isPushedModal && pathBranch != idx) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         ref.read(shellCurrentBranchProvider.notifier).state = pathBranch;
         navigationShell.goBranch(pathBranch);
       });
-    } else if (routePath == '/home' && idx != ShellBranch.home) {
+    } else if (!isPushedModal &&
+        routePath == '/home' &&
+        idx != ShellBranch.home) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         ref.read(shellCurrentBranchProvider.notifier).state = ShellBranch.home;
@@ -130,7 +135,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       bottomBar: hideShellChrome || !showBottomBar
           ? null
           : _ShellBottomBar(
-              selectedIndex: idx,
+              selectedIndex: navSelectedIndex,
               stockBadgeCount: stockAlertN,
               onDestinationSelected: go,
               showFab: !hideFab,
@@ -138,7 +143,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     );
 
     final railWidget = NavigationRail(
-      selectedIndex: idx,
+      selectedIndex: navSelectedIndex,
       extended: railExtended,
       minExtendedWidth: kDesktopSidebarWidth,
       labelType: railExtended

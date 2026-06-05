@@ -14,6 +14,7 @@ import '../errors/user_facing_errors.dart';
 import '../models/trade_purchase_models.dart';
 import '../reporting/trade_report_aggregate.dart';
 import '../services/offline_store.dart';
+import '../utils/report_date_params.dart';
 import '../../features/shell/shell_branch_provider.dart';
 import 'api_degraded_provider.dart';
 import 'analytics_kpi_provider.dart';
@@ -99,6 +100,7 @@ Future<({List<TradePurchase> items, List<Map<String, dynamic>> raw})?>
       businessId: bid,
       from: fromStr,
       to: toStr,
+      tzOffsetMinutes: localTzOffsetMinutes,
     );
     final dr = summary['deals'];
     final deals = dr is int ? dr : int.tryParse('$dr') ?? 0;

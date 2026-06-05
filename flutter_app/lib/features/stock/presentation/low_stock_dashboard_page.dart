@@ -173,6 +173,7 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
       ref: ref,
       item: item,
       initialMode: StockUpdateMode.physical,
+      skipInitialRefresh: true,
     );
     if (ok && mounted) {
       ref.invalidate(lowStockByCategoryProvider);
@@ -185,6 +186,7 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
       ref: ref,
       item: item,
       initialMode: StockUpdateMode.system,
+      skipInitialRefresh: true,
     );
     if (ok && mounted) {
       ref.invalidate(lowStockByCategoryProvider);

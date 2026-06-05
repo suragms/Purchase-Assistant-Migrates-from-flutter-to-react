@@ -659,20 +659,33 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
       emptyCard: emptyCard,
     );
 
+    final wideDesktop = MediaQuery.sizeOf(context).width >= 900;
     final content = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (wideDesktop) ...[
+          SizedBox(
+            width: 180,
+            child: _ReportsPeriodNav(
+              selected: _presetLabel(_preset),
+              onSelect: _applyDatePresetFromLabel,
+              onCustom: () => unawaited(_pickCustomRange()),
+            ),
+          ),
+          const VerticalDivider(width: 1),
+        ],
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              ReportsPeriodBar(
-                selectedPreset: _presetLabel(_preset),
-                onPresetSelected: _applyDatePresetFromLabel,
-                onCustomRange: () => unawaited(_pickCustomRange()),
-                onSyncHome: _syncRangeWithHome,
-                compact: true,
-              ),
+              if (!wideDesktop)
+                ReportsPeriodBar(
+                  selectedPreset: _presetLabel(_preset),
+                  onPresetSelected: _applyDatePresetFromLabel,
+                  onCustomRange: () => unawaited(_pickCustomRange()),
+                  onSyncHome: _syncRangeWithHome,
+                  compact: true,
+                ),
               _heroSpendCard(aggAll),
               ReportsPrimaryTabs(
                 selected: _biTab,
@@ -684,8 +697,10 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
             ],
           ),
         ),
-        if (context.isReportsDesktop)
-          const SizedBox(width: 320, child: ReportsFilterDrawer()),
+        if (context.isReportsDesktop) ...[
+          const VerticalDivider(width: 1),
+          const SizedBox(width: 260, child: ReportsFilterDrawer()),
+        ],
       ],
     );
 
@@ -720,6 +735,54 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
                 ),
               ),
       ),
+    );
+  }
+}
+
+class _ReportsPeriodNav extends StatelessWidget {
+  const _ReportsPeriodNav({
+    required this.selected,
+    required this.onSelect,
+    required this.onCustom,
+  });
+
+  final String selected;
+  final ValueChanged<String> onSelect;
+  final VoidCallback onCustom;
+
+  static const _labels = ['Today', 'Week', 'Month', 'Quarter', 'Year'];
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+          child: Text(
+            'Period',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+        ),
+        for (final label in _labels)
+          ListTile(
+            dense: true,
+            selected: selected == label,
+            selectedTileColor: cs.primaryContainer.withValues(alpha: 0.35),
+            title: Text(label),
+            onTap: () => onSelect(label),
+          ),
+        ListTile(
+          dense: true,
+          selected: selected == 'Custom',
+          selectedTileColor: cs.primaryContainer.withValues(alpha: 0.35),
+          title: const Text('Custom'),
+          onTap: onCustom,
+        ),
+      ],
     );
   }
 }

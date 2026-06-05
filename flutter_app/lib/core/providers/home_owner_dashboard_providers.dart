@@ -7,6 +7,7 @@ import '../api/hexa_api.dart';
 import '../auth/provider_api_guard.dart';
 import '../auth/session_notifier.dart' show activeSessionProvider, hexaApiProvider;
 import '../json_coerce.dart';
+import '../utils/report_date_params.dart';
 import '../utils/stock_audit_rows.dart';
 import '../utils/home_activity_units.dart';
 import 'stock_providers.dart'
@@ -65,6 +66,7 @@ Future<Map<String, dynamic>> _fetchOwnerOverviewSnapshot({
           to: to,
           compact: true,
           shellBundle: false,
+          tzOffsetMinutes: localTzOffsetMinutes,
         );
     final normalized = Map<String, dynamic>.from(snap);
     _ownerOverviewSnapCache[key] = normalized;

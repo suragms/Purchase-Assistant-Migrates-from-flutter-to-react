@@ -269,7 +269,7 @@ class BarcodePdfService {
     bool hideFinancials = false,
     bool showStockOnLabel = true,
     int labelsPerRow = 1,
-    BarcodeSymbolMode symbol = BarcodeSymbolMode.code128WithQr,
+    BarcodeSymbolMode symbol = BarcodeSymbolMode.code128,
   }) async {
     final printable = _requirePrintable(items);
     final expanded = <BarcodeLabelData>[];
@@ -838,7 +838,7 @@ class BarcodePdfService {
     required bool showLastPurchase,
     bool hideFinancials = false,
     bool showStockOnLabel = true,
-    BarcodeSymbolMode symbol = BarcodeSymbolMode.code128WithQr,
+    BarcodeSymbolMode symbol = BarcodeSymbolMode.code128,
     bool compact = false,
     int? serialNumber,
     bool showSerialBadge = true,

@@ -70,6 +70,21 @@ class _BackupPageState extends ConsumerState<BackupPage> {
     return null;
   }
 
+  Future<bool> _ensureFreshSession() async {
+    try {
+      await ref.read(sessionProvider.notifier).ensureFreshSessionForExport();
+      return true;
+    } catch (_) {
+      if (!mounted) return false;
+      showTopSnack(
+        context,
+        'Your session expired. Please sign out and sign in again.',
+        isError: true,
+      );
+      return false;
+    }
+  }
+
   Future<void> _deliverAndRecord({
     required Uint8List bytes,
     required String filename,
@@ -100,6 +115,7 @@ class _BackupPageState extends ConsumerState<BackupPage> {
       showTopSnack(context, blocked, isError: true);
       return;
     }
+    if (!await _ensureFreshSession()) return;
     final session = ref.read(sessionProvider)!;
     setState(() => _busyStock = true);
     try {
@@ -143,6 +159,7 @@ class _BackupPageState extends ConsumerState<BackupPage> {
       showTopSnack(context, blocked, isError: true);
       return;
     }
+    if (!await _ensureFreshSession()) return;
     final session = ref.read(sessionProvider)!;
     setState(() => _busyPdf = true);
     try {
@@ -191,6 +208,7 @@ class _BackupPageState extends ConsumerState<BackupPage> {
       showTopSnack(context, blocked, isError: true);
       return;
     }
+    if (!await _ensureFreshSession()) return;
     final session = ref.read(sessionProvider)!;
     setState(() => _busyZip = true);
     try {
@@ -231,6 +249,8 @@ class _BackupPageState extends ConsumerState<BackupPage> {
   String _fmt(DateTime? t) =>
       t == null ? 'Never on this device' : DateFormat('dd MMM yyyy, HH:mm').format(t);
 
+  bool get _anyBusy => _busyZip || _busyStock || _busyPdf;
+
   String get _storageHint {
     if (kIsWeb) {
       return 'On web, files download to your browser Downloads folder. '
@@ -266,7 +286,7 @@ class _BackupPageState extends ConsumerState<BackupPage> {
               style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
           FilledButton.icon(
-            onPressed: _busyStock ? null : _downloadStockExcel,
+            onPressed: _anyBusy ? null : _downloadStockExcel,
             icon: _busyStock
                 ? const SizedBox(
                     width: 18,
@@ -285,7 +305,7 @@ class _BackupPageState extends ConsumerState<BackupPage> {
           ),
           const SizedBox(height: 12),
           FilledButton.tonalIcon(
-            onPressed: _busyPdf ? null : _downloadPurchasesPdf,
+            onPressed: _anyBusy ? null : _downloadPurchasesPdf,
             icon: _busyPdf
                 ? const SizedBox(
                     width: 18,
@@ -333,7 +353,7 @@ class _BackupPageState extends ConsumerState<BackupPage> {
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: _busyZip ? null : _downloadZip,
+            onPressed: _anyBusy ? null : _downloadZip,
             icon: _busyZip
                 ? const SizedBox(
                     width: 18,

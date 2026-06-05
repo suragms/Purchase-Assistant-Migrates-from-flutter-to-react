@@ -305,8 +305,16 @@ Future<T?> showHexaBottomSheet<T>({
               borderRadius: BorderRadius.circular(16),
             ),
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: maxWidth),
-          child: child,
+          constraints: BoxConstraints(
+            maxWidth: maxWidth,
+            maxHeight: MediaQuery.sizeOf(ctx).height * 0.85,
+          ),
+          child: Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.viewInsetsOf(ctx).bottom,
+            ),
+            child: SingleChildScrollView(child: child),
+          ),
         ),
       ),
     );

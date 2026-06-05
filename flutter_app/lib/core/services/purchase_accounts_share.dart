@@ -276,7 +276,7 @@ Future<PdfActionResult> sharePurchaseToAccountsStaff(
         }
         return const PdfActionResult(
           ok: true,
-          message: 'Purchase shared to accounts WhatsApp',
+          message: 'PDF shared — open WhatsApp to send the summary',
         );
       }
     }
@@ -307,7 +307,7 @@ Future<PdfActionResult> sharePurchaseToAccountsStaff(
 
     return const PdfActionResult(
       ok: true,
-      message: 'Purchase shared to accounts WhatsApp',
+      message: 'PDF ready — complete send in WhatsApp',
     );
   } catch (e, st) {
     logPdfFailure('purchase_accounts_share', 'share', e, st);

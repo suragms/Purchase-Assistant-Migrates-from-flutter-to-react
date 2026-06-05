@@ -663,9 +663,10 @@ class _StockPageState extends ConsumerState<StockPage>
   Widget build(BuildContext context) {
     ref.listen(businessWriteEventProvider, (prev, next) {
       if (prev == null || prev.revision == next.revision) return;
-      // Background refresh; keep scroll + merged rows until new data arrives.
-      ref.invalidate(stockListProvider);
       ref.invalidate(stockChangesFeedProvider);
+      if (next.affectedItemIds.isEmpty) {
+        ref.invalidate(stockListProvider);
+      }
     });
     // Warehouse realtime fan-out lives in [ShellRealtimeListener] — avoid double invalidation here.
 
