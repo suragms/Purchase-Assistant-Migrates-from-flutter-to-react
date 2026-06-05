@@ -31,8 +31,6 @@ import '../../../core/utils/trade_purchase_rate_display.dart';
 import '../../../shared/widgets/hexa_empty_state.dart';
 import '../../../shared/widgets/trade_intel_cards.dart';
 import '../../../shared/widgets/trade_purchase_ledger_cards.dart';
-import '../../purchase/providers/trade_purchase_detail_provider.dart';
-
 enum TradeLedgerKind { supplier, broker, catalogItem }
 
 DateTime _dOnly(DateTime d) => DateTime(d.year, d.month, d.day);

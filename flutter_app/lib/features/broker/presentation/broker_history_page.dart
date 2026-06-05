@@ -13,7 +13,6 @@ import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/router/navigation_ext.dart';
 import '../../../core/services/broker_statement_pdf.dart';
 import '../../../core/utils/line_display.dart';
-import '../../purchase/providers/trade_purchase_detail_provider.dart';
 import '../../purchase/state/purchase_providers.dart';
 
 final _brokerHistoryHeaderProvider =

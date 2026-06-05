@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../auth/auth_failure_policy.dart';
 import '../auth/provider_api_guard.dart';
 import '../auth/session_notifier.dart'
     show activeSessionProvider, hexaApiProvider, sessionProvider;

@@ -30,8 +30,6 @@ import '../../../core/providers/business_aggregates_invalidation.dart'
         invalidateAfterPurchaseDelete,
         syncPurchaseStockFromPurchaseJson,
         invalidatePurchaseWorkspace;
-import '../../../core/providers/delivery_pipeline_provider.dart';
-import '../../../core/providers/staff_home_providers.dart';
 import '../../../core/providers/trade_purchases_provider.dart';
 import '../../shell/shell_branch_provider.dart';
 import '../providers/trade_purchase_detail_provider.dart';

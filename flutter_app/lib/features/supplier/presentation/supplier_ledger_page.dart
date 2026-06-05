@@ -10,7 +10,6 @@ import '../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/router/navigation_ext.dart';
 import '../../../shared/widgets/trade_intel_cards.dart';
-import '../../purchase/providers/trade_purchase_detail_provider.dart';
 import '../../purchase/state/purchase_providers.dart';
 
 final _supplierLedgerHeaderProvider =

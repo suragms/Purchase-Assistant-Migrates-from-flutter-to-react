@@ -2,7 +2,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:harisree_warehouse/core/models/business_profile.dart';
 import 'package:harisree_warehouse/core/models/trade_purchase_models.dart';
 import 'package:harisree_warehouse/core/services/purchase_accounts_share.dart';
-import 'package:harisree_warehouse/core/services/whatsapp_phone_normalize.dart';
 
 void main() {
   group('normalizeAccountsWhatsappPhone', () {

@@ -12,7 +12,6 @@ import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/router/navigation_ext.dart';
 import '../../../core/utils/line_display.dart';
 import '../../../core/widgets/focused_search_chrome.dart';
-import '../../purchase/providers/trade_purchase_detail_provider.dart';
 import '../../purchase/state/purchase_providers.dart';
 
 class ItemHistoryPage extends ConsumerStatefulWidget {
