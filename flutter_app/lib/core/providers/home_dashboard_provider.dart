@@ -8,7 +8,12 @@ import 'package:dio/dio.dart';
 
 import '../../features/shell/shell_branch_provider.dart';
 import '../api/hexa_api.dart';
-import '../auth/auth_failure_policy.dart' show authSessionExpiredProvider;
+import '../auth/auth_failure_policy.dart'
+    show
+        auth401CircuitOpenProvider,
+        authRefreshInFlightProvider,
+        authResumeGateProvider,
+        authSessionExpiredProvider;
 import '../auth/session_notifier.dart' show activeSessionProvider, hexaApiProvider;
 import '../json_coerce.dart';
 import '../models/trade_purchase_models.dart';
@@ -1086,11 +1091,15 @@ class HomeDashboardDataNotifier extends AutoDisposeNotifier<HomeDashboardDashSta
         if (_dead) return;
         final sc = e.response?.statusCode;
         if (sc == 401 || sc == 403) {
-          try {
-            ref.read(apiDegradedProvider.notifier).notifyDegraded(
-                  'Session expired — open Settings and sign in again.',
-                );
-          } catch (_) {}
+          final refreshBusy = ref.read(authRefreshInFlightProvider) ||
+              ref.read(authResumeGateProvider);
+          if (!refreshBusy && !ref.read(auth401CircuitOpenProvider)) {
+            try {
+              ref.read(apiDegradedProvider.notifier).notifyDegraded(
+                    'Session expired — open Settings and sign in again.',
+                  );
+            } catch (_) {}
+          }
         }
         state = HomeDashboardDashState(snapshot: seed, refreshing: false);
       } catch (_) {

@@ -49,6 +49,32 @@ Future<BackupDeliverResult> deliverBackupFile({
     );
   }
 
+  if (savedPath != null) {
+    try {
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            bytes,
+            mimeType: mimeType,
+            name: filename,
+          ),
+        ],
+        text: shareText,
+      );
+      return BackupDeliverResult(
+        ok: true,
+        message: 'Saved and ready to share',
+        savedPath: savedPath,
+      );
+    } catch (_) {
+      return BackupDeliverResult(
+        ok: true,
+        message: 'Saved to $savedPath',
+        savedPath: savedPath,
+      );
+    }
+  }
+
   try {
     await Share.shareXFiles(
       [
@@ -60,25 +86,11 @@ Future<BackupDeliverResult> deliverBackupFile({
       ],
       text: shareText,
     );
-    if (savedPath != null) {
-      return BackupDeliverResult(
-        ok: true,
-        message: 'Saved and ready to share',
-        savedPath: savedPath,
-      );
-    }
     return const BackupDeliverResult(ok: true, message: 'Ready to share');
   } catch (_) {
-    if (savedPath != null) {
-      return BackupDeliverResult(
-        ok: true,
-        message: 'Saved to $savedPath',
-        savedPath: savedPath,
-      );
-    }
     return const BackupDeliverResult(
       ok: false,
-      message: 'Could not share file. Try again.',
+      message: 'Could not save or share file. Check Downloads access and try again.',
     );
   }
 }

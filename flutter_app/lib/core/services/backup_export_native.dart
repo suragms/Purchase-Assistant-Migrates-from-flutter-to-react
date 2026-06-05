@@ -18,8 +18,7 @@ Future<String?> saveBackupExportBytes({
       root = await getApplicationDocumentsDirectory();
     } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       final downloads = await getDownloadsDirectory();
-      if (downloads == null) return null;
-      root = downloads;
+      root = downloads ?? await getApplicationDocumentsDirectory();
     } else {
       return null;
     }

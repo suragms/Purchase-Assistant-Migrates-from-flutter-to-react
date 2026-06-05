@@ -260,6 +260,8 @@ final hexaApiProvider = Provider<HexaApi>((ref) {
             }
           } else {
             n.clear();
+            // Recover from 401 suspend bursts once any business API succeeds again.
+            ref.read(authApiGateProvider.notifier).clearSuspend();
           }
         } catch (_) {
           /* ref/container disposed */
