@@ -9,6 +9,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from app.models import Membership
 from app.models.notification import AppNotification
@@ -104,27 +105,38 @@ async def emit_notification(
             )
             if ex.scalar_one_or_none() is not None:
                 continue
-        db.add(
-            AppNotification(
-                id=uuid.uuid4(),
-                business_id=business_id,
-                user_id=uid,
-                kind=kind.strip()[:64],
-                title=title.strip()[:500],
-                body=(body or "")[:4000] if body else None,
-                priority=priority[:16],
-                category=category[:32],
-                action_route=action_route[:256] if action_route else None,
-                triggered_by_user_id=triggered_by_user_id,
-                related_item_id=related_item_id,
-                related_purchase_id=related_purchase_id,
-                related_supplier_id=related_supplier_id,
-                payload=merged_payload if merged_payload else None,
-                alert_metadata=metadata,
-                dedupe_key=dedupe_key[:220] if dedupe_key else None,
+        try:
+            async with db.begin_nested():
+                db.add(
+                    AppNotification(
+                        id=uuid.uuid4(),
+                        business_id=business_id,
+                        user_id=uid,
+                        kind=kind.strip()[:64],
+                        title=title.strip()[:500],
+                        body=(body or "")[:4000] if body else None,
+                        priority=priority[:16],
+                        category=category[:32],
+                        action_route=action_route[:256] if action_route else None,
+                        triggered_by_user_id=triggered_by_user_id,
+                        related_item_id=related_item_id,
+                        related_purchase_id=related_purchase_id,
+                        related_supplier_id=related_supplier_id,
+                        payload=merged_payload if merged_payload else None,
+                        alert_metadata=metadata,
+                        dedupe_key=dedupe_key[:220] if dedupe_key else None,
+                    )
+                )
+                await db.flush()
+                inserted += 1
+        except IntegrityError:
+            logger.warning(
+                "notification skipped due to integrity race | business_id=%s user_id=%s dedupe=%s",
+                business_id,
+                uid,
+                dedupe_key,
             )
-        )
-        inserted += 1
+            continue
 
     if inserted:
         try:

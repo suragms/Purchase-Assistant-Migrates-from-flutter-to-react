@@ -15,6 +15,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_db
 
 logger = logging.getLogger(__name__)
+
 from app.deps import get_current_user, require_membership, require_permission, require_role
 from app.services.staff_audit import log_staff_activity, log_staff_activity_best_effort
 from app.services.notification_emitter import CATEGORY_STAFF
@@ -3672,28 +3673,44 @@ async def patch_stock_item(
         if str(e) == "Item not found":
             raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Item not found") from e
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-    await maybe_notify_stock_variance(
-        db,
-        business_id=business_id,
-        item_id=item_id,
-        adjustment_type=body.adjustment_type,
-        new_qty=result.movement.qty_after,
-        triggered_by_user_id=user.id,
-    )
+    try:
+        await maybe_notify_stock_variance(
+            db,
+            business_id=business_id,
+            item_id=item_id,
+            adjustment_type=body.adjustment_type,
+            new_qty=result.movement.qty_after,
+            triggered_by_user_id=user.id,
+        )
+    except Exception:
+        logger.warning(
+            "stock variance notification skipped | business_id=%s item_id=%s",
+            business_id,
+            item_id,
+            exc_info=True,
+        )
     item = result.item
     unit = catalog_stock_unit(item) or item.default_unit or ""
-    await maybe_notify_staff_system_stock_edit(
-        db,
-        business_id=business_id,
-        item_id=item_id,
-        item_name=item.name,
-        unit=unit,
-        old_qty=result.movement.qty_before,
-        new_qty=result.movement.qty_after,
-        actor_user_id=user.id,
-        actor_display=_user_display(user),
-        actor_role=_membership.role or "",
-    )
+    try:
+        await maybe_notify_staff_system_stock_edit(
+            db,
+            business_id=business_id,
+            item_id=item_id,
+            item_name=item.name,
+            unit=unit,
+            old_qty=result.movement.qty_before,
+            new_qty=result.movement.qty_after,
+            actor_user_id=user.id,
+            actor_display=_user_display(user),
+            actor_role=_membership.role or "",
+        )
+    except Exception:
+        logger.warning(
+            "staff stock edit notification skipped | business_id=%s item_id=%s",
+            business_id,
+            item_id,
+            exc_info=True,
+        )
     await db.commit()
     publish_business_event(
         business_id,

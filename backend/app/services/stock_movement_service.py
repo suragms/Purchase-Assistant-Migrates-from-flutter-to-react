@@ -71,18 +71,17 @@ def _actor_name(user: User) -> str:
 
 def _activity_type_for(kind: str) -> str:
     k = (kind or "").strip().lower()
-    if k == "quick_purchase":
-        return "STOCK_QUICK_PURCHASE"
-    if k == "damage":
-        return "STOCK_DAMAGE_RECORDED"
-    if k == "correction":
-        return "STOCK_CORRECTION_RECORDED"
-    if k == "sale":
-        return "STOCK_SALE_ADJUSTMENT"
-    if k == "opening_stock":
-        return "OPENING_STOCK_SET"
-    if k == "delivery_adjustment":
-        return "PURCHASE_STOCK_COMMITTED"
+    # Backward-compatible activity code so old DB CHECK constraints
+    # do not reject stock writes before migrations are applied.
+    if k in {
+        "quick_purchase",
+        "damage",
+        "correction",
+        "sale",
+        "opening_stock",
+        "delivery_adjustment",
+    }:
+        return "STOCK_UPDATE"
     return "STOCK_PHYSICAL_UPDATE"
 
 
