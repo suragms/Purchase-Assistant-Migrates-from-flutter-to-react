@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/stock/stock_save_recovery.dart';
 import '../../../core/stock/stock_version_retry.dart';
 import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/json_coerce.dart';
@@ -309,27 +310,52 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     return saved['current_stock'] != null || saved.isNotEmpty;
   }
 
-  Future<bool> _tryRecoverPhysicalSave(num parsed, Object error) async {
-    if (_mode != StockUpdateMode.physical) return false;
+  Future<Map<String, dynamic>?> _verifySaveOnServer(num parsed) async {
     final session = ref.read(sessionProvider);
-    if (session == null) return false;
-    final isTimeout = error is DioException &&
-        (error.type == DioExceptionType.receiveTimeout ||
-            error.type == DioExceptionType.sendTimeout ||
-            error.type == DioExceptionType.connectionError);
-    if (!isTimeout) return false;
+    if (session == null || _itemId.isEmpty) return null;
     try {
-      final fresh = await ref.read(hexaApiProvider).getStockItem(
-            businessId: session.primaryBusiness.id,
-            itemId: _itemId,
-          );
-      final phys = coerceToDoubleNullable(fresh['physical_stock_qty']);
-      if (phys == null || !phys.isFinite) return false;
-      if ((phys - parsed.toDouble()).abs() > 0.001) return false;
-      _applyOptimisticListPatch(fresh, parsed);
-      return true;
+      return await verifyStockSaveApplied(
+        api: ref.read(hexaApiProvider),
+        businessId: session.primaryBusiness.id,
+        itemId: _itemId,
+        expectedQty: parsed,
+        systemLedger: _mode == StockUpdateMode.system,
+      );
     } catch (_) {
-      return false;
+      return null;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _tryRecoverAmbiguousSave(
+    num parsed,
+    Object error,
+  ) async {
+    if (!stockSaveErrorWorthServerVerify(error)) return null;
+    final fresh = await _verifySaveOnServer(parsed);
+    if (fresh == null) return null;
+    _applyOptimisticListPatch(fresh, parsed);
+    return fresh;
+  }
+
+  Future<void> _finishRecoveredSave(
+    Map<String, dynamic> fresh,
+    num parsed, {
+    required DateTime saveStarted,
+  }) async {
+    unawaited(_afterSaveBackground(parsed));
+    try {
+      await _completeSaveSuccess(fresh, parsed, saveStarted: saveStarted);
+    } catch (e, st) {
+      logSilencedApiError(e, st);
+      if (mounted) Navigator.of(context).pop(true);
+      if (widget.parentContext.mounted) {
+        showTopSnack(
+          widget.parentContext,
+          _mode == StockUpdateMode.system
+              ? 'System stock saved — $_name'
+              : 'Physical count saved — $_name',
+        );
+      }
     }
   }
 
@@ -436,6 +462,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     if (!mounted) return;
     final saveStarted = DateTime.now();
     final idempotencyKey = 'stock-$_itemId-${saveStarted.microsecondsSinceEpoch}';
+    ++_refreshGeneration;
     setState(() {
       _saving = true;
       _saveError = null;
@@ -461,10 +488,15 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
 
       if (!mounted) return;
       if (!_persistLooksSuccessful(saved, parsed)) {
-        _showSaveError(
-          StateError('Could not save — session expired. Sign in and retry.'),
-        );
-        return;
+        final recovered = await _verifySaveOnServer(parsed);
+        if (recovered != null) {
+          saved = recovered;
+        } else {
+          _showSaveError(
+            StateError('Could not confirm save. Check stock list and retry if needed.'),
+          );
+          return;
+        }
       }
 
       _applyOptimisticListPatch(saved, parsed);
@@ -489,24 +521,13 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
         }
       }
     } catch (e, st) {
-      if (await _tryRecoverPhysicalSave(parsed, e)) {
-        unawaited(_afterSaveBackground(parsed));
-        try {
-          await _completeSaveSuccess(
-            const {},
-            parsed,
-            saveStarted: saveStarted,
-          );
-        } catch (uiErr, uiSt) {
-          logSilencedApiError(uiErr, uiSt);
-          if (mounted) Navigator.of(context).pop(true);
-          if (widget.parentContext.mounted) {
-            showTopSnack(
-              widget.parentContext,
-              'Physical count saved — $_name',
-            );
-          }
-        }
+      final recovered = await _tryRecoverAmbiguousSave(parsed, e);
+      if (recovered != null) {
+        await _finishRecoveredSave(
+          recovered,
+          parsed,
+          saveStarted: saveStarted,
+        );
         return;
       }
       logSilencedApiError(e, st);

@@ -55,6 +55,12 @@ Options get _scanPollOptions => Options(
       receiveTimeout: const Duration(seconds: 45),
     );
 
+/// Stock PATCH can wait on notifications + detail rebuild on Render — avoid false timeouts.
+Options get _stockWriteOptions => Options(
+      sendTimeout: const Duration(seconds: 45),
+      receiveTimeout: const Duration(seconds: 90),
+    );
+
 bool _isAuthEndpoint(String path) {
   return path.contains('/auth/login') ||
       path.contains('/auth/register') ||
@@ -2967,6 +2973,7 @@ class HexaApi {
         if (idempotencyKey != null && idempotencyKey.trim().isNotEmpty)
           'idempotency_key': idempotencyKey.trim(),
       },
+      options: _stockWriteOptions,
     );
     return res.data ?? {};
   }
