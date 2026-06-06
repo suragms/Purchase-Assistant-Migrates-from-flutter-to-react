@@ -7,6 +7,7 @@ import '../auth/auth_failure_policy.dart';
 import '../auth/session_notifier.dart' show sessionProvider;
 import '../providers/business_aggregates_invalidation.dart';
 import '../providers/realtime_events_provider.dart';
+import '../services/backup_auto_service.dart';
 import 'app_foreground_provider.dart';
 import 'app_visibility_stub.dart'
     if (dart.library.html) 'app_visibility_web.dart' as app_visibility;
@@ -108,6 +109,7 @@ class _AppForegroundListenerState extends ConsumerState<AppForegroundListener>
       _lastWarehouseInvalidateAt = now;
       invalidateWarehouseSurfacesLight(ref);
       ref.invalidate(realtimeInvalidationProvider);
+      unawaited(maybeRunDailyAutoBackup(ref));
     } finally {
       if (mounted) {
         ref.read(authResumeGateProvider.notifier).state = false;

@@ -18,11 +18,29 @@ TRADE_STATUS_IN_REPORTS: tuple[str, ...] = (
     "partially_paid",
     "overdue",
     "due_soon",
+    "active",
+    "approved",
+    "ordered",
+    "supplier_confirmed",
+    "in_transit",
+    "arrived",
+    "verification_pending",
+    "verified",
+    "added_to_stock",
+    "completed",
+    "delivered",
+)
+
+TRADE_STATUS_EXCLUDED_FROM_REPORTS: tuple[str, ...] = (
+    "draft",
+    "cancelled",
+    "deleted",
 )
 
 
 def trade_purchase_status_in_reports() -> ColumnElement[bool]:
-    return TradePurchase.status.in_(TRADE_STATUS_IN_REPORTS)
+    """Include all committed purchases; exclude draft/cancelled/deleted only."""
+    return ~TradePurchase.status.in_(TRADE_STATUS_EXCLUDED_FROM_REPORTS)
 
 
 def trade_line_amount_expr() -> ColumnElement:

@@ -6,25 +6,28 @@ import 'package:path_provider/path_provider.dart';
 /// Saves export bytes under:
 /// - Android/iOS: app documents `warehouse_exports/{year}/{month}/{category}/`
 /// - Windows/macOS/Linux: Downloads `warehouse_exports/{year}/{month}/{category}/`
+/// - When [useDesktopFolder] on Windows: `Desktop/Harisree_Backups/{year}/{month}/{category}/`
 Future<String?> saveBackupExportBytes({
   required Uint8List bytes,
   required String filename,
   required String category,
+  bool useDesktopFolder = false,
 }) async {
   try {
     final now = DateTime.now();
     final Directory root;
-    if (Platform.isAndroid || Platform.isIOS) {
-      root = await getApplicationDocumentsDirectory();
-    } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      final downloads = await getDownloadsDirectory();
-      root = downloads ?? await getApplicationDocumentsDirectory();
+    if (useDesktopFolder && Platform.isWindows) {
+      final profile = Platform.environment['USERPROFILE'];
+      if (profile != null && profile.isNotEmpty) {
+        root = Directory('$profile${Platform.pathSeparator}Desktop${Platform.pathSeparator}Harisree_Backups');
+      } else {
+        root = await _defaultExportRoot();
+      }
     } else {
-      return null;
+      root = await _defaultExportRoot();
     }
     final dirPath = [
       root.path,
-      'warehouse_exports',
       now.year.toString(),
       now.month.toString().padLeft(2, '0'),
       category,
@@ -39,4 +42,17 @@ Future<String?> saveBackupExportBytes({
   } catch (_) {
     return null;
   }
+}
+
+Future<Directory> _defaultExportRoot() async {
+  if (Platform.isAndroid || Platform.isIOS) {
+    return getApplicationDocumentsDirectory();
+  }
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    final downloads = await getDownloadsDirectory();
+    if (downloads != null) {
+      return Directory('${downloads.path}${Platform.pathSeparator}warehouse_exports');
+    }
+  }
+  return getApplicationDocumentsDirectory();
 }

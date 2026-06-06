@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import csv
 import io
 import logging
 import re
@@ -24,8 +23,11 @@ from app.deps import require_permission
 from app.models import Business, Membership, TradePurchase, TradePurchaseLine
 from app.services import trade_query as tq
 from app.services.export_files import (
+    build_purchase_order_pdf,
     build_purchases_month_pdf,
+    build_purchases_range_pdf,
     build_stock_inventory_xlsx,
+    build_supplier_ledger_pdf,
     fetch_month_trade_purchases,
     fetch_stock_inventory_rows,
 )
@@ -57,40 +59,6 @@ def _zip_path_segment(s: str, max_len: int = 72) -> str:
     t = re.sub(r"[^\w\-.]+", "_", (s or "").strip(), flags=re.UNICODE)
     t = re.sub(r"_+", "_", t).strip("._") or "export"
     return t[:max_len]
-
-
-def _write_purchase_lines_csv(w: csv.writer, p: TradePurchase, lines: list[TradePurchaseLine]) -> None:
-    if not lines:
-        w.writerow(
-            [
-                p.human_id,
-                p.purchase_date.isoformat() if p.purchase_date else "",
-                str(p.supplier_id) if p.supplier_id else "",
-                p.status,
-                float(p.total_amount or 0),
-                (p.invoice_number or "").strip(),
-                "",
-                "",
-                "",
-                "",
-            ]
-        )
-        return
-    for ln in lines:
-        w.writerow(
-            [
-                p.human_id,
-                p.purchase_date.isoformat() if p.purchase_date else "",
-                str(p.supplier_id) if p.supplier_id else "",
-                p.status,
-                float(p.total_amount or 0),
-                (p.invoice_number or "").strip(),
-                (ln.item_name or "").strip(),
-                float(ln.qty or 0),
-                (ln.unit or "").strip(),
-                float(ln.line_total or 0) if ln.line_total is not None else "",
-            ]
-        )
 
 
 @router.post("/backup")
@@ -135,50 +103,43 @@ async def post_backup_zip(
     for ln in all_lines:
         lines_by_purchase[ln.trade_purchase_id].append(ln)
 
+    br = await db.execute(select(Business.name).where(Business.id == business_id))
+    business_label = (br.scalar_one_or_none() or "").strip() or str(business_id)
+    range_start = d_from or min((p.purchase_date for p in purchases if p.purchase_date), default=d_to)
+    preset_titles = {"month": "This month", "quarter": "Last 90 days", "all": "All purchases"}
+    summary_title = f"Purchases — {preset_titles.get(body.range_preset, body.range_preset)}"
+
     try:
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            csv_io = io.StringIO()
-            w = csv.writer(csv_io)
-            w.writerow(
-                [
-                    "human_id",
-                    "purchase_date",
-                    "supplier_id",
-                    "status",
-                    "total_amount",
-                    "invoice_number",
-                    "line_item",
-                    "qty",
-                    "unit",
-                    "line_total",
-                ]
+            zf.writestr(
+                "purchases_summary.pdf",
+                build_purchases_range_pdf(
+                    business_label=business_label,
+                    title=summary_title,
+                    range_start=range_start,
+                    range_end=d_to,
+                    purchases=purchases,
+                ),
             )
-            for p in purchases:
-                lines = lines_by_purchase.get(p.id, [])
-                _write_purchase_lines_csv(w, p, lines)
-            zf.writestr("purchases.csv", csv_io.getvalue())
+
+            stock_rows = await fetch_stock_inventory_rows(db, business_id)
+            if stock_rows:
+                zf.writestr(
+                    f"stock/harisree_stock_{d_to.isoformat()}.xlsx",
+                    build_stock_inventory_xlsx(stock_rows),
+                )
 
             for p in purchases:
                 lines = lines_by_purchase.get(p.id, [])
-                one = io.StringIO()
-                ow = csv.writer(one)
-                ow.writerow(
-                    [
-                        "human_id",
-                        "purchase_date",
-                        "supplier_id",
-                        "status",
-                        "total_amount",
-                        "invoice_number",
-                        "line_item",
-                        "qty",
-                        "unit",
-                        "line_total",
-                    ]
+                zf.writestr(
+                    f"orders/{_zip_path_segment(p.human_id)}.pdf",
+                    build_purchase_order_pdf(
+                        business_label=business_label,
+                        purchase=p,
+                        lines=lines,
+                    ),
                 )
-                _write_purchase_lines_csv(ow, p, lines)
-                zf.writestr(f"orders/{_zip_path_segment(p.human_id)}.csv", one.getvalue())
 
             by_supplier: dict[uuid.UUID, list[TradePurchase]] = defaultdict(list)
             for p in purchases:
@@ -188,69 +149,43 @@ async def post_backup_zip(
                 sup_name = ""
                 if plist[0].supplier_row is not None:
                     sup_name = (plist[0].supplier_row.name or "").strip()
-                stem = f"{sid}_{_zip_path_segment(sup_name)}"
-                lb = io.StringIO()
-                lw = csv.writer(lb)
-                lw.writerow(
-                    [
-                        "human_id",
-                        "purchase_date",
-                        "invoice_number",
-                        "status",
-                        "total_amount",
-                        "paid_amount",
-                        "balance",
-                        "due_date",
-                    ]
+                stem = f"{_zip_path_segment(sup_name or str(sid))}"
+                zf.writestr(
+                    f"ledgers/{stem}.pdf",
+                    build_supplier_ledger_pdf(
+                        business_label=business_label,
+                        supplier_name=sup_name or str(sid),
+                        range_start=range_start,
+                        range_end=d_to,
+                        purchases=plist,
+                    ),
                 )
-                for p in sorted(plist, key=lambda x: x.purchase_date, reverse=True):
-                    tot = float(p.total_amount or 0)
-                    paid = float(p.paid_amount or 0)
-                    bal = tot - paid
-                    lw.writerow(
-                        [
-                            p.human_id,
-                            p.purchase_date.isoformat() if p.purchase_date else "",
-                            (p.invoice_number or "").strip(),
-                            p.status,
-                            tot,
-                            paid,
-                            bal,
-                            p.due_date.isoformat() if p.due_date else "",
-                        ]
-                    )
-                zf.writestr(f"ledgers/{stem}.csv", lb.getvalue())
 
             sum_total = sum(float(p.total_amount or 0) for p in purchases)
             sum_paid = sum(float(p.paid_amount or 0) for p in purchases)
             sum_bal = sum(float(p.total_amount or 0) - float(p.paid_amount or 0) for p in purchases)
             summary = (
-                "Purchase Assistant — summary (text)\n"
-                f"Business: {business_id}\n"
-                f"Range preset: {body.range_preset} (through {d_to.isoformat()})\n"
+                "Purchase Assistant — backup summary\n"
+                f"Business: {business_label}\n"
+                f"Range preset: {body.range_preset} ({range_start.isoformat()} to {d_to.isoformat()})\n"
                 f"Purchase rows: {len(purchases)}\n"
                 f"Total billed: {sum_total:.2f}\n"
                 f"Total paid: {sum_paid:.2f}\n"
                 f"Outstanding: {sum_bal:.2f}\n"
-                "\n"
-                "Formatted PDF invoices and supplier statements are generated in the mobile app "
-                "(Share on a purchase or supplier statement). This ZIP includes CSV line data under "
-                "orders/ and per-supplier rollups under ledgers/.\n"
             )
-            zf.writestr("Summary_Statement.txt", summary)
+            zf.writestr("Summary.txt", summary)
 
             readme = (
                 "Purchase Assistant backup\n"
-                f"Business: {business_id}\n"
-                f"Range: {body.range_preset} (through {d_to.isoformat()})\n"
+                f"Business: {business_label}\n"
+                f"Range: {body.range_preset} ({range_start.isoformat()} to {d_to.isoformat()})\n"
                 "\n"
                 "Contents:\n"
-                "  purchases.csv       — flat export (all purchases in range)\n"
-                "  orders/*.csv        — one file per purchase (line detail)\n"
-                "  ledgers/*.csv       — per supplier: purchase totals / paid / balance\n"
-                "  Summary_Statement.txt — range totals (text; use app Share for PDFs)\n"
-                "\n"
-                "Open CSV files in Excel or Google Sheets.\n"
+                "  purchases_summary.pdf   — all purchases in range\n"
+                "  orders/*.pdf            — one PDF per purchase bill\n"
+                "  ledgers/*.pdf           — per-supplier totals / paid / balance\n"
+                "  stock/*.xlsx            — current inventory snapshot (when items exist)\n"
+                "  Summary.txt             — range totals\n"
             )
             zf.writestr("README.txt", readme)
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/router/navigation_ext.dart';
+import '../../../core/services/backup_auto_service.dart';
 import '../../../core/services/backup_deliver.dart';
 import '../../../core/utils/snack.dart';
 
@@ -31,6 +34,7 @@ class _BackupPageState extends ConsumerState<BackupPage> {
   DateTime? _lastZipAt;
   DateTime? _lastStockAt;
   DateTime? _lastPdfAt;
+  bool _autoDaily = false;
 
   @override
   void initState() {
@@ -45,6 +49,7 @@ class _BackupPageState extends ConsumerState<BackupPage> {
       _lastZipAt = _ts(prefs.getInt(_kLastZipBackupKey));
       _lastStockAt = _ts(prefs.getInt(_kLastStockXlsxKey));
       _lastPdfAt = _ts(prefs.getInt(_kLastPurchasesPdfKey));
+      _autoDaily = prefs.getBool(kAutoDailyBackupEnabledKey) ?? false;
     });
   }
 
@@ -188,7 +193,17 @@ class _BackupPageState extends ConsumerState<BackupPage> {
         recordKey: _kLastPurchasesPdfKey,
       );
     } on DioException catch (e) {
-      if (mounted) showTopSnack(context, friendlyApiError(e), isError: true);
+      if (mounted) {
+        if (e.response?.statusCode == 404) {
+          showTopSnack(
+            context,
+            'No purchases this month to export. Stock-committed bills are included once saved.',
+            isError: true,
+          );
+        } else {
+          showTopSnack(context, friendlyApiError(e), isError: true);
+        }
+      }
     } catch (_) {
       if (mounted) {
         showTopSnack(
@@ -254,10 +269,14 @@ class _BackupPageState extends ConsumerState<BackupPage> {
   String get _storageHint {
     if (kIsWeb) {
       return 'On web, files download to your browser Downloads folder. '
-          'If nothing appears, allow downloads for this site.';
+          'Allow downloads for this site. Auto daily folder backup needs the Windows desktop app.';
+    }
+    if (!kIsWeb && _autoDaily) {
+      return 'Daily auto-backup saves to Desktop/Harisree_Backups when you open the app. '
+          'Manual downloads also go to Downloads/warehouse_exports.';
     }
     return 'On phone, files are saved under warehouse_exports in app storage. '
-        'On desktop, also under Downloads/warehouse_exports when possible.';
+        'On desktop, under Downloads/warehouse_exports when possible.';
   }
 
   @override
@@ -327,9 +346,42 @@ class _BackupPageState extends ConsumerState<BackupPage> {
             ),
           ),
           const SizedBox(height: 28),
-          Text('ZIP — trade purchases (CSV)',
+          if (!kIsWeb) ...[
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Daily auto-backup (desktop)'),
+              subtitle: Text(
+                'Once per day when you open the app: ZIP (PDFs + stock Excel) '
+                'and monthly purchases PDF → Desktop/Harisree_Backups',
+                style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant, height: 1.35),
+              ),
+              value: _autoDaily,
+              onChanged: _anyBusy
+                  ? null
+                  : (v) async {
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.setBool(kAutoDailyBackupEnabledKey, v);
+                      if (!mounted) return;
+                      setState(() => _autoDaily = v);
+                      if (v) {
+                        unawaited(maybeRunDailyAutoBackup(ref));
+                        showTopSnack(
+                          context,
+                          'Auto-backup enabled — runs once daily when the app opens.',
+                        );
+                      }
+                    },
+            ),
+            const SizedBox(height: 20),
+          ],
+          Text('ZIP — purchases + stock (PDF)',
               style: tt.titleSmall?.copyWith(fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
+          Text(
+            'ZIP contains purchase summary PDF, one PDF per bill, supplier ledger PDFs, '
+            'and stock Excel.',
+            style: tt.bodySmall?.copyWith(color: cs.onSurfaceVariant, height: 1.35),
+          ),
           Wrap(
             spacing: 8,
             runSpacing: 8,

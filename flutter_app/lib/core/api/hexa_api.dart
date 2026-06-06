@@ -2476,7 +2476,7 @@ class HexaApi {
     return res.data ?? {};
   }
 
-  /// ZIP of `purchases.csv` + README for the selected preset (month / quarter / all).
+  /// ZIP: purchase summary PDF, per-bill PDFs, supplier ledger PDFs, stock Excel.
   Future<Uint8List> downloadBusinessBackup({
     required String businessId,
     String rangePreset = 'month',
