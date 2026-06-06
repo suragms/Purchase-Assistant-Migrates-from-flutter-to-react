@@ -92,6 +92,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
   late StockUpdateMode _mode;
   String? _qtyError;
   String? _reasonError;
+  String? _saveError;
 
   @override
   void initState() {
@@ -194,9 +195,17 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
   }
 
   void _onSavePressed() {
+    if (_saving) return;
     FocusScope.of(context).unfocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_save());
+      if (!mounted) return;
+      unawaited(
+        _save().catchError((Object e, StackTrace st) {
+          if (!mounted) return;
+          setState(() => _saving = false);
+          _showSaveError(e);
+        }),
+      );
     });
   }
 
@@ -229,7 +238,11 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
         '${diff.abs() > 0.001 ? ' ($sign${formatStockQtyForUnit(_unit, diff)} diff)' : ''}';
   }
 
-  Future<Map<String, dynamic>?> _persistStock(num parsed) async {
+  Future<Map<String, dynamic>?> _persistStock(
+    num parsed, {
+    required String idempotencyKey,
+    bool force = false,
+  }) async {
     final session = ref.read(sessionProvider);
     if (session == null) return null;
     final note = _notesCtrl.text.trim();
@@ -237,14 +250,26 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     final api = ref.read(hexaApiProvider);
     final bid = session.primaryBusiness.id;
     if (_mode == StockUpdateMode.system) {
-      final detail = await api.patchStockItemWithRetry(
-        businessId: bid,
-        itemId: _itemId,
-        newQty: parsed,
-        adjustmentType: _reasonType ?? 'correction',
-        reason: note.isNotEmpty ? '$reasonLabel — $note' : reasonLabel,
-        initialStockVersion: _stockVersion(),
-      );
+      final detail = force
+          ? await api.patchStockItem(
+              businessId: bid,
+              itemId: _itemId,
+              newQty: parsed,
+              adjustmentType: _reasonType ?? 'correction',
+              reason: note.isNotEmpty ? '$reasonLabel — $note' : reasonLabel,
+              lastSeenStockVersion: _stockVersion(),
+              idempotencyKey: idempotencyKey,
+              force: true,
+            )
+          : await api.patchStockItemWithRetry(
+              businessId: bid,
+              itemId: _itemId,
+              newQty: parsed,
+              adjustmentType: _reasonType ?? 'correction',
+              reason: note.isNotEmpty ? '$reasonLabel — $note' : reasonLabel,
+              initialStockVersion: _stockVersion(),
+              idempotencyKey: idempotencyKey,
+            );
       if (!mounted) return null;
       ref.invalidate(appNotificationsListProvider);
       ref.invalidate(notificationCenterCoordinatorProvider);
@@ -259,6 +284,61 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
       periodStart: listQ.periodStart,
       periodEnd: listQ.periodEnd,
     );
+  }
+
+  String _messageForSaveError(Object e) {
+    if (e is StaleStockConflict) return StaleStockConflict.userMessage;
+    if (e is StockIntegrityError) return StockIntegrityError.userMessage;
+    if (e is DioException) return friendlyApiError(e);
+    return userFacingError(e);
+  }
+
+  void _showSaveError(Object e) {
+    final msg = _messageForSaveError(e);
+    if (mounted) {
+      setState(() => _saveError = msg);
+    }
+    if (widget.parentContext.mounted) {
+      showTopSnack(widget.parentContext, msg, isError: true);
+    }
+  }
+
+  Future<void> _completeSaveSuccess(
+    Map<String, dynamic>? saved,
+    num parsed, {
+    required DateTime saveStarted,
+  }) async {
+    if (saved == null) {
+      throw StateError('Could not save — session expired. Sign in and retry.');
+    }
+    final elapsed = DateTime.now().difference(saveStarted);
+    const minLoading = Duration(milliseconds: 300);
+    if (elapsed < minLoading) {
+      await Future<void>.delayed(minLoading - elapsed);
+    }
+    if (!mounted) return;
+    _applyOptimisticListPatch(saved, parsed);
+    unawaited(_afterSaveBackground(parsed));
+    if (!context.mounted) return;
+    try {
+      await HapticFeedback.mediumImpact();
+    } catch (_) {}
+    if (!context.mounted) return;
+    Navigator.of(context).pop(true);
+    if (widget.parentContext.mounted) {
+      showTopSnack(
+        widget.parentContext,
+        _mode == StockUpdateMode.system
+            ? 'System stock saved — $_name'
+            : 'Physical count saved — $_name',
+      );
+      showStockUndoSnackBar(
+        context: widget.parentContext,
+        ref: widget.parentRef,
+        itemId: _itemId,
+        itemName: _name,
+      );
+    }
   }
 
   void _applyOptimisticListPatch(Map<String, dynamic>? saved, num parsed) {
@@ -291,15 +371,19 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
   }
 
   Future<void> _afterSaveBackground(num parsed) async {
-    _refreshListInBackground();
-    final reorder = coerceToDouble(_item['reorder_level']);
-    if (reorder > 0 && parsed <= reorder) {
-      final unitLabel = _unit.isNotEmpty ? _unit.toUpperCase() : '';
-      await LocalNotificationsService.instance.showLowStockItem(
-        itemName: _name,
-        detail:
-            '${formatStockQtyForUnit(_unit, parsed.toDouble())} $unitLabel (reorder ${formatStockQtyForUnit(_unit, reorder)})',
-      );
+    try {
+      _refreshListInBackground();
+      final reorder = coerceToDouble(_item['reorder_level']);
+      if (reorder > 0 && parsed <= reorder) {
+        final unitLabel = _unit.isNotEmpty ? _unit.toUpperCase() : '';
+        await LocalNotificationsService.instance.showLowStockItem(
+          itemName: _name,
+          detail:
+              '${formatStockQtyForUnit(_unit, parsed.toDouble())} $unitLabel (reorder ${formatStockQtyForUnit(_unit, reorder)})',
+        );
+      }
+    } catch (_) {
+      // Best-effort background refresh — save already succeeded.
     }
   }
 
@@ -321,45 +405,34 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     final parsed = _parseEnteredQty()!;
     if (_saving) return;
     if (!mounted) return;
-    setState(() => _saving = true);
     final saveStarted = DateTime.now();
+    final idempotencyKey = 'stock-$_itemId-${saveStarted.microsecondsSinceEpoch}';
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
     try {
       await _refreshItemFromServer();
       if (!mounted) return;
-      final saved = await _persistStock(parsed);
-      final elapsed = DateTime.now().difference(saveStarted);
-      const minLoading = Duration(milliseconds: 300);
-      if (elapsed < minLoading) {
-        await Future<void>.delayed(minLoading - elapsed);
-      }
-      if (!mounted) return;
-      _applyOptimisticListPatch(saved, parsed);
-      unawaited(_afterSaveBackground(parsed));
-      if (!context.mounted) return;
-      await HapticFeedback.mediumImpact();
-      if (!context.mounted) return;
-      Navigator.of(context).pop(true);
-      if (widget.parentContext.mounted) {
-        showStockUndoSnackBar(
-          context: widget.parentContext,
-          ref: widget.parentRef,
-          itemId: _itemId,
-          itemName: _name,
+      try {
+        final saved = await _persistStock(
+          parsed,
+          idempotencyKey: idempotencyKey,
         );
-      }
-    } catch (e) {
-      if (e is StaleStockConflict) {
+        await _completeSaveSuccess(saved, parsed, saveStarted: saveStarted);
+      } on StaleStockConflict {
         if (!mounted) return;
         await _refreshItemFromServer();
+        if (!mounted) return;
+        final saved = await _persistStock(
+          parsed,
+          idempotencyKey: idempotencyKey,
+          force: true,
+        );
+        await _completeSaveSuccess(saved, parsed, saveStarted: saveStarted);
       }
-      if (widget.parentContext.mounted) {
-        final msg = e is StaleStockConflict
-            ? StaleStockConflict.userMessage
-            : e is DioException
-                ? friendlyApiError(e)
-                : userFacingError(e);
-        showTopSnack(widget.parentContext, msg, isError: true);
-      }
+    } catch (e) {
+      _showSaveError(e);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -538,25 +611,33 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
             ),
           ),
           const SizedBox(height: 16),
+          if (_saveError != null) ...[
+            Text(
+              _saveError!,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFFB91C1C),
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           SizedBox(
             height: 48,
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              child: FilledButton(
-                onPressed: canSave && !_saving ? _onSavePressed : null,
-                child: _saving
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : Text(
-                        _mode == StockUpdateMode.system
-                            ? 'SAVE SYSTEM STOCK'
-                            : 'SAVE PHYSICAL COUNT',
-                        style: const TextStyle(fontWeight: FontWeight.w900),
-                      ),
-              ),
+            child: FilledButton(
+              onPressed: canSave && !_saving ? _onSavePressed : null,
+              child: _saving
+                  ? const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(
+                      _mode == StockUpdateMode.system
+                          ? 'SAVE SYSTEM STOCK'
+                          : 'SAVE PHYSICAL COUNT',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
             ),
           ),
         ],

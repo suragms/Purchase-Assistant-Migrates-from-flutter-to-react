@@ -10,8 +10,9 @@ void showTopSnack(
   Duration duration = const Duration(seconds: 3),
 }) {
   if (!context.mounted) return;
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  if (messenger == null) return;
   final mq = MediaQuery.of(context);
-  final messenger = ScaffoldMessenger.of(context);
   messenger.clearSnackBars();
   messenger.showSnackBar(
     SnackBar(

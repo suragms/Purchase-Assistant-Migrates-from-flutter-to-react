@@ -12,8 +12,11 @@ void showStockUndoSnackBar({
   required String itemId,
   required String itemName,
 }) {
-  ScaffoldMessenger.of(context).hideCurrentSnackBar();
-  ScaffoldMessenger.of(context).showSnackBar(
+  if (!context.mounted) return;
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  if (messenger == null) return;
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(
     SnackBar(
       content: Text('Stock updated — $itemName'),
       action: SnackBarAction(
@@ -29,13 +32,15 @@ void showStockUndoSnackBar({
             invalidateWarehouseSurfaces(ref);
             ref.invalidate(stockListProvider);
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              final m = ScaffoldMessenger.maybeOf(context);
+              m?.showSnackBar(
                 const SnackBar(content: Text('Change undone')),
               );
             }
           } catch (_) {
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              final m = ScaffoldMessenger.maybeOf(context);
+              m?.showSnackBar(
                 const SnackBar(
                   content: Text('Could not undo — change may be too old'),
                 ),
