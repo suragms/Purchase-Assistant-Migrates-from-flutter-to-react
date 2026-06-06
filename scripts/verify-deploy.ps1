@@ -116,8 +116,8 @@ Write-Host "=== Vercel service worker (must not reload-loop) ===" -ForegroundCol
 try {
   $swUrl = "$vercelCanonical/flutter_service_worker.js"
   $sw = Invoke-WebRequest -Uri $swUrl -UseBasicParsing -TimeoutSec 30
-  if ($sw.StatusCode -eq 200 -and $sw.Content -match 'client\.navigate|unregister\(\)') {
-    Write-Host "WARN: $swUrl looks like a reload-loop SW — redeploy with --pwa-strategy=none and no SW register." -ForegroundColor Yellow
+  if ($sw.StatusCode -eq 200 -and ($sw.Content -match 'client\.navigate' -or $sw.Content -match 'unregister\(')) {
+    Write-Host "WARN: $swUrl looks like a reload-loop SW - redeploy with --pwa-strategy=none and no SW register." -ForegroundColor Yellow
   } elseif ($sw.StatusCode -eq 404) {
     Write-Host "OK: no service worker file (expected with --pwa-strategy=none)." -ForegroundColor Green
   } else {
