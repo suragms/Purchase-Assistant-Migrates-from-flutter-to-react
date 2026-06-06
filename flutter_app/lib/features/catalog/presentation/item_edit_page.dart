@@ -192,6 +192,8 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
     final session = ref.watch(sessionProvider);
     final isOwner = session != null && sessionHasOwnerDashboard(session);
     final openingQty = coerceToDouble(stock?['opening_stock_qty']);
+    final cachedItem = itemAsync.valueOrNull;
+    final showFormSpinner = itemAsync.isLoading && cachedItem == null;
 
     return Scaffold(
       appBar: AppBar(
@@ -213,8 +215,23 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
           ),
         ],
       ),
-      body: itemAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+      body: showFormSpinner
+          ? const Center(child: CircularProgressIndicator())
+          : itemAsync.when(
+        loading: () {
+          final item = cachedItem;
+          if (item == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          _bindControllers(item);
+          return _editForm(
+            item: item,
+            stock: stock,
+            isOwner: isOwner,
+            openingQty: openingQty,
+            refreshing: true,
+          );
+        },
         error: (_, __) => FriendlyLoadError(
           message: 'Could not load catalog item',
           onRetry: () =>
@@ -222,7 +239,32 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
         ),
         data: (item) {
           _bindControllers(item);
-          return CatalogItemDefaultsEditForm(
+          return _editForm(
+            item: item,
+            stock: stock,
+            isOwner: isOwner,
+            openingQty: openingQty,
+            refreshing: itemAsync.isLoading && cachedItem != null,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _editForm({
+    required Map<String, dynamic> item,
+    required Map<String, dynamic>? stock,
+    required bool isOwner,
+    required double openingQty,
+    bool refreshing = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (refreshing)
+          const LinearProgressIndicator(minHeight: 2),
+        Expanded(
+          child: CatalogItemDefaultsEditForm(
             key: _formKey,
             pickerContext: context,
             nameError: _nameError,
@@ -242,9 +284,9 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
             onSetOpeningStock: isOwner
                 ? () => _showOpeningStockSheet(openingQty)
                 : null,
-          );
-        },
-      ),
+          ),
+        ),
+      ],
     );
   }
 }

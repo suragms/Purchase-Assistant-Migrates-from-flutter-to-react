@@ -13,6 +13,7 @@ import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/providers/stock_providers.dart';
+import '../../../core/widgets/business_write_surface_listener.dart';
 import '../../../core/search/catalog_fuzzy.dart';
 import '../../../core/search/search_highlight.dart';
 import '../../../core/theme/hexa_colors.dart';
@@ -480,7 +481,13 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
             limit: 500,
           );
 
-    return Scaffold(
+    return BusinessWriteSurfaceListener(
+      onRefresh: (ref, _) {
+        ref.invalidate(categoryTypesListProvider(widget.categoryId));
+        ref.invalidate(catalogItemsListProvider);
+        ref.invalidate(categoryTradeSummaryProvider(widget.categoryId));
+      },
+      child: Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         leading: _selectionMode
@@ -743,6 +750,7 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
           ],
         ),
       ),
+    ),
     );
   }
 }

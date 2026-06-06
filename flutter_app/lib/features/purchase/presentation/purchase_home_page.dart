@@ -28,6 +28,7 @@ import '../../../core/providers/business_aggregates_invalidation.dart'
     show
         catalogItemIdsFromPurchase,
         invalidateAfterPurchaseDelete,
+        invalidatePurchaseListSurfacesLight,
         invalidatePurchaseWorkspace;
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/purchase/purchase_stock_commit_flow.dart';
@@ -647,7 +648,7 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
   Future<void> _refreshHistory() async {
     if (_isRefreshing) return;
     setState(() => _isRefreshing = true);
-    invalidatePurchaseWorkspace(ref);
+    invalidatePurchaseListSurfacesLight(ref);
     try {
       await ref.read(tradePurchasesListProvider.future);
     } catch (_) {}

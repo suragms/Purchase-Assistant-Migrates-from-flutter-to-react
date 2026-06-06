@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/providers/business_write_revision.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/providers/recent_unified_search_provider.dart';
 import '../../../core/providers/search_focus_provider.dart';
@@ -25,6 +26,14 @@ final Map<String, ({DateTime at, Map<String, dynamic> data})> _unifiedSearchCach
 
 String _unifiedSearchCacheKey(String businessId, String query) =>
     '$businessId|${query.trim().toLowerCase()}';
+
+void bustUnifiedSearchCache({String? businessId}) {
+  if (businessId == null || businessId.isEmpty) {
+    _unifiedSearchCache.clear();
+    return;
+  }
+  _unifiedSearchCache.removeWhere((key, _) => key.startsWith('$businessId|'));
+}
 
 /// Server-backed unified search (catalog items, catalog types, trade bills, suppliers).
 final unifiedSearchProvider =
@@ -426,6 +435,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           });
         }
       });
+      ref.listen<int>(businessDataWriteRevisionProvider, (prev, next) {
+        if (prev == null || next <= prev) return;
+        if (ref.read(shellCurrentBranchProvider) != ShellBranch.search) return;
+        bustUnifiedSearchCache();
+        if (_debounced.trim().isNotEmpty) {
+          ref.invalidate(unifiedSearchProvider(_debounced));
+        }
+      });
     }
     if (widget.staffShellEmbedded) {
       ref.listen<int>(staffShellCurrentBranchProvider, (prev, next) {
@@ -437,6 +454,16 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             }
             _focus.requestFocus();
           });
+        }
+      });
+      ref.listen<int>(businessDataWriteRevisionProvider, (prev, next) {
+        if (prev == null || next <= prev) return;
+        if (ref.read(staffShellCurrentBranchProvider) != StaffShellBranch.search) {
+          return;
+        }
+        bustUnifiedSearchCache();
+        if (_debounced.trim().isNotEmpty) {
+          ref.invalidate(unifiedSearchProvider(_debounced));
         }
       });
     }

@@ -21,6 +21,7 @@ import '../../../core/widgets/hexa_count_badge.dart';
 import '../../shell/app_shell.dart';
 import '../../shell/business_write_stock_listener.dart';
 import '../../shell/shell_realtime_listener.dart';
+import 'widgets/staff_shell_auto_refresh_listener.dart';
 import '../staff_shell_branch_provider.dart';
 
 /// Staff shell: Home | Stock | Scan | Search — same offline banner pattern as [ShellScreen].
@@ -161,7 +162,8 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
 
     return BusinessWriteStockListener(
       child: ShellRealtimeListener(
-        child: SizedBox.expand(
+        child: StaffShellAutoRefreshListener(
+          child: SizedBox.expand(
         child: Material(
           key: const ValueKey<String>('staff_shell'),
           color: Theme.of(context).scaffoldBackgroundColor,
@@ -248,6 +250,7 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
         ),
       ),
         ),
+      ),
       ),
     );
   }

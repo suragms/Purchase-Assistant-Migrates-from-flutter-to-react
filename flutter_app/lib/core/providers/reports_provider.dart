@@ -25,6 +25,18 @@ DateTime? _reportsInflightLastBustAt;
 
 const int _reportsInflightBustCooldownMs = 3000;
 
+/// Set when purchases/analytics change off-tab so Reports live-fetches on next open.
+final reportsPurchasesNeedsLiveFetchProvider = StateProvider<bool>((ref) => false);
+
+void markReportsPurchasesNeedsLiveFetch(dynamic ref) {
+  ref.read(reportsPurchasesNeedsLiveFetchProvider.notifier).state = true;
+  bustReportsPurchasesInflight();
+}
+
+void clearReportsPurchasesNeedsLiveFetch(dynamic ref) {
+  ref.read(reportsPurchasesNeedsLiveFetchProvider.notifier).state = false;
+}
+
 void bustReportsPurchasesInflight() {
   final now = DateTime.now();
   if (_reportsInflightLastBustAt != null &&
@@ -360,10 +372,11 @@ final reportsPurchasesPayloadProvider =
   final session = ref.watch(activeSessionProvider);
   ref.watch(analyticsDateRangeProvider);
   final branch = ref.watch(shellCurrentBranchProvider);
+  final needsLive = ref.watch(reportsPurchasesNeedsLiveFetchProvider);
   if (session == null) return ReportsPurchasePayload.empty();
 
   // IndexedStack mounts Reports off-screen; use Hive only until the user opens Reports.
-  if (branch != ShellBranch.reports) {
+  if (branch != ShellBranch.reports && !needsLive) {
     final hive = ref.watch(reportsPurchasesHiveCacheProvider);
     return ReportsPurchasePayload(
       items: hive ?? const [],
@@ -371,7 +384,12 @@ final reportsPurchasesPayloadProvider =
     );
   }
 
-  return fetchReportsPurchasesLiveForAnalytics(ref);
+  final payload = await fetchReportsPurchasesLiveForAnalytics(ref);
+  // Clear stale flag after this fetch completes (not during provider init).
+  unawaited(
+    Future<void>.microtask(() => clearReportsPurchasesNeedsLiveFetch(ref)),
+  );
+  return payload;
 });
 
 /// Merged purchase list for instant UI: completed payload, else in-flight

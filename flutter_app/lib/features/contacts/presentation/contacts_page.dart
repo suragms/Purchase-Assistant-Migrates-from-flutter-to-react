@@ -22,6 +22,7 @@ import '../../../core/providers/suppliers_list_provider.dart';
 import '../../../core/providers/trade_purchases_provider.dart';
 import '../../../core/search/search_highlight.dart';
 import '../../../shared/widgets/app_settings_action.dart';
+import '../../../core/widgets/business_write_surface_listener.dart';
 import 'broker_wizard_page.dart';
 import 'supplier_create_wizard_page.dart';
 
@@ -1123,7 +1124,9 @@ class _ContactsPageState extends ConsumerState<ContactsPage>
     final searchBusy = _searchFocus.hasFocus ||
         _searchCtrl.text.trim().isNotEmpty ||
         _isSearching;
-    return Scaffold(
+    return BusinessWriteSurfaceListener(
+      onRefresh: (ref, _) => invalidateContactsSurfacesLight(ref),
+      child: Scaffold(
       appBar: AppBar(
         toolbarHeight: 72,
         titleSpacing: 16,
@@ -1258,6 +1261,7 @@ class _ContactsPageState extends ConsumerState<ContactsPage>
           ),
         ],
       ),
+    ),
     );
   }
 }

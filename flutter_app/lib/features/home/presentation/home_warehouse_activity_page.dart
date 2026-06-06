@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/design_system/hexa_operational_tokens.dart';
+import '../../../core/providers/business_write_event.dart';
+import '../../../core/providers/business_write_revision.dart';
+import '../../../core/providers/deferred_invalidation.dart';
 import '../../../core/providers/home_dashboard_provider.dart';
 import '../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../core/router/navigation_ext.dart';
@@ -45,6 +48,17 @@ class _HomeWarehouseActivityPageState
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<BusinessWriteEvent>(businessWriteEventProvider, (prev, next) {
+      if (next.revision <= (prev?.revision ?? -1)) return;
+      deferInvalidate(ref, homeWarehouseActivityFullProvider);
+      deferInvalidate(ref, homeRecentActivityFeedProvider);
+    });
+    ref.listen<int>(businessDataWriteRevisionProvider, (prev, next) {
+      if (prev == null || next <= prev) return;
+      deferInvalidate(ref, homeWarehouseActivityFullProvider);
+      deferInvalidate(ref, homeRecentActivityFeedProvider);
+    });
+
     final period = ref.watch(homePeriodProvider);
     final feedAsync = ref.watch(homeWarehouseActivityFullProvider);
     final title = _periodTitle(period);

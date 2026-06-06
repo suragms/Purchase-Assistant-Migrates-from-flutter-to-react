@@ -292,6 +292,11 @@ class _PurchaseDetailPageState extends ConsumerState<PurchaseDetailPage> {
         deferInvalidate(ref, tradePurchaseDetailProvider(widget.purchaseId));
       }
     });
+    ref.listen<int>(remoteBusinessDataRevisionProvider, (prev, next) {
+      if (prev != null && next > prev && mounted) {
+        deferInvalidate(ref, tradePurchaseDetailProvider(widget.purchaseId));
+      }
+    });
     ref.listen<AsyncValue<TradePurchase>>(
       tradePurchaseDetailProvider(widget.purchaseId),
       (prev, next) {

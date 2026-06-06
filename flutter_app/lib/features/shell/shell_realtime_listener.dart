@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/auth/provider_api_guard.dart';
 import '../../core/providers/business_aggregates_invalidation.dart';
+import '../../core/providers/business_write_revision.dart';
 import '../../core/providers/home_owner_dashboard_providers.dart'
     show homeInventorySummaryProvider, homeRecentActivityFeedProvider;
 import '../../core/providers/realtime_events_provider.dart';
@@ -29,7 +30,7 @@ class _ShellRealtimeListenerState extends ConsumerState<ShellRealtimeListener> {
   bool _throttleWarehouse() {
     final now = DateTime.now();
     if (_lastWarehouseInvalidate != null &&
-        now.difference(_lastWarehouseInvalidate!).inSeconds < 45) {
+        now.difference(_lastWarehouseInvalidate!).inSeconds < 8) {
       return true;
     }
     _lastWarehouseInvalidate = now;
@@ -82,6 +83,9 @@ class _ShellRealtimeListenerState extends ConsumerState<ShellRealtimeListener> {
           _scheduleWarehouseInvalidate(signal);
         }
       }
+      if (signal.notifications || signal.delivery || signal.warehouse) {
+        bumpRemoteBusinessDataRevision(ref);
+      }
   }
 
   void _applyWarehouseSignal(RealtimeInvalidationSignal signal) {
@@ -98,5 +102,7 @@ class _ShellRealtimeListenerState extends ConsumerState<ShellRealtimeListener> {
     }
     ref.invalidate(homeRecentActivityFeedProvider);
     ref.invalidate(homeInventorySummaryProvider);
+    invalidateCatalogSurfacesLight(ref);
+    invalidateContactsSurfacesLight(ref);
   }
 }

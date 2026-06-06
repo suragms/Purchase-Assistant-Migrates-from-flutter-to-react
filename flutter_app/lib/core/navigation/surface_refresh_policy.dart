@@ -1,8 +1,8 @@
 /// When to refetch shell tab data on return (avoid reload loops).
-const Duration kShellTabReturnMinInterval = Duration(seconds: 90);
+const Duration kShellTabReturnMinInterval = Duration(seconds: 45);
 
 /// Lightweight home surfaces (activity + inventory) may refresh more often.
-const Duration kHomeSoftRefreshMinInterval = Duration(seconds: 45);
+const Duration kHomeSoftRefreshMinInterval = Duration(seconds: 30);
 
 const Duration kStockListCacheTtl = Duration(minutes: 3);
 

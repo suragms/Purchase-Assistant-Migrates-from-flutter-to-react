@@ -418,8 +418,6 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
       _saveError = null;
     });
     try {
-      await _refreshItemFromServer();
-      if (!mounted) return;
       try {
         final saved = await _persistStock(
           parsed,
@@ -631,7 +629,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
           SizedBox(
             height: 48,
             child: FilledButton(
-              onPressed: canSave && !_saving ? _onSavePressed : null,
+              onPressed: _saving ? null : _onSavePressed,
               child: _saving
                   ? const SizedBox(
                       width: 22,

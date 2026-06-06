@@ -14,6 +14,7 @@ import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/list_skeleton.dart';
 import '../../../core/widgets/friendly_load_error.dart';
+import '../../../core/widgets/business_write_surface_listener.dart';
 import 'widgets/quick_catalog_taxonomy_sheet.dart';
 
 /// Category list (layer 1). Subcategories and items live on deeper routes.
@@ -124,7 +125,12 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
     final async = ref.watch(itemCategoriesListProvider);
     final itemsAsync = ref.watch(catalogItemsListProvider);
 
-    return Scaffold(
+    return BusinessWriteSurfaceListener(
+      onRefresh: (ref, _) {
+        ref.invalidate(itemCategoriesListProvider);
+        ref.invalidate(catalogItemsListProvider);
+      },
+      child: Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_rounded),
@@ -436,6 +442,7 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
           ),
         ],
       ),
+    ),
     );
   }
 }

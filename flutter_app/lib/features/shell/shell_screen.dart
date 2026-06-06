@@ -23,6 +23,7 @@ import 'responsive_shell_layout.dart';
 import 'shell_branch_provider.dart';
 import 'business_write_stock_listener.dart';
 import 'shell_realtime_listener.dart';
+import 'shell_tab_auto_refresh_listener.dart';
 
 /// Shell: Home | Stock | Reports | History | Search in one row, then [+] (no overlap).
 class ShellScreen extends ConsumerStatefulWidget {
@@ -209,17 +210,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       },
       child: BusinessWriteStockListener(
         child: ShellRealtimeListener(
-          child: SizedBox.expand(
-          child: Material(
-            key: const ValueKey<String>('main_shell'),
-            color: Theme.of(context).scaffoldBackgroundColor,
-            child: ResponsiveShellLayout(
-              rail: rail,
-              body: shellBody,
-              railMinWidth: kShellRailMin,
+          child: ShellTabAutoRefreshListener(
+            child: SizedBox.expand(
+              child: Material(
+                key: const ValueKey<String>('main_shell'),
+                color: Theme.of(context).scaffoldBackgroundColor,
+                child: ResponsiveShellLayout(
+                  rail: rail,
+                  body: shellBody,
+                  railMinWidth: kShellRailMin,
+                ),
+              ),
             ),
           ),
-        ),
         ),
       ),
     );

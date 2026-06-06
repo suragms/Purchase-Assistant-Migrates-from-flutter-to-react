@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/auth/session_notifier.dart';
 import '../../../../core/providers/business_aggregates_invalidation.dart';
+import '../../../../core/providers/business_write_event.dart';
+import '../../../../core/providers/business_write_revision.dart';
 import '../../../../core/providers/catalog_providers.dart';
 import '../../../../core/providers/trade_purchases_provider.dart';
 import '../../../../core/utils/item_code_format.dart';
@@ -417,7 +419,15 @@ Future<bool> saveCatalogItemDefaults({
         );
     ref.invalidate(catalogItemDetailProvider(itemId));
     ref.invalidate(tradePurchasesCatalogIntelProvider);
-    invalidatePurchaseWorkspace(ref);
+    invalidateCatalogSurfacesLight(ref);
+    invalidateWarehouseItemSurfacesLight(ref, itemId: itemId);
+    emitBusinessWriteEvent(
+      ref,
+      kind: 'stock',
+      affectedItemIds: {itemId},
+    );
+    invalidateBusinessAggregates(ref);
+    bumpBusinessDataWriteRevision(ref);
     return true;
   } on DioException {
     rethrow;

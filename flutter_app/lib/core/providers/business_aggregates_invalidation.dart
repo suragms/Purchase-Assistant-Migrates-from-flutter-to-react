@@ -33,7 +33,7 @@ import 'warehouse_alerts_provider.dart';
 Timer? _invalidateDebounce;
 const _invalidateDebounceMs = 150;
 DateTime? _lastDashboardInvalidateAt;
-const _dashboardInvalidateMinGap = Duration(seconds: 10);
+const _dashboardInvalidateMinGap = Duration(seconds: 5);
 
 /// Immediate owner home refresh after writes (bypasses debounced aggregate gap).
 void forceRefreshOwnerHomeDashboard(dynamic ref) {
@@ -53,6 +53,7 @@ void forceRefreshOwnerHomeDashboard(dynamic ref) {
 /// KPIs and tables that depend on [analyticsDateRangeProvider] and/or entries.
 /// [ref] is any Riverpod `Ref` / `WidgetRef` with `invalidate`.
 void invalidateAnalyticsData(dynamic ref) {
+  markReportsPurchasesNeedsLiveFetch(ref);
   ref.invalidate(analyticsKpiProvider);
   ref.invalidate(analyticsDailyProfitProvider);
   ref.invalidate(analyticsItemsTableProvider);
@@ -102,14 +103,8 @@ void _doInvalidateBusinessAggregates(dynamic ref) {
     ref.invalidate(homeShellReportsProvider);
   }
   ref.invalidate(homeInventorySummaryProvider);
-  ref.invalidate(contactsSuppliersEnrichedProvider);
-  ref.invalidate(contactsBrokersEnrichedProvider);
-  ref.invalidate(contactsCategoriesProvider);
-  ref.invalidate(contactsItemsProvider);
-  ref.invalidate(suppliersListProvider);
-  ref.invalidate(brokersListProvider);
-  ref.invalidate(itemCategoriesListProvider);
-  ref.invalidate(catalogItemsListProvider);
+  invalidateContactsSurfacesLight(ref);
+  invalidateCatalogSurfacesLight(ref);
   invalidateTradePurchaseCaches(ref);
   invalidateUserManagementCaches(ref);
   bumpBusinessDataWriteRevision(ref);
@@ -228,6 +223,29 @@ void _invalidateStockAuditFeeds(dynamic ref) {
   ref.invalidate(stockAuditDayProvider(DateTime(n.year, n.month, n.day)));
 }
 
+/// Catalog lists on pushed routes — no full KPI storm.
+void invalidateCatalogSurfacesLight(dynamic ref) {
+  ref.invalidate(itemCategoriesListProvider);
+  ref.invalidate(catalogItemsListProvider);
+}
+
+/// Contacts hub lists — suppliers, brokers, enriched rows.
+void invalidateContactsSurfacesLight(dynamic ref) {
+  ref.invalidate(contactsSuppliersEnrichedProvider);
+  ref.invalidate(contactsBrokersEnrichedProvider);
+  ref.invalidate(contactsCategoriesProvider);
+  ref.invalidate(contactsItemsProvider);
+  ref.invalidate(suppliersListProvider);
+  ref.invalidate(brokersListProvider);
+}
+
+/// Purchase history tab pull / tab return — not full workspace storm.
+void invalidatePurchaseListSurfacesLight(dynamic ref) {
+  invalidateTradePurchaseCaches(ref);
+  ref.invalidate(deliveryPipelineProvider);
+  ref.invalidate(staffPendingDeliveriesProvider);
+}
+
 /// User-initiated stock/catalog writes — light warehouse bust + financial KPIs.
 void invalidateWarehouseSurfaces(dynamic ref, {String? itemId}) {
   invalidateWarehouseSurfacesLight(ref, itemId: itemId);
@@ -238,6 +256,7 @@ void invalidateWarehouseSurfaces(dynamic ref, {String? itemId}) {
       affectedItemIds: {itemId},
     );
   }
+  invalidateCatalogSurfacesLight(ref);
   invalidateBusinessAggregates(ref);
 }
 
@@ -289,6 +308,7 @@ void invalidateWarehouseSurfacesLight(dynamic ref, {String? itemId}) {
   ref.invalidate(homeInventorySummaryProvider);
   ref.invalidate(lowStockOperationsSummaryProvider);
   ref.invalidate(lowStockOperationsPageProvider);
+  invalidateCatalogSurfacesLight(ref);
   if (itemId != null && itemId.isNotEmpty) {
     invalidateWarehouseItemSurfacesLight(ref, itemId: itemId);
   }

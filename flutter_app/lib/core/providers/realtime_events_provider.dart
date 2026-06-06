@@ -119,7 +119,7 @@ final realtimeInvalidationProvider =
   }
 
   yield await poll(initial: true);
-  final timer = Stream.periodic(const Duration(seconds: 45));
+  final timer = Stream.periodic(const Duration(seconds: 15));
   await for (final _ in timer) {
     if (ref.read(sessionProvider) == null ||
         ref.read(authSessionExpiredProvider) ||

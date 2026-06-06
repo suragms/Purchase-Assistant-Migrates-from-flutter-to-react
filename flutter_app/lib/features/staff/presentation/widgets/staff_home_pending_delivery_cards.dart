@@ -9,7 +9,6 @@ import '../../../../core/models/trade_purchase_models.dart';
 import '../../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../../core/providers/staff_home_providers.dart';
 import '../../../../core/providers/stock_offline_queue_provider.dart';
-import '../../../../core/providers/trade_purchases_provider.dart';
 import '../../../../core/utils/delivery_offline_actions.dart';
 import '../../../../core/utils/snack.dart';
 import '../../../../core/auth/session_notifier.dart';
@@ -63,10 +62,8 @@ class _DeliveryCardState extends ConsumerState<_DeliveryCard> {
         purchaseId: widget.purchase.id,
       );
       final queued = result.queued;
-      invalidatePurchaseWorkspace(ref);
-      ref.invalidate(tradePurchasesListProvider);
+      invalidateStaffDeliverySurfacesLight(ref);
       ref.invalidate(tradePurchaseDetailProvider(widget.purchase.id));
-      ref.invalidate(staffPendingDeliveriesProvider);
       ref.invalidate(stockOfflinePendingCountProvider);
       if (!queued) {
         invalidateWarehouseSurfacesLight(ref);
