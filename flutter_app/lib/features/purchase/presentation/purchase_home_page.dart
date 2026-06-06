@@ -29,7 +29,7 @@ import '../../../core/providers/business_aggregates_invalidation.dart'
         catalogItemIdsFromPurchase,
         invalidateAfterPurchaseDelete,
         invalidatePurchaseListSurfacesLight,
-        invalidatePurchaseWorkspace;
+        invalidatePurchaseMetadataLight;
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/purchase/purchase_stock_commit_flow.dart';
 import '../../../core/providers/trade_purchases_provider.dart';
@@ -1003,7 +1003,7 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
             businessId: session.primaryBusiness.id,
             purchaseId: p.id,
           );
-      invalidatePurchaseWorkspace(ref);
+      invalidatePurchaseMetadataLight(ref, purchaseId: p.id);
       try {
         await ref.read(tradePurchasesListProvider.future);
       } catch (_) {}
@@ -1837,7 +1837,6 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
                 if (!context.mounted) return;
                 if (result.ok) {
                   showTopSnack(context, result.message);
-                  invalidatePurchaseWorkspace(ref);
                   return;
                 }
                 showTopSnack(
@@ -2445,7 +2444,7 @@ class _PurchaseHistoryFullscreenSearchPageState
             businessId: session.primaryBusiness.id,
             purchaseId: p.id,
           );
-      invalidatePurchaseWorkspace(ref);
+      invalidatePurchaseMetadataLight(ref, purchaseId: p.id);
       try {
         await ref.read(tradePurchasesListProvider.future);
       } catch (_) {}
@@ -2699,7 +2698,6 @@ class _PurchaseHistoryFullscreenSearchPageState
                       if (!context.mounted) return;
                       if (result.ok) {
                         showTopSnack(context, result.message);
-                        invalidatePurchaseWorkspace(ref);
                         return;
                       }
                       showTopSnack(

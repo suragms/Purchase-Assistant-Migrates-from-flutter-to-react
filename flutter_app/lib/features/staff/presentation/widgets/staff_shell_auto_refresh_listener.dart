@@ -10,10 +10,11 @@ import '../../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../../core/providers/business_write_revision.dart';
 import '../../../../core/providers/realtime_events_provider.dart';
 import '../../../../core/providers/staff_home_providers.dart';
+import '../../../../core/providers/stock_providers.dart';
 import '../../../../features/search/presentation/search_page.dart' show bustUnifiedSearchCache;
 import '../../staff_shell_branch_provider.dart';
 
-/// Keeps all staff shell tabs fresh (not only Home) without manual pull-to-refresh.
+/// Keeps staff shell tabs fresh for remote changes without duplicating local write storms.
 class StaffShellAutoRefreshListener extends ConsumerStatefulWidget {
   const StaffShellAutoRefreshListener({super.key, required this.child});
 
@@ -36,7 +37,7 @@ class _StaffShellAutoRefreshListenerState
   @override
   void initState() {
     super.initState();
-    _periodic = Timer.periodic(const Duration(minutes: 2), (_) {
+    _periodic = Timer.periodic(const Duration(minutes: 3), (_) {
       _refreshCurrentBranch(reason: 'periodic');
     });
   }
@@ -53,7 +54,6 @@ class _StaffShellAutoRefreshListenerState
     final last = _lastTabRefresh[branch];
     if (last != null &&
         now.difference(last) < kShellTabReturnMinInterval &&
-        reason != 'write' &&
         reason != 'realtime' &&
         reason != 'remote') {
       return;
@@ -63,11 +63,13 @@ class _StaffShellAutoRefreshListenerState
       case StaffShellBranch.home:
         invalidateStaffHomeSurfacesLight(ref);
       case StaffShellBranch.stock:
-        invalidateWarehouseSurfacesLight(ref);
+        ref.invalidate(stockListProvider);
+        ref.invalidate(stockStatusCountsProvider);
       case StaffShellBranch.deliveries:
         invalidateStaffDeliverySurfacesLight(ref);
       case StaffShellBranch.tasks:
-        invalidateStaffHomeSurfacesLight(ref);
+        ref.invalidate(staffTodayActivityProvider);
+        ref.invalidate(staffTodaySummaryProvider);
       case StaffShellBranch.search:
         bustUnifiedSearchCache();
       case StaffShellBranch.scan:
@@ -79,7 +81,7 @@ class _StaffShellAutoRefreshListenerState
     if (!mounted || providerSkipApi(ref)) return;
     final now = DateTime.now();
     if (_lastLightRefresh != null &&
-        now.difference(_lastLightRefresh!) < const Duration(seconds: 20) &&
+        now.difference(_lastLightRefresh!) < const Duration(seconds: 25) &&
         reason != 'tab') {
       return;
     }
@@ -93,17 +95,9 @@ class _StaffShellAutoRefreshListenerState
       if (prev == null || prev == next) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
-        ref.invalidate(realtimeInvalidationProvider);
         if (shouldRefreshOnShellTabReturn(_lastTabRefresh[next])) {
           _refreshBranch(next, reason: 'tab');
         }
-      });
-    });
-
-    ref.listen<int>(businessDataWriteRevisionProvider, (prev, next) {
-      if (prev == null || next <= prev) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _refreshCurrentBranch(reason: 'write');
       });
     });
 
@@ -137,7 +131,7 @@ class _StaffShellAutoRefreshListenerState
         if (!mounted) return;
         final now = DateTime.now();
         if (_lastRemoteRefresh != null &&
-            now.difference(_lastRemoteRefresh!) < const Duration(seconds: 5)) {
+            now.difference(_lastRemoteRefresh!) < const Duration(seconds: 8)) {
           return;
         }
         _lastRemoteRefresh = now;

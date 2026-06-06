@@ -411,7 +411,7 @@ class _HomePageState extends ConsumerState<HomePage>
         final now = DateTime.now();
         if (_lastWriteRevisionRefresh != null &&
             now.difference(_lastWriteRevisionRefresh!) <
-                const Duration(seconds: 12)) {
+                const Duration(seconds: 20)) {
           return;
         }
         _lastWriteRevisionRefresh = now;

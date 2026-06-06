@@ -102,7 +102,5 @@ class _ShellRealtimeListenerState extends ConsumerState<ShellRealtimeListener> {
     }
     ref.invalidate(homeRecentActivityFeedProvider);
     ref.invalidate(homeInventorySummaryProvider);
-    invalidateCatalogSurfacesLight(ref);
-    invalidateContactsSurfacesLight(ref);
   }
 }

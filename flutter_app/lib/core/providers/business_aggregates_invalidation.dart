@@ -31,7 +31,7 @@ import 'warehouse_alerts_provider.dart';
 
 // Debounce guard: prevent stampede when called from multiple sources within 400ms.
 Timer? _invalidateDebounce;
-const _invalidateDebounceMs = 150;
+const _invalidateDebounceMs = 250;
 DateTime? _lastDashboardInvalidateAt;
 const _dashboardInvalidateMinGap = Duration(seconds: 5);
 
@@ -107,6 +107,23 @@ void _doInvalidateBusinessAggregates(dynamic ref) {
   invalidateCatalogSurfacesLight(ref);
   invalidateTradePurchaseCaches(ref);
   invalidateUserManagementCaches(ref);
+  bumpBusinessDataWriteRevision(ref);
+}
+
+/// Catalog item field save — lists + item detail only (no reports/home storm).
+void invalidateCatalogItemSaveSurfaces(
+  dynamic ref, {
+  required String itemId,
+}) {
+  invalidateCatalogSurfacesLight(ref);
+  if (itemId.isNotEmpty) {
+    invalidateWarehouseItemSurfacesLight(ref, itemId: itemId);
+    emitBusinessWriteEvent(
+      ref,
+      kind: 'stock',
+      affectedItemIds: {itemId},
+    );
+  }
   bumpBusinessDataWriteRevision(ref);
 }
 
@@ -196,8 +213,19 @@ void invalidateAfterPurchaseDelete(
   ref.invalidate(deliveryPipelineProvider);
   ref.invalidate(staffPendingDeliveriesProvider);
   ref.invalidate(homeStockAttentionCountProvider);
+}
+
+/// Payment / paid flag / share-only purchase edits — no warehouse list storm.
+void invalidatePurchaseMetadataLight(
+  dynamic ref, {
+  String? purchaseId,
+}) {
   invalidateTradePurchaseCaches(ref);
-  bumpBusinessDataWriteRevision(ref);
+  ref.invalidate(deliveryPipelineProvider);
+  if (purchaseId != null && purchaseId.isNotEmpty) {
+    ref.invalidate(tradePurchaseDetailProvider(purchaseId));
+  }
+  invalidateBusinessAggregates(ref);
 }
 
 /// Purchase mutations: warehouse lists + financial aggregates (debounced).
@@ -308,7 +336,6 @@ void invalidateWarehouseSurfacesLight(dynamic ref, {String? itemId}) {
   ref.invalidate(homeInventorySummaryProvider);
   ref.invalidate(lowStockOperationsSummaryProvider);
   ref.invalidate(lowStockOperationsPageProvider);
-  invalidateCatalogSurfacesLight(ref);
   if (itemId != null && itemId.isNotEmpty) {
     invalidateWarehouseItemSurfacesLight(ref, itemId: itemId);
   }
@@ -344,13 +371,13 @@ void invalidateAfterDeliveryVerify(
 }) {
   ref.invalidate(tradePurchaseDetailProvider(purchaseId));
   invalidateStaffDeliverySurfacesLight(ref);
-  invalidateWarehouseSurfacesLight(ref);
   for (final id in affectedItemIds ?? const <String>{}) {
     if (id.isEmpty) continue;
-    invalidateWarehouseSurfacesLight(ref, itemId: id);
+    invalidateWarehouseItemSurfacesLight(ref, itemId: id);
   }
-  invalidateTradePurchaseCaches(ref);
-  forceRefreshOwnerHomeDashboard(ref);
+  ref.invalidate(homeRecentActivityFeedProvider);
+  ref.invalidate(homeInventorySummaryProvider);
+  ref.invalidate(deliveryPipelineProvider);
   bumpBusinessDataWriteRevision(ref);
 }
 
@@ -364,6 +391,5 @@ void invalidateAfterDeliveryCommit(
   ref.invalidate(tradePurchaseDetailProvider(purchaseId));
   invalidateStaffDeliverySurfaces(ref);
   ref.invalidate(homeStockAttentionCountProvider);
-  forceRefreshOwnerHomeDashboard(ref);
   bumpBusinessDataWriteRevision(ref);
 }

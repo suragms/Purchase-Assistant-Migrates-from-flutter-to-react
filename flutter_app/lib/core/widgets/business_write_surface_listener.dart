@@ -13,7 +13,7 @@ class BusinessWriteSurfaceListener extends ConsumerStatefulWidget {
     required this.onRefresh,
     this.listenGlobalWrites = true,
     this.itemId,
-    this.minRefreshGap = const Duration(seconds: 8),
+    this.minRefreshGap = const Duration(seconds: 12),
   });
 
   final Widget child;

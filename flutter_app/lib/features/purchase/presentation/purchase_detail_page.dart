@@ -15,8 +15,9 @@ import '../../../core/models/trade_purchase_models.dart';
 import '../../../core/providers/business_aggregates_invalidation.dart'
     show
         invalidateAfterPurchaseDelete,
-        syncPurchaseStockFromPurchaseJson,
-        invalidatePurchaseWorkspace;
+        invalidatePurchaseMetadataLight,
+        invalidateStaffDeliverySurfacesLight,
+        syncPurchaseStockFromPurchaseJson;
 import '../../../core/providers/business_write_revision.dart';
 import '../../../core/providers/deferred_invalidation.dart';
 import '../../../core/providers/delivery_pipeline_provider.dart';
@@ -643,14 +644,6 @@ class PurchaseDetailBodyState extends ConsumerState<PurchaseDetailBody> {
     return session.primaryBusiness.role == 'staff';
   }
 
-  Set<String> _purchaseItemIds(TradePurchase purchase) {
-    return purchase.lines
-        .map((l) => l.catalogItemId?.trim())
-        .whereType<String>()
-        .where((id) => id.isNotEmpty)
-        .toSet();
-  }
-
   List<Map<String, dynamic>> _catalogRows() {
     return ref.read(catalogItemsListProvider).valueOrNull ?? const [];
   }
@@ -944,11 +937,7 @@ class PurchaseDetailBodyState extends ConsumerState<PurchaseDetailBody> {
         purchaseId: p.id,
       );
       if (result.queued) {
-        invalidatePurchaseWorkspace(
-          ref,
-          affectedItemIds: _purchaseItemIds(p),
-        );
-        ref.invalidate(deliveryPipelineProvider);
+        invalidateStaffDeliverySurfacesLight(ref);
         ref.invalidate(tradePurchaseDetailProvider(p.id));
         ref.invalidate(stockOfflinePendingCountProvider);
         if (context.mounted) {
@@ -1712,8 +1701,7 @@ class PurchaseDetailBodyState extends ConsumerState<PurchaseDetailBody> {
             purchaseId: p.id,
             paidAmount: v,
           );
-      invalidatePurchaseWorkspace(ref);
-      ref.invalidate(tradePurchaseDetailProvider(p.id));
+      invalidatePurchaseMetadataLight(ref, purchaseId: p.id);
       if (context.mounted) {
         showTopSnack(context, 'Payment saved');
       }
