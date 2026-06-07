@@ -11,6 +11,7 @@ import '../providers/business_aggregates_invalidation.dart';
 import '../providers/catalog_providers.dart';
 import '../providers/trade_purchases_provider.dart';
 import '../utils/snack.dart';
+import '../router/navigation_ext.dart';
 import 'purchase_stock_commit_preflight.dart';
 
 final _commitStockInFlight = <String>{};
@@ -98,8 +99,9 @@ Future<void> showPurchaseStockCommitBlockedDialog(
           if (firstCatalogId != null)
             FilledButton(
               onPressed: () {
+                final catalogId = firstCatalogId!;
                 Navigator.of(dialogContext).pop();
-                context.push('/catalog/item/$firstCatalogId/edit');
+                pushCatalogItemEdit(context, catalogId);
               },
               child: const Text('Edit catalog item'),
             ),

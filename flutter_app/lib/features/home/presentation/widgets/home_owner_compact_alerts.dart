@@ -9,6 +9,7 @@ import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/purchase_damage_reports_provider.dart';
 import '../../../../core/providers/stock_providers.dart'
     show openingStockMissingProvider, stockStatusCountsProvider;
+import '../../../../core/router/navigation_ext.dart';
 import '../../../../core/utils/snack.dart';
 
 /// Owner home: priority cards (low stock + pending delivery first), then opening/out.
@@ -46,7 +47,7 @@ class HomeOwnerCompactAlerts extends ConsumerWidget {
                 label: 'Low stock',
                 count: low,
                 accent: _warn,
-                onTap: () => context.push('/stock/low-stock'),
+                onTap: () => pushLowStockDashboard(context),
               ),
             ),
             const SizedBox(width: 8),
@@ -87,7 +88,7 @@ class HomeOwnerCompactAlerts extends ConsumerWidget {
                     label: 'Opening stock',
                     count: openingN,
                     accent: _opening,
-                    onTap: () => context.push('/stock/opening-setup'),
+                    onTap: () => pushOpeningStockSetup(context),
                   ),
                 ),
               if (openingN > 0 && out > 0) const SizedBox(width: 8),

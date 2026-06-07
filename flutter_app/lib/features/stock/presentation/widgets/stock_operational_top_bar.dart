@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/navigation_ext.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 
 /// Compact warehouse stock top bar: Back, Stock, Period, Filters, Search, More.
@@ -127,7 +128,7 @@ class StockOperationalTopBar extends StatelessWidget implements PreferredSizeWid
               case 'movement':
                 onOpenMovement?.call();
               case 'add':
-                context.push('/catalog/quick-add');
+                pushCatalogQuickAdd(context);
               case 'pdf':
                 onExportPdf?.call();
               case 'excel':

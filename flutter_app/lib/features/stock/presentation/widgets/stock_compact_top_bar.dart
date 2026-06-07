@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/navigation_ext.dart';
 import 'stock_period_dropdown.dart';
 
 /// Single-row compact stock page app bar (no TabBar).
@@ -84,7 +85,7 @@ class StockCompactTopBar extends StatelessWidget implements PreferredSizeWidget 
               case 'movement':
                 context.go('$stockBase?tab=movement');
               case 'add':
-                context.push('/catalog/quick-add');
+                pushCatalogQuickAdd(context);
               case 'pdf':
                 onExportPdf?.call();
             }

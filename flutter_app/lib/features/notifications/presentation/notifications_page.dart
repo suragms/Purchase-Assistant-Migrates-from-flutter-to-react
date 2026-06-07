@@ -479,7 +479,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       }
       final route = n.actionRoute;
       if (route != null && route.isNotEmpty && context.mounted) {
-        context.push(route);
+        navigateActionRoute(context, route);
       }
     }
 
@@ -500,13 +500,16 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           ? () {
               handleTap();
               if (context.mounted) {
-                context.push('/purchase/new?itemId=$itemIdFromRoute');
+                pushPurchaseNew(
+                  context,
+                  queryParameters: {'itemId': itemIdFromRoute!},
+                );
               }
             }
           : isReorder
               ? () {
                   handleTap();
-                  if (context.mounted) context.push('/purchase/new');
+                  if (context.mounted) pushPurchaseNew(context);
                 }
               : null,
     );

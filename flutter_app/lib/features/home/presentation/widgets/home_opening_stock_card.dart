@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/stock_providers.dart';
+import '../../../../core/router/navigation_ext.dart';
 import '../../../../core/theme/hexa_colors.dart';
 
 /// Shown when items lack opening stock setup.
@@ -22,7 +22,7 @@ class HomeOpeningStockCard extends ConsumerWidget {
         title: Text('Set up opening stock ($missing items)'),
         subtitle: const Text('Required once per item for accurate system stock'),
         trailing: const Icon(Icons.chevron_right_rounded),
-        onTap: () => context.push('/stock/opening-setup'),
+        onTap: () => pushOpeningStockSetup(context),
       ),
     );
   }

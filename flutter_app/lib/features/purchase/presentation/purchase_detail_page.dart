@@ -721,8 +721,9 @@ class PurchaseDetailBodyState extends ConsumerState<PurchaseDetailBody> {
           if (firstCatalogId != null)
             FilledButton(
               onPressed: () {
+                final catalogId = firstCatalogId!;
                 Navigator.of(dialogContext).pop();
-                context.push('/catalog/item/$firstCatalogId/edit');
+                pushCatalogItemEdit(context, catalogId);
               },
               child: const Text('Edit catalog item'),
             ),

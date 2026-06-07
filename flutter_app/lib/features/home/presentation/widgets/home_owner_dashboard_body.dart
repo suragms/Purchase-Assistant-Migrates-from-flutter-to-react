@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/router/navigation_ext.dart';
 import '../../../../core/router/shell_navigation.dart';
 import '../../../../features/shell/shell_branch_provider.dart';
 
@@ -92,7 +93,7 @@ class HomeOwnerDashboardBody extends ConsumerWidget {
                 _AlertChip(
                   label: 'Low stock · $low',
                   color: const Color(0xFFF59E0B),
-                  onTap: () => context.push('/stock/low-stock'),
+                  onTap: () => pushLowStockDashboard(context),
                 ),
               if (pending > 0) ...[
                 if (low > 0) const SizedBox(width: 8),
@@ -108,7 +109,7 @@ class HomeOwnerDashboardBody extends ConsumerWidget {
                 _AlertChip(
                   label: 'Opening stock · $openingN',
                   color: const Color(0xFFCA8A04),
-                  onTap: () => context.push('/stock/opening-setup'),
+                  onTap: () => pushOpeningStockSetup(context),
                 ),
               ],
               if (out > 0) ...[
@@ -156,7 +157,7 @@ class HomeOwnerDashboardBody extends ConsumerWidget {
               label: 'Low stock',
               value: '$lowCount',
               subtitle: 'Items below reorder',
-              onTap: () => context.push('/stock/low-stock'),
+              onTap: () => pushLowStockDashboard(context),
             ),
             _KpiTile(
               label: 'Warehouse',
@@ -184,14 +185,14 @@ class HomeOwnerDashboardBody extends ConsumerWidget {
         SizedBox(height: gap),
         HomeOwnerQuickActions(
           lowStockCount: lowCount,
-          onPurchase: () => context.push('/purchase/new'),
+          onPurchase: () => pushPurchaseNew(context),
           onStock: () => goShellTab(
                 context,
                 ref,
                 branch: ShellBranch.stock,
                 location: '/stock',
               ),
-          onLowStock: () => context.push('/stock/low-stock'),
+          onLowStock: () => pushLowStockDashboard(context),
           onDelivered: () => context.go('/purchase?filter=delivery_commit'),
           onReports: () => goShellTab(
                 context,
@@ -200,9 +201,14 @@ class HomeOwnerDashboardBody extends ConsumerWidget {
                 location: '/reports',
               ),
           onUsers: () => context.push('/settings/users'),
-          onBarcode: () => context.push('/barcode/scan'),
-          onReorder: () => context.push('/stock/reorder'),
-          onDailyLog: () => context.push('/home/activity'),
+          onBarcode: () => pushBarcodeScan(context),
+          onReorder: () => pushStockReorder(context),
+          onDailyLog: () => goShellTab(
+                context,
+                ref,
+                branch: ShellBranch.home,
+                location: '/home/activity',
+              ),
         ),
         SizedBox(height: gap),
         const HomeWarehouseActivityFeed(maxRows: 3),

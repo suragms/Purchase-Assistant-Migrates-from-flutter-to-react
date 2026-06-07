@@ -4,11 +4,30 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/shell/shell_branch_provider.dart';
 
-/// Pushed/modal routes — keep current shell branch; do not call [goBranch].
+/// Full-screen routes pushed above the shell — never call [goBranch] for these.
 bool shellIsPushedModalPath(String path) {
   if (path.startsWith('/settings')) return true;
   if (path.startsWith('/notifications')) return true;
   if (path.startsWith('/barcode')) return true;
+  if (path.startsWith('/catalog')) return true;
+  if (path.startsWith('/purchase/')) return true;
+  if (path.startsWith('/stock/')) return true;
+  if (path.startsWith('/reports/')) return true;
+  if (path.startsWith('/contacts')) return true;
+  if (path.startsWith('/supplier')) return true;
+  if (path.startsWith('/broker')) return true;
+  if (path.startsWith('/operations/')) return true;
+  if (path.startsWith('/admin')) return true;
+  return false;
+}
+
+/// IndexedStack tab URLs only — not root pushes like `/catalog/item/:id/edit`.
+bool shellIsPrimaryTabLocation(String path) {
+  if (path == '/home' || path.startsWith('/home/')) return true;
+  if (path == '/stock') return true;
+  if (path == '/reports') return true;
+  if (path == '/purchase') return true;
+  if (path == '/search') return true;
   return false;
 }
 
@@ -20,17 +39,18 @@ int? shellBranchIndexForPath(String path) {
   } else if (path.startsWith('/notifications')) {
     branch = null;
   } else if (path.startsWith('/stock')) {
-    branch = ShellBranch.stock;
+    branch = shellIsPrimaryTabLocation(path) ? ShellBranch.stock : null;
   } else if (path.startsWith('/catalog')) {
-    branch = ShellBranch.stock;
+    // Catalog screens are root pushes — never auto-switch IndexedStack tab.
+    branch = null;
   } else if (path.startsWith('/home')) {
     branch = ShellBranch.home;
   } else if (path.startsWith('/reports')) {
-    branch = ShellBranch.reports;
+    branch = shellIsPrimaryTabLocation(path) ? ShellBranch.reports : null;
   } else if (path.startsWith('/purchase')) {
-    branch = ShellBranch.history;
+    branch = shellIsPrimaryTabLocation(path) ? ShellBranch.history : null;
   } else if (path.startsWith('/barcode')) {
-    branch = ShellBranch.history;
+    branch = null;
   } else if (path.startsWith('/search')) {
     branch = ShellBranch.search;
   } else {

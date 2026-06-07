@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
+import '../../../../core/router/navigation_ext.dart';
 
 /// Compact tappable alert strip (deliveries, low stock, verification).
 class HomeOperationalAlertBanner extends ConsumerWidget {
@@ -28,21 +28,21 @@ class HomeOperationalAlertBanner extends ConsumerWidget {
           ? '1 shipment awaiting delivery'
           : '$pending shipments awaiting delivery';
       subtitle = 'Tap to open Purchase history';
-      onTap = () => context.go('/purchase');
+      onTap = () => navigateActionRoute(context, '/purchase?filter=pending_delivery');
     } else if (crit > 0) {
       title = crit == 1 ? '1 critical stock item' : '$crit critical stock items';
-      subtitle = 'Tap to open Stock';
-      onTap = () => context.go('/stock');
+      subtitle = 'Tap to open low stock';
+      onTap = () => pushLowStockDashboard(context);
     } else if (low > 0) {
       title = low == 1 ? '1 low stock item' : '$low low stock items';
-      subtitle = 'Tap to reorder';
-      onTap = () => context.push('/stock/reorder');
+      subtitle = 'Tap to open low stock';
+      onTap = () => pushLowStockDashboard(context);
     } else if (varianceN > 0) {
       title = varianceN == 1
           ? '1 pending verification'
           : '$varianceN pending verifications';
       subtitle = 'Tap to review on Stock';
-      onTap = () => context.go('/stock');
+      onTap = () => navigateActionRoute(context, '/stock');
     }
 
     if (title == null) return const SizedBox.shrink();

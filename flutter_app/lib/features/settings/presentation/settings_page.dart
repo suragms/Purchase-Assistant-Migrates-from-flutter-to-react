@@ -177,31 +177,31 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 icon: Icons.playlist_add_check_rounded,
                 title: 'Reorder list',
                 subtitle: 'Items flagged for reorder',
-                onTap: () => context.push('/stock/reorder'),
+                onTap: () => pushStockReorder(context),
               ),
               if (isOwner)
                 _NavTile(
                   icon: Icons.inventory_rounded,
                   title: 'Opening stock setup',
                   subtitle: 'Set initial stock and lock setup values',
-                  onTap: () => context.push('/stock/opening-setup'),
+                  onTap: () => pushOpeningStockSetup(context),
                 ),
               if (isOwner)
                 _NavTile(
                   icon: Icons.receipt_long_rounded,
                   title: 'Staff cash purchases',
                   subtitle: 'Quick buys logged by floor staff',
-                  onTap: () => context.push('/stock/staff-purchases'),
+                  onTap: () => pushOverlayRoute(context, '/stock/staff-purchases'),
                 ),
               _NavTile(
                 icon: Icons.print_outlined,
                 title: 'Print barcodes (bulk)',
-                onTap: () => context.push('/barcode/bulk-print'),
+                onTap: () => pushOverlayRoute(context, '/barcode/bulk-print'),
               ),
               _NavTile(
                 icon: Icons.qr_code_scanner_rounded,
                 title: 'Scan item',
-                onTap: () => context.push('/barcode/scan'),
+                onTap: () => pushBarcodeScan(context),
               ),
             ],
           ),

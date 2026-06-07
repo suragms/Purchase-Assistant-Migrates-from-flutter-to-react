@@ -14,6 +14,7 @@ import '../../core/design_system/hexa_ds_tokens.dart';
 import '../../core/design_system/hexa_operational_tokens.dart';
 import '../../core/auth/session_notifier.dart';
 import '../../core/auth/provider_api_guard.dart';
+import '../../core/router/navigation_ext.dart';
 import '../../core/router/shell_navigation.dart';
 import '../../core/design_system/hexa_desktop_layout.dart';
 import '../../core/design_system/hexa_responsive.dart';
@@ -77,10 +78,15 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final routePath = router?.state.uri.path ?? '/home';
     final pathBranch = shellBranchIndexForPath(routePath);
     final isPushedModal = shellIsPushedModalPath(routePath);
-    final navSelectedIndex =
-        (pathBranch != null && !isPushedModal) ? pathBranch : idx;
-    // Sync IndexedStack only for real branch routes — not barcode/settings pushes.
-    if (pathBranch != null && !isPushedModal && pathBranch != idx) {
+    final isPrimaryTab = shellIsPrimaryTabLocation(routePath);
+    final navSelectedIndex = (pathBranch != null && !isPushedModal && isPrimaryTab)
+        ? pathBranch
+        : idx;
+    // Sync IndexedStack only for shell tab URLs — not pushed overlays (/catalog/*, etc.).
+    if (pathBranch != null &&
+        !isPushedModal &&
+        isPrimaryTab &&
+        pathBranch != idx) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         ref.read(shellCurrentBranchProvider.notifier).state = pathBranch;
@@ -488,7 +494,7 @@ class _FabButton extends StatelessWidget {
                     weight: FontWeight.w700)),
             onTap: () {
               Navigator.of(context).pop();
-              context.push('/purchase/new');
+              pushPurchaseNew(context);
             },
           ),
           ListTile(
@@ -500,7 +506,7 @@ class _FabButton extends StatelessWidget {
                     weight: FontWeight.w700)),
             onTap: () {
               Navigator.of(context).pop();
-              context.push('/catalog/quick-add');
+              pushCatalogQuickAdd(context);
             },
           ),
           ListTile(
@@ -512,7 +518,7 @@ class _FabButton extends StatelessWidget {
                     weight: FontWeight.w700)),
             onTap: () {
               Navigator.of(context).pop();
-              context.push('/barcode/scan');
+              pushBarcodeScan(context);
             },
           ),
           ListTile(
@@ -524,7 +530,7 @@ class _FabButton extends StatelessWidget {
                     weight: FontWeight.w700)),
             onTap: () {
               Navigator.of(context).pop();
-              context.push('/barcode/bulk-print');
+              pushOverlayRoute(context, '/barcode/bulk-print');
             },
           ),
           ListTile(

@@ -11,6 +11,7 @@ import '../../../../core/providers/notifications_provider.dart'
 import '../../../../core/providers/stock_providers.dart'
     show openingStockMissingProvider;
 import '../../../../core/router/post_auth_route.dart' show sessionIsStaff;
+import '../../../../core/router/navigation_ext.dart';
 import '../../../../core/router/shell_navigation.dart';
 import '../../../../features/shell/shell_branch_provider.dart';
 import '../../../../core/theme/hexa_colors.dart';
@@ -95,7 +96,7 @@ class HomeCriticalAlertsGrid extends ConsumerWidget {
         count: lowTotal,
         subtitle: 'Items below reorder level',
         color: HexaColors.warning,
-        onTap: () => context.push('/stock/low-stock'),
+        onTap: () => pushLowStockDashboard(context),
         actionLabel: 'Open stock',
       ));
     }
@@ -115,7 +116,7 @@ class HomeCriticalAlertsGrid extends ConsumerWidget {
         count: openingN,
         subtitle: 'Items need initial stock',
         color: HexaColors.warning,
-        onTap: () => context.push('/stock/opening-setup'),
+        onTap: () => pushOpeningStockSetup(context),
         actionLabel: 'Set up',
       ));
     }

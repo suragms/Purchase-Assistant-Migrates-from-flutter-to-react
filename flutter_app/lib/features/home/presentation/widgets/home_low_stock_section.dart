@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/widgets/section_inline_error.dart';
+import '../../../../core/router/navigation_ext.dart';
 import '../../../../shared/widgets/operational_ui.dart';
 
 /// Dense low-stock table with status colors and reorder CTA.
@@ -36,11 +37,11 @@ class _HomeLowStockSectionState extends ConsumerState<HomeLowStockSection> {
       mainAxisSize: MainAxisSize.min,
       children: [
         TextButton(
-          onPressed: () => context.push('/stock/reorder'),
+          onPressed: () => pushStockReorder(context),
           child: const Text('Reorder', style: TextStyle(fontSize: 12)),
         ),
         TextButton(
-          onPressed: () => context.push('/stock/low-stock'),
+          onPressed: () => pushLowStockDashboard(context),
           child: const Text('All', style: TextStyle(fontSize: 12)),
         ),
       ],
@@ -124,7 +125,7 @@ class _HomeLowStockSectionState extends ConsumerState<HomeLowStockSection> {
                             'Order',
                             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
                           ),
-                          onPressed: () => context.push('/stock/reorder'),
+                          onPressed: () => pushStockReorder(context),
                         ),
                       ),
                     ],
@@ -143,7 +144,7 @@ class _HomeLowStockSectionState extends ConsumerState<HomeLowStockSection> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton(
-                    onPressed: () => context.push('/stock/low-stock'),
+                    onPressed: () => pushLowStockDashboard(context),
                     child: Text(
                       'View all ${rows.length} low stock items',
                       style: const TextStyle(fontSize: 12),
@@ -166,7 +167,7 @@ class _HomeLowStockSectionState extends ConsumerState<HomeLowStockSection> {
       title: 'Low stock',
       dense: widget.dense,
       trailing: trailing,
-      onTitleTap: () => context.push('/stock/low-stock'),
+      onTitleTap: () => pushLowStockDashboard(context),
       child: body,
     );
   }

@@ -417,6 +417,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/catalog/item/create',
+        redirect: (_, __) => '/catalog/quick-add',
+      ),
+      GoRoute(
         path: '/catalog/quick-add-from-scan',
         pageBuilder: (context, state) {
           final barcode = state.uri.queryParameters['barcode']?.trim() ?? '';
