@@ -12,12 +12,29 @@ class ItemDetailBundle {
     required this.stockDetail,
     required this.activity,
     required this.tradePurchases,
+    this.catalogError,
+    this.stockError,
+    this.activityError,
   });
 
   final Map<String, dynamic> catalogItem;
   final Map<String, dynamic> stockDetail;
   final Map<String, dynamic> activity;
   final List<Map<String, dynamic>> tradePurchases;
+  final Object? catalogError;
+  final Object? stockError;
+  final Object? activityError;
+
+  bool get hasAnyData =>
+      catalogItem.isNotEmpty ||
+      stockDetail.isNotEmpty ||
+      activity.isNotEmpty;
+
+  bool get allSectionsFailed =>
+      catalogError != null &&
+      stockError != null &&
+      activityError != null &&
+      !hasAnyData;
 }
 
 /// Parallel fetch for item detail. Keep this light: it is mounted whenever
@@ -43,50 +60,64 @@ final itemDetailBundleProvider =
   ref.watch(stockItemDetailProvider(itemId));
   ref.watch(stockItemActivityProvider(itemId));
 
-  // Purchase history loads lazily via [tradePurchasesForItemProvider].
-  final results = await Future.wait([
-    ref.read(catalogItemDetailProvider(itemId).future),
-    ref.read(stockItemDetailProvider(itemId).future),
-    ref.read(stockItemActivityProvider(itemId).future),
-  ]);
+  Object? catalogError;
+  Map<String, dynamic> catalog = {};
+  try {
+    catalog = Map<String, dynamic>.from(
+      await ref.read(catalogItemDetailProvider(itemId).future),
+    );
+  } catch (e) {
+    catalogError = e;
+  }
 
-  final catalog = (results[0] as Map?) != null
-      ? Map<String, dynamic>.from(results[0] as Map)
-      : <String, dynamic>{};
-  final stock = (results[1] as Map?) != null
-      ? Map<String, dynamic>.from(results[1] as Map)
-      : <String, dynamic>{};
-  final activity = (results[2] as Map?) != null
-      ? Map<String, dynamic>.from(results[2] as Map)
-      : <String, dynamic>{};
+  Object? stockError;
+  Map<String, dynamic> stock = {};
+  try {
+    stock = Map<String, dynamic>.from(
+      await ref.read(stockItemDetailProvider(itemId).future),
+    );
+  } catch (e) {
+    stockError = e;
+  }
+
+  Object? activityError;
+  Map<String, dynamic> activity = {};
+  try {
+    activity = Map<String, dynamic>.from(
+      await ref.read(stockItemActivityProvider(itemId).future),
+    );
+  } catch (e) {
+    activityError = e;
+  }
+
   return ItemDetailBundle(
     catalogItem: catalog,
     stockDetail: stock,
     activity: activity,
     tradePurchases: const [],
+    catalogError: catalogError,
+    stockError: stockError,
+    activityError: activityError,
   );
 });
 
-/// Stock map for item detail sections — sourced from [itemDetailBundleProvider]
-/// (no extra HTTP while bundle is mounted on `/catalog/item/:id`).
+/// Stock map for item detail sections — leaf provider (retry invalidates stock only).
 final itemDetailStockProvider =
     Provider.autoDispose.family<AsyncValue<Map<String, dynamic>>, String>(
         (ref, itemId) {
-  return ref.watch(itemDetailBundleProvider(itemId)).when(
-        data: (b) => AsyncValue.data(b.stockDetail),
-        loading: () => const AsyncValue.loading(),
-        error: (e, st) => AsyncValue.error(e, st),
-      );
+  return ref.watch(stockItemDetailProvider(itemId));
 });
 
-/// Catalog map for item detail sections (same bundle, no duplicate fetch).
+/// Catalog map for item detail sections (leaf provider).
 final itemDetailCatalogProvider =
     Provider.autoDispose.family<AsyncValue<Map<String, dynamic>>, String>(
         (ref, itemId) {
-  return ref.watch(itemDetailBundleProvider(itemId)).when(
-        data: (b) => AsyncValue.data(b.catalogItem),
-        loading: () => const AsyncValue.loading(),
-        error: (e, st) => AsyncValue.error(e, st),
-      );
+  return ref.watch(catalogItemDetailProvider(itemId));
 });
 
+/// Activity map for item detail timeline sections.
+final itemDetailActivityProvider =
+    Provider.autoDispose.family<AsyncValue<Map<String, dynamic>>, String>(
+        (ref, itemId) {
+  return ref.watch(stockItemActivityProvider(itemId));
+});

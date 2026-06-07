@@ -286,7 +286,25 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
   String _messageForSaveError(Object e) {
     if (e is StaleStockConflict) return StaleStockConflict.userMessage;
     if (e is StockIntegrityError) return StockIntegrityError.userMessage;
-    if (e is DioException) return friendlyApiError(e);
+    if (e is DioException) {
+      final detail = e.response?.data;
+      if (detail is Map) {
+        final code = detail['code']?.toString();
+        final rawDetail = detail['detail'];
+        if (code == 'opening_stock_locked' ||
+            rawDetail
+                ?.toString()
+                .toLowerCase()
+                .contains('opening stock is locked') ==
+                true) {
+          return 'Opening stock is locked — only the owner can adjust this item.';
+        }
+      } else if (detail is String &&
+          detail.toLowerCase().contains('opening stock is locked')) {
+        return 'Opening stock is locked — only the owner can adjust this item.';
+      }
+      return friendlyApiError(e);
+    }
     return userFacingError(e);
   }
 

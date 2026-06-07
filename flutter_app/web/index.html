@@ -195,6 +195,9 @@
       // empty/transparent, which left a blank gray body on desktop. Dart removes
       // #splash via removeBootOverlayIfPresent() once bootstrap UI is painted.
       window.setTimeout(function () {
+        setBoot('Connecting to server…');
+      }, 3000);
+      window.setTimeout(function () {
         setBoot('Loading app (large download on first visit)…');
       }, 12000);
       window.setTimeout(function () {

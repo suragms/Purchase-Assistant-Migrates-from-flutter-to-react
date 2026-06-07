@@ -224,3 +224,49 @@ def test_catalog_fuzzy_check():
     top = body["hits"][0]
     assert top["score"] >= 0.65
     assert "Toor" in top["name"]
+
+
+def test_catalog_item_patch_box_requires_items_per_box():
+    h, bid = _auth_and_business()
+    r = client.post(
+        f"/v1/businesses/{bid}/item-categories",
+        json={"name": "PatchBox"},
+        headers=h,
+    )
+    assert r.status_code == 201, r.text
+    cid = r.json()["id"]
+    sup = client.post(
+        f"/v1/businesses/{bid}/suppliers",
+        json={"name": "Patch sup", "phone": "9000000002", "gst_number": "22AAAAA0000A1Z5"},
+        headers=h,
+    )
+    assert sup.status_code == 201, sup.text
+    sid = sup.json()["id"]
+    r = client.post(
+        f"/v1/businesses/{bid}/catalog-items",
+        json={
+            "category_id": cid,
+            "name": "SUNRICH 400GM BOX",
+            "default_unit": "piece",
+            "default_supplier_ids": [sid],
+        },
+        headers=h,
+    )
+    assert r.status_code == 201, r.text
+    iid = r.json()["id"]
+
+    r = client.patch(
+        f"/v1/businesses/{bid}/catalog-items/{iid}",
+        json={"default_unit": "box", "default_items_per_box": None},
+        headers=h,
+    )
+    assert r.status_code == 422, r.text
+
+    r = client.patch(
+        f"/v1/businesses/{bid}/catalog-items/{iid}",
+        json={"default_unit": "box", "default_items_per_box": 1},
+        headers=h,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["default_unit"] == "box"
+    assert r.json()["default_items_per_box"] == 1.0

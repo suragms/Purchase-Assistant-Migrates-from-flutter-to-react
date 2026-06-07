@@ -111,7 +111,11 @@ bool _isOwnerShellTab(String loc) {
 /// Staff may only open operational routes (shell + stock/barcode/catalog helpers).
 bool _isStaffAllowedRoute(String loc) {
   if (loc.startsWith('/staff')) return true;
-  if (loc == '/purchase/new' || loc.startsWith('/purchase/edit/')) return true;
+  if (loc == '/purchase/new' ||
+      loc.startsWith('/purchase/edit/') ||
+      loc.startsWith('/purchase/detail/')) {
+    return true;
+  }
   if (loc == '/reports' || loc.startsWith('/reports/')) return true;
   if (loc == '/settings' || loc.startsWith('/settings/')) return true;
   if (loc == '/notifications') return true;

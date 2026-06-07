@@ -93,6 +93,7 @@ class _HomePageState extends ConsumerState<HomePage>
   DateTime? _lastThrottledInvalidate;
   DateTime? _lastWriteRevisionRefresh;
   DateTime? _homeLastRefreshedAt;
+  bool _coldStartRetried = false;
   bool _throttleHomeInvalidate({bool force = false}) {
     if (force) {
       _lastThrottledInvalidate = DateTime.now();
@@ -185,6 +186,7 @@ class _HomePageState extends ConsumerState<HomePage>
           !providerSkipApi(ref)) {
         _setHomePollingActive(true);
         _scheduleRefresh(force: true);
+        unawaited(_maybeColdStartHomeRetry());
       }
     });
   }
@@ -292,6 +294,31 @@ class _HomePageState extends ConsumerState<HomePage>
       }
       unawaited(_refresh());
     });
+  }
+
+  Future<void> _maybeColdStartHomeRetry() async {
+    if (_coldStartRetried || !mounted) return;
+    await Future<void>.delayed(const Duration(seconds: 4));
+    if (!mounted || _coldStartRetried) return;
+    if (providerSkipApi(ref)) return;
+    if (ref.read(shellCurrentBranchProvider) != ShellBranch.home) return;
+    if (!_isHomeDashboardRoot(context)) return;
+
+    final dash = ref.read(homeDashboardDataProvider);
+    if (!dash.refreshing && dash.snapshot.data.purchaseCount > 0) return;
+
+    try {
+      await ref
+          .read(hexaApiProvider)
+          .healthReady()
+          .timeout(const Duration(seconds: 20));
+    } catch (_) {
+      return;
+    }
+    if (!mounted || _coldStartRetried) return;
+    _coldStartRetried = true;
+    ref.read(apiDegradedProvider.notifier).clear();
+    _invalidateHomeDataProviders();
   }
 
   Future<void> _retryHomeAfterAuthOrApiBlock() async {

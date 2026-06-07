@@ -7,7 +7,9 @@ import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/providers/business_write_event.dart';
 import '../../../core/providers/deferred_invalidation.dart';
 import '../../../core/providers/item_detail_providers.dart';
-import '../../../core/providers/stock_providers.dart' show stockItemDetailProvider;
+import '../../../core/providers/catalog_providers.dart' show catalogItemDetailProvider;
+import '../../../core/providers/stock_providers.dart'
+    show stockItemActivityProvider, stockItemDetailProvider;
 import '../../../core/providers/trade_purchases_provider.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/async_value_form.dart';
@@ -135,7 +137,7 @@ class ItemDetailPage extends ConsumerWidget {
         child: bundleAsync.whenForm(
           initialLoading: () => const Center(child: CircularProgressIndicator()),
           error: (e, __) {
-            if (cachedBundle != null) {
+            if (cachedBundle != null && cachedBundle.hasAnyData) {
               return buildDetail(
                 cachedBundle,
                 refreshing: bundleAsync.isLoading,
@@ -143,13 +145,31 @@ class ItemDetailPage extends ConsumerWidget {
             }
             return FriendlyLoadError(
               message: 'Could not load item. Tap to retry.',
-              onRetry: () => ref.invalidate(itemDetailBundleProvider(itemId)),
+              onRetry: () {
+                ref.invalidate(catalogItemDetailProvider(itemId));
+                ref.invalidate(stockItemDetailProvider(itemId));
+                ref.invalidate(stockItemActivityProvider(itemId));
+                ref.invalidate(itemDetailBundleProvider(itemId));
+              },
             );
           },
-          data: (bundle) => buildDetail(
-            bundle,
-            refreshing: bundleAsync.isLoading && cachedBundle != null,
-          ),
+          data: (bundle) {
+            if (bundle.allSectionsFailed) {
+              return FriendlyLoadError(
+                message: 'Could not load item. Tap to retry.',
+                onRetry: () {
+                  ref.invalidate(catalogItemDetailProvider(itemId));
+                  ref.invalidate(stockItemDetailProvider(itemId));
+                  ref.invalidate(stockItemActivityProvider(itemId));
+                  ref.invalidate(itemDetailBundleProvider(itemId));
+                },
+              );
+            }
+            return buildDetail(
+              bundle,
+              refreshing: bundleAsync.isLoading && cachedBundle != null,
+            );
+          },
         ),
       ),
       bottomNavigationBar: bundleAsync.hasValue && !bundleAsync.hasError && !desktop

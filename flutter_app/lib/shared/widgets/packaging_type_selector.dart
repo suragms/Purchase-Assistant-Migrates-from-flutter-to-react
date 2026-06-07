@@ -200,7 +200,7 @@ class PackagingTypeSelector extends StatelessWidget {
       children: [
         for (final m in modeList)
           ChoiceChip(
-            label: Text(StockTrackingMode.labelForMode(m)),
+            label: Text(StockTrackingMode.shortLabelForMode(m)),
             selected: selectedMode == m,
             onSelected: (_) {
               onModeChanged(m);

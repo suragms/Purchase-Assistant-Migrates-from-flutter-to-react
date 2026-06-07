@@ -66,6 +66,7 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
   String? _bagDetectHint;
   bool _bagDetectDismissed = false;
   String? _kgFieldError;
+  bool _selectingType = false;
 
   static final _kgInName =
       RegExp(r'(\d+(?:\.\d+)?)\s*kg', caseSensitive: false);
@@ -102,6 +103,7 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
   }
 
   void _onTypeSearchChanged() {
+    if (_selectingType) return;
     if (_typeId == null) return;
     final types = ref.read(categoryTypesIndexProvider).valueOrNull ?? [];
     final row = _rowByTypeId(types, _typeId!);
@@ -663,10 +665,14 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
                               items: _typeItems(types),
                               controller: _typeSearchCtrl,
                               placeholder: 'Search subcategory…',
-                              onSelected: (it) => setState(() {
-                                _typeId = it.id;
-                                _typeSearchCtrl.text = it.label;
-                              }),
+                              onSelected: (it) {
+                                _selectingType = true;
+                                setState(() {
+                                  _typeId = it.id;
+                                  _typeSearchCtrl.text = it.label;
+                                });
+                                _selectingType = false;
+                              },
                             ),
                           ],
                         );

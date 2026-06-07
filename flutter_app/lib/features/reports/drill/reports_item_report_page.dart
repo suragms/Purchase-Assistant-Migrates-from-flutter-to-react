@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/providers/reports_item_bundle_provider.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/friendly_load_error.dart';
@@ -10,7 +11,7 @@ import '../presentation/reports_item_detail_page.dart';
 import 'widgets/reports_item_report_body.dart';
 
 /// Reports drill-down: item properties + period purchases (backend SSOT).
-class ReportsItemReportPage extends ConsumerWidget {
+class ReportsItemReportPage extends ConsumerStatefulWidget {
   const ReportsItemReportPage({
     super.key,
     required this.catalogItemId,
@@ -21,8 +22,36 @@ class ReportsItemReportPage extends ConsumerWidget {
   final String? itemName;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final bundleAsync = ref.watch(reportsItemBundleProvider(catalogItemId));
+  ConsumerState<ReportsItemReportPage> createState() =>
+      _ReportsItemReportPageState();
+}
+
+class _ReportsItemReportPageState extends ConsumerState<ReportsItemReportPage> {
+  bool _autoRetried = false;
+  bool _manualRetry = false;
+
+  void _retryBundle() {
+    setState(() => _manualRetry = true);
+    ref.invalidate(reportsItemBundleProvider(widget.catalogItemId));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(
+      reportsItemBundleProvider(widget.catalogItemId),
+      (prev, next) {
+        if (next.hasError &&
+            !_autoRetried &&
+            !_manualRetry &&
+            mounted) {
+          setState(() => _autoRetried = true);
+          ref.invalidate(reportsItemBundleProvider(widget.catalogItemId));
+        }
+      },
+    );
+
+    final bundleAsync =
+        ref.watch(reportsItemBundleProvider(widget.catalogItemId));
 
     return Scaffold(
       backgroundColor: HexaColors.brandBackground,
@@ -41,12 +70,12 @@ class ReportsItemReportPage extends ConsumerWidget {
           data: (b) => Text(
             (b['item_name'] as String?)?.trim().isNotEmpty == true
                 ? b['item_name'] as String
-                : (itemName ?? 'Item'),
+                : (widget.itemName ?? 'Item'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
           orElse: () => Text(
-            itemName ?? 'Item',
+            widget.itemName ?? 'Item',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -58,13 +87,14 @@ class ReportsItemReportPage extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => FriendlyLoadError(
           message: 'Could not load item report',
-          onRetry: () => ref.invalidate(reportsItemBundleProvider(catalogItemId)),
+          subtitle: friendlyApiError(e),
+          onRetry: _retryBundle,
         ),
         data: (bundle) {
           final displayName =
               (bundle['item_name'] as String?)?.trim().isNotEmpty == true
                   ? bundle['item_name'] as String
-                  : (itemName ?? 'Item');
+                  : (widget.itemName ?? 'Item');
           final item = Map<String, dynamic>.from(
             bundle['item'] as Map? ?? const {},
           );
@@ -88,7 +118,7 @@ class ReportsItemReportPage extends ConsumerWidget {
               ),
               ReportsItemSnapshotCard(item: item),
               ReportsItemPeriodStrip(summary: summary, item: item),
-              ReportsItemActionBar(catalogItemId: catalogItemId),
+              ReportsItemActionBar(catalogItemId: widget.catalogItemId),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
                 child: Text(

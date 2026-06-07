@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, ProgrammingError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -517,6 +518,54 @@ if settings.app_env.lower() == "development":
     _cors_kwargs["allow_origin_regex"] = (
         r"https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$"
     )
+
+
+class ForceCORSOnErrorMiddleware(BaseHTTPMiddleware):
+    """Ensure 4xx/5xx responses include CORS headers when Origin is allowed.
+
+    Uncaught errors can bypass CORSMiddleware header injection; browsers then hide
+    the response body and Flutter web surfaces a generic network/CORS failure.
+    """
+
+    def __init__(
+        self,
+        app,
+        *,
+        allow_origins: list[str],
+        allow_origin_regex: str | None = None,
+    ):
+        super().__init__(app)
+        self._allow_origins = allow_origins
+        self._origin_re = (
+            re.compile(allow_origin_regex) if allow_origin_regex else None
+        )
+
+    def _origin_allowed(self, origin: str) -> bool:
+        if origin in self._allow_origins:
+            return True
+        return bool(self._origin_re and self._origin_re.fullmatch(origin))
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if response.status_code < 400:
+            return response
+        origin = request.headers.get("origin", "").strip()
+        if not origin or not self._origin_allowed(origin):
+            return response
+        if "access-control-allow-origin" not in {
+            k.lower() for k in response.headers
+        }:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Vary"] = "Origin"
+        return response
+
+
+app.add_middleware(
+    ForceCORSOnErrorMiddleware,
+    allow_origins=_origins,
+    allow_origin_regex=_cors_kwargs.get("allow_origin_regex"),
+)
 app.add_middleware(CORSMiddleware, **_cors_kwargs)
 
 if settings.trusted_hosts:

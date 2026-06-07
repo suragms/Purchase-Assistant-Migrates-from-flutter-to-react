@@ -49,6 +49,30 @@ import 'widgets/stock_delivery_filter_chips.dart';
 import 'widgets/stock_status_quick_chips.dart';
 import 'widgets/stock_row_metrics.dart';
 
+String _activeStockFilterLabel({
+  required StockDeliveryFilter deliveryFilter,
+  required int filterCount,
+  required StockListQuery listQ,
+}) {
+  final parts = <String>[];
+  if (deliveryFilter == StockDeliveryFilter.pending) {
+    parts.add('Pending truck');
+  } else if (deliveryFilter == StockDeliveryFilter.delivered) {
+    parts.add('Delivered');
+  }
+  if (listQ.q.trim().isNotEmpty) {
+    parts.add('Search “${listQ.q.trim()}”');
+  }
+  if (listQ.status != 'all') {
+    parts.add('Status: ${listQ.status}');
+  }
+  if (filterCount > 0) {
+    parts.add('$filterCount warehouse filter${filterCount == 1 ? '' : 's'}');
+  }
+  if (parts.isEmpty) return 'Filter active — showing a subset of stock';
+  return 'Filter active — ${parts.join(' · ')}';
+}
+
 enum StockPageMode { auto, staff, owner }
 
 class StockPage extends ConsumerStatefulWidget {
@@ -511,6 +535,67 @@ class _StockPageState extends ConsumerState<StockPage>
             deliveredCount: deliveryCounts.delivered,
             onSelected: (f) =>
                 ref.read(stockDeliveryFilterProvider.notifier).state = f,
+          ),
+        ),
+      if (deliveryFilter != StockDeliveryFilter.all || filterCount > 0)
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+            child: Material(
+              color: const Color(0xFFFFF7ED),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.filter_alt_outlined,
+                      size: 18,
+                      color: Color(0xFFEA580C),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _activeStockFilterLabel(
+                          deliveryFilter: deliveryFilter,
+                          filterCount: filterCount,
+                          listQ: listQ,
+                        ),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF9A3412),
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        ref.read(stockDeliveryFilterProvider.notifier).state =
+                            StockDeliveryFilter.all;
+                        if (filterCount > 0) {
+                          ref
+                              .read(stockListQueryProvider.notifier)
+                              .state = listQ.copyWith(
+                            status: 'all',
+                            subcategory: '',
+                            supplier: '',
+                            q: '',
+                            page: 1,
+                          );
+                          ref
+                              .read(stockOperationalFiltersProvider.notifier)
+                              .state = const StockOperationalFilters();
+                          _searchCtrl.clear();
+                        }
+                        _resetMerged();
+                        ref.invalidate(stockListProvider);
+                      },
+                      child: const Text('Clear'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ),
       if (items.isNotEmpty) ...[

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections import OrderedDict
 from copy import deepcopy
@@ -29,6 +30,8 @@ from app.services import trade_mapping as trade_map
 from app.services import trade_query as tq
 from app.services.home_operational_bundle import build_home_operational_bundle
 from app.services.stock_inventory import compute_inventory_summary
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/businesses/{business_id}/reports", tags=["reports-trade"])
 
@@ -1321,6 +1324,43 @@ async def reports_item_bundle(
 ) -> dict[str, Any]:
     """Item report: catalog snapshot + period KPIs + paginated purchase lines."""
     del _m
+    try:
+        return await _reports_item_bundle_body(
+            db=db,
+            business_id=business_id,
+            catalog_item_id=catalog_item_id,
+            date_from=date_from,
+            date_to=date_to,
+            limit=limit,
+            offset=offset,
+        )
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception(
+            "reports_item_bundle failed business_id=%s catalog_item_id=%s",
+            business_id,
+            catalog_item_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "REPORTS_ITEM_FAILED",
+                "message": "Could not load item report",
+            },
+        ) from None
+
+
+async def _reports_item_bundle_body(
+    *,
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    catalog_item_id: uuid.UUID,
+    date_from: date,
+    date_to: date,
+    limit: int,
+    offset: int,
+) -> dict[str, Any]:
     last_supplier = Supplier.__table__.alias("last_supplier")
     item_r = await db.execute(
         select(

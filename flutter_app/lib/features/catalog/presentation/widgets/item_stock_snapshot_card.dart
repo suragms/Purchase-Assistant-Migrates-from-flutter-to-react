@@ -8,6 +8,7 @@ import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
 import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/item_detail_providers.dart';
+import '../../../../core/providers/stock_providers.dart' show stockItemDetailProvider;
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../../core/utils/unit_utils.dart';
 import 'item_stock_metric_strip.dart';
@@ -59,7 +60,10 @@ class ItemStockSnapshotCard extends ConsumerWidget {
               ),
             ),
             TextButton(
-              onPressed: () => ref.invalidate(itemDetailBundleProvider(itemId)),
+              onPressed: () {
+                ref.invalidate(stockItemDetailProvider(itemId));
+                ref.invalidate(itemDetailBundleProvider(itemId));
+              },
               child: const Text('Retry'),
             ),
           ],

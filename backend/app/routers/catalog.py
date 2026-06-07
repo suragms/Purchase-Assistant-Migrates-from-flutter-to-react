@@ -290,6 +290,23 @@ class CatalogItemUpdate(BaseModel):
             raise ValueError("name must not be empty or whitespace")
         return " ".join(v.split())
 
+    @model_validator(mode="after")
+    def _unit_conditional_update(self) -> "CatalogItemUpdate":
+        u = self.default_unit
+        if u == "bag" and "default_kg_per_bag" in self.model_fields_set:
+            if self.default_kg_per_bag is None or self.default_kg_per_bag <= 0:
+                raise ValueError(
+                    "default_kg_per_bag is required when default_unit is bag"
+                )
+        elif u == "box":
+            if "default_items_per_box" in self.model_fields_set and (
+                self.default_items_per_box is None or self.default_items_per_box <= 0
+            ):
+                raise ValueError(
+                    "default_items_per_box must be positive when default_unit is box"
+                )
+        return self
+
 
 class CatalogItemOut(BaseModel):
     id: uuid.UUID

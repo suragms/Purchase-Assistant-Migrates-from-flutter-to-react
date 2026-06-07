@@ -499,11 +499,12 @@ Future<bool> saveCatalogItemDefaults({
           defaultSellingCost: sell,
           includeDefaultUnit: true,
           defaultUnit: unit,
-          patchDefaultKgPerBag: unit == 'bag',
+          patchDefaultKgPerBag:
+              unit == 'bag' && kgParsed != null && kgParsed > 0,
           defaultKgPerBag: kgParsed,
-          patchDefaultItemsPerBox: unit == 'box',
+          patchDefaultItemsPerBox: unit == 'box' && ipb != null && ipb > 0,
           defaultItemsPerBox: ipb,
-          patchDefaultWeightPerTin: unit == 'tin',
+          patchDefaultWeightPerTin: unit == 'tin' && wpt != null && wpt > 0,
           defaultWeightPerTin: wpt,
         );
     ref.invalidate(catalogItemDetailProvider(itemId));
