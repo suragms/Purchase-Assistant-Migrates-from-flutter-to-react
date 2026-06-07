@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/json_coerce.dart';
 import '../../../core/router/navigation_ext.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/providers/stock_providers.dart';

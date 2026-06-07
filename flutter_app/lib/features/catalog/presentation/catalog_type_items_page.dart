@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/auth/auth_error_messages.dart';
+import '../../../core/auth/session_notifier.dart';
 import '../../../core/router/navigation_ext.dart';
 import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/providers/business_aggregates_invalidation.dart';
