@@ -466,13 +466,11 @@ class _StockPageState extends ConsumerState<StockPage>
 
   Map<String, dynamic>? _selectedItem(List<Map<String, dynamic>> items) {
     final id = ref.read(stockSelectedItemIdProvider);
-    if (id == null || id.isEmpty) {
-      return items.isNotEmpty ? items.first : null;
-    }
+    if (id == null || id.isEmpty) return null;
     for (final row in items) {
       if (row['id']?.toString() == id) return row;
     }
-    return items.isNotEmpty ? items.first : null;
+    return null;
   }
 
   Widget _buildListBody({
@@ -501,17 +499,6 @@ class _StockPageState extends ConsumerState<StockPage>
     final desktop =
         MediaQuery.sizeOf(context).width >= kDesktopMin;
     final selected = desktop ? _selectedItem(items) : null;
-    if (desktop && items.isNotEmpty) {
-      final sid = selected?['id']?.toString();
-      if (sid != null &&
-          ref.read(stockSelectedItemIdProvider) != sid) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            ref.read(stockSelectedItemIdProvider.notifier).state = sid;
-          }
-        });
-      }
-    }
 
     final listSlivers = <Widget>[
       SliverToBoxAdapter(

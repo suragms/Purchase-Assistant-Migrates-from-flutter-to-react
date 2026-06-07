@@ -87,6 +87,8 @@ class _QuickStockActionBody extends ConsumerStatefulWidget {
 
 class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
   bool _saving = false;
+  bool _patchApplied = false;
+  bool _saveBlockedUntilRetry = false;
   int _refreshGeneration = 0;
   late Map<String, dynamic> _item;
   late final TextEditingController _qtyCtrl;
@@ -189,12 +191,19 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
   void _revalidateQty() {
     if (!mounted) return;
     final next = _qtyErrorText();
-    setState(() => _qtyError = next);
+    setState(() {
+      _qtyError = next;
+      if (_saveBlockedUntilRetry && next == null) {
+        _saveBlockedUntilRetry = false;
+        _saveError = null;
+      }
+    });
   }
 
   bool get _canSave {
     final parsedQty = _parseEnteredQty();
     return !_saving &&
+        !_saveBlockedUntilRetry &&
         parsedQty != null &&
         (_mode == StockUpdateMode.physical ||
             (_reasonType != null && _reasonType!.isNotEmpty));
@@ -346,7 +355,10 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     }
     final msg = _messageForSaveError(e);
     if (mounted) {
-      setState(() => _saveError = msg);
+      setState(() {
+        _saveError = msg;
+        _saveBlockedUntilRetry = true;
+      });
     }
     if (widget.parentContext.mounted) {
       showTopSnack(widget.parentContext, msg, isError: true);
@@ -445,6 +457,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
   }
 
   void _applyOptimisticListPatch(Map<String, dynamic>? saved, num parsed) {
+    if (_patchApplied) return;
     if (_itemId.isEmpty) return;
     final system = coerceToDouble(_item['current_stock']);
     var patch = _mode == StockUpdateMode.physical
@@ -466,6 +479,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
       };
     }
     if (patch.isEmpty) return;
+    _patchApplied = true;
     applyStockListRowPatch(widget.parentRef, itemId: _itemId, patch: patch);
   }
 
@@ -477,6 +491,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     deferInvalidateDelayed(
       widget.parentRef,
       itemDetailBundleProvider(_itemId),
+      delay: const Duration(milliseconds: 1200),
     );
     deferInvalidateDelayed(widget.parentRef, stockAuditPeriodProvider);
     deferInvalidateDelayed(widget.parentRef, stockChangesFeedProvider);
@@ -523,6 +538,8 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     setState(() {
       _saving = true;
       _saveError = null;
+      _saveBlockedUntilRetry = false;
+      _patchApplied = false;
     });
 
     Map<String, dynamic>? saved;
@@ -784,20 +801,48 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
           ),
           const SizedBox(height: 16),
           if (_saveError != null) ...[
-            Text(
-              _saveError!,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFFB91C1C),
-              ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: Color(0xFFB91C1C),
+                  size: 18,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _saveError!,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFFB91C1C),
+                    ),
+                  ),
+                ),
+              ],
             ),
+            if (_saveBlockedUntilRetry) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: _saving
+                      ? null
+                      : () => setState(() {
+                            _saveBlockedUntilRetry = false;
+                            _saveError = null;
+                          }),
+                  child: const Text('Retry save'),
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
           ],
           SizedBox(
             height: 48,
             child: FilledButton(
-              onPressed: _saving ? null : _onSavePressed,
+              onPressed: (_saving || _saveBlockedUntilRetry) ? null : _onSavePressed,
               child: _saving
                   ? const SizedBox(
                       width: 22,

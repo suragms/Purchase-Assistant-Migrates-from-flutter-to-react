@@ -69,10 +69,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     }
     final navigationShell = widget.navigationShell;
     final idx = navigationShell.currentIndex;
-    // Keep provider aligned with IndexedStack index in the same frame (post-frame
-    // sync left Home providers empty while the Home tab was already visible).
     if (ref.read(shellCurrentBranchProvider) != idx) {
-      ref.read(shellCurrentBranchProvider.notifier).state = idx;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncShellBranch(idx);
+      });
     }
     final router = GoRouter.maybeOf(context);
     final routePath = router?.state.uri.path ?? '/home';
@@ -103,15 +103,10 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         navigationShell.goBranch(ShellBranch.home);
       });
     }
-    final stockAlertN = providerSkipApi(ref)
-        ? 0
-        : ref.watch(notificationsUnreadCountProvider);
     final width = MediaQuery.sizeOf(context).width;
     final showRail = width > 0 && width >= kShellRailMin;
     final railExtended = width > 0 && width >= kShellRailExtendedMin;
     final showBottomBar = width > 0 && width < kShellBottomNavMax;
-    final session = ref.watch(sessionProvider);
-    final biz = session?.primaryBusiness;
 
     void go(int branch) {
       HapticFeedback.selectionClick();
@@ -144,58 +139,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       navigationShell: navigationShell,
       bottomBar: hideShellChrome || !showBottomBar
           ? null
-          : _ShellBottomBar(
+          : _ShellBottomBarHost(
               selectedIndex: navSelectedIndex,
-              stockBadgeCount: stockAlertN,
               onDestinationSelected: go,
               showFab: !hideFab,
             ),
     );
 
-    final railWidget = NavigationRail(
+    final railWidget = _StableNavRail(
       selectedIndex: navSelectedIndex,
       extended: railExtended,
-      minExtendedWidth: kDesktopSidebarWidth,
-      labelType: railExtended
-          ? NavigationRailLabelType.all
-          : NavigationRailLabelType.none,
       onDestinationSelected: go,
-      trailing: railExtended && biz != null
-          ? DesktopSideNavFooter(
-              businessName: biz.effectiveDisplayTitle,
-              roleLabel: biz.role.toUpperCase(),
-              notificationCount: stockAlertN,
-              onNotificationsTap: () => context.push('/notifications'),
-              onSettingsTap: () => context.push('/settings'),
-            )
-          : null,
-      destinations: const [
-        NavigationRailDestination(
-          icon: Icon(Icons.grid_view_outlined),
-          selectedIcon: Icon(Icons.grid_view_rounded),
-          label: Text('Home'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.inventory_2_outlined),
-          selectedIcon: Icon(Icons.inventory_2_rounded),
-          label: Text('Stock'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.bar_chart_outlined),
-          selectedIcon: Icon(Icons.bar_chart_rounded),
-          label: Text('Reports'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.receipt_long_outlined),
-          selectedIcon: Icon(Icons.receipt_long_rounded),
-          label: Text('History'),
-        ),
-        NavigationRailDestination(
-          icon: Icon(Icons.search_rounded),
-          selectedIcon: Icon(Icons.manage_search_rounded),
-          label: Text('Search'),
-        ),
-      ],
+      onNotificationsTap: () => context.push('/notifications'),
+      onSettingsTap: () => context.push('/settings'),
     );
 
     final rail = showRail
@@ -234,6 +190,101 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _StableNavRail extends ConsumerWidget {
+  const _StableNavRail({
+    required this.selectedIndex,
+    required this.extended,
+    required this.onDestinationSelected,
+    required this.onNotificationsTap,
+    required this.onSettingsTap,
+  });
+
+  final int selectedIndex;
+  final bool extended;
+  final ValueChanged<int> onDestinationSelected;
+  final VoidCallback onNotificationsTap;
+  final VoidCallback onSettingsTap;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stockAlertN = providerSkipApi(ref)
+        ? 0
+        : ref.watch(notificationsUnreadCountProvider);
+    final biz = ref.watch(sessionProvider)?.primaryBusiness;
+
+    return NavigationRail(
+      selectedIndex: selectedIndex,
+      extended: extended,
+      minExtendedWidth: kDesktopSidebarWidth,
+      labelType: extended
+          ? NavigationRailLabelType.all
+          : NavigationRailLabelType.none,
+      onDestinationSelected: onDestinationSelected,
+      trailing: extended && biz != null
+          ? DesktopSideNavFooter(
+              businessName: biz.effectiveDisplayTitle,
+              roleLabel: biz.role.toUpperCase(),
+              notificationCount: stockAlertN,
+              onNotificationsTap: onNotificationsTap,
+              onSettingsTap: onSettingsTap,
+            )
+          : null,
+      destinations: const [
+        NavigationRailDestination(
+          icon: Icon(Icons.grid_view_outlined),
+          selectedIcon: Icon(Icons.grid_view_rounded),
+          label: Text('Home'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.inventory_2_outlined),
+          selectedIcon: Icon(Icons.inventory_2_rounded),
+          label: Text('Stock'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.bar_chart_outlined),
+          selectedIcon: Icon(Icons.bar_chart_rounded),
+          label: Text('Reports'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.receipt_long_outlined),
+          selectedIcon: Icon(Icons.receipt_long_rounded),
+          label: Text('History'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.search_rounded),
+          selectedIcon: Icon(Icons.manage_search_rounded),
+          label: Text('Search'),
+        ),
+      ],
+    );
+  }
+}
+
+class _ShellBottomBarHost extends ConsumerWidget {
+  const _ShellBottomBarHost({
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+    required this.showFab,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final bool showFab;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stockBadgeCount = providerSkipApi(ref)
+        ? 0
+        : ref.watch(notificationsUnreadCountProvider);
+    return _ShellBottomBar(
+      selectedIndex: selectedIndex,
+      stockBadgeCount: stockBadgeCount,
+      onDestinationSelected: onDestinationSelected,
+      showFab: showFab,
     );
   }
 }

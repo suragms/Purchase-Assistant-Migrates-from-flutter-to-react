@@ -284,6 +284,38 @@ def test_staff_verify_then_owner_commit_adds_stock():
     assert Decimal(str(stock.json()["current_stock"])) == Decimal("10")
 
 
+def test_staff_verify_notifies_owner():
+    owner_h, bid = _register_owner()
+    staff_h = _staff_headers(owner_h, bid)
+    iid, sup = _setup_item(owner_h, bid)
+    p = _create_purchase(owner_h, bid, iid, sup)
+    pid, line_id = p["id"], p["lines"][0]["id"]
+    client.post(
+        f"/v1/businesses/{bid}/trade-purchases/{pid}/arrive",
+        headers=staff_h,
+        json={},
+    )
+    ver = client.post(
+        f"/v1/businesses/{bid}/trade-purchases/{pid}/verify",
+        headers=staff_h,
+        json={
+            "lines": [
+                {
+                    "line_id": line_id,
+                    "received_qty": "10",
+                    "damaged_qty": "0",
+                    "return_qty": "0",
+                }
+            ]
+        },
+    )
+    assert ver.status_code == 200, ver.text
+    listed = client.get(f"/v1/businesses/{bid}/notifications", headers=owner_h)
+    assert listed.status_code == 200, listed.text
+    kinds = {row.get("kind") for row in listed.json()}
+    assert "delivery_verified" in kinds or "stock_committed" in kinds
+
+
 def test_dispatch_and_pipeline_counts():
     h, bid = _register_owner()
     iid, sup = _setup_item(h, bid)

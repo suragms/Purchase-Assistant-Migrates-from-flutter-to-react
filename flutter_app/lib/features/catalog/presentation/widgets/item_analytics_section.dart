@@ -1,15 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/json_coerce.dart';
+import '../../../../core/providers/catalog_providers.dart'
+    show catalogItemDetailProvider;
 import '../../../../core/providers/item_detail_providers.dart';
 import '../../../../core/providers/stock_providers.dart'
     show stockItemIntelligenceProvider;
 import '../../../../core/utils/unit_utils.dart';
 import '../../../../core/widgets/friendly_load_error.dart';
 
-class ItemAnalyticsSection extends ConsumerWidget {
+class ItemAnalyticsSection extends ConsumerStatefulWidget {
   const ItemAnalyticsSection({
     super.key,
     required this.itemId,
@@ -20,38 +24,60 @@ class ItemAnalyticsSection extends ConsumerWidget {
   final bool loadIntelligence;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final stockAsync = ref.watch(itemDetailStockProvider(itemId));
-    final intelAsync = loadIntelligence
-        ? ref.watch(stockItemIntelligenceProvider(itemId))
+  ConsumerState<ItemAnalyticsSection> createState() =>
+      _ItemAnalyticsSectionState();
+}
+
+class _ItemAnalyticsSectionState extends ConsumerState<ItemAnalyticsSection> {
+  bool _autoRetried = false;
+
+  void _invalidateSection() {
+    ref.invalidate(stockItemIntelligenceProvider(widget.itemId));
+    ref.invalidate(itemDetailBundleProvider(widget.itemId));
+    ref.invalidate(catalogItemDetailProvider(widget.itemId));
+  }
+
+  void _scheduleAutoRetryOnce() {
+    if (_autoRetried) return;
+    _autoRetried = true;
+    unawaited(
+      Future<void>.delayed(const Duration(seconds: 2), () {
+        if (mounted) _invalidateSection();
+      }),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stockAsync = ref.watch(itemDetailStockProvider(widget.itemId));
+    final intelAsync = widget.loadIntelligence
+        ? ref.watch(stockItemIntelligenceProvider(widget.itemId))
         : null;
 
     if (stockAsync.hasError && !stockAsync.hasValue) {
+      _scheduleAutoRetryOnce();
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(HexaOp.cardPadding),
           child: FriendlyLoadError(
             message: 'Could not load analytics',
-            onRetry: () {
-              ref.invalidate(stockItemIntelligenceProvider(itemId));
-              ref.invalidate(itemDetailBundleProvider(itemId));
-            },
+            onRetry: _invalidateSection,
           ),
         ),
       );
     }
 
-    if (loadIntelligence &&
+    if (widget.loadIntelligence &&
         intelAsync != null &&
         intelAsync.hasError &&
         !intelAsync.hasValue) {
+      _scheduleAutoRetryOnce();
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(HexaOp.cardPadding),
           child: FriendlyLoadError(
             message: 'Could not load movement intelligence',
-            onRetry: () =>
-                ref.invalidate(stockItemIntelligenceProvider(itemId)),
+            onRetry: _invalidateSection,
           ),
         ),
       );
@@ -67,7 +93,7 @@ class ItemAnalyticsSection extends ConsumerWidget {
     }
 
     final stock = stockAsync.valueOrNull ?? const <String, dynamic>{};
-    final intel = loadIntelligence
+    final intel = widget.loadIntelligence
         ? intelAsync?.valueOrNull ?? const <String, dynamic>{}
         : const <String, dynamic>{};
 
@@ -85,6 +111,26 @@ class ItemAnalyticsSection extends ConsumerWidget {
     final openingUnset = stock['opening_stock_set_at'] == null &&
         current == 0 &&
         purchased == 0;
+
+    if (purchased == 0 && usage == 0 && !openingUnset) {
+      return Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(HexaOp.cardPadding),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Item analytics', style: HexaOp.cardTitle(context)),
+              const SizedBox(height: 10),
+              const Text(
+                'No data yet — analytics will appear after first purchase.',
+                style: TextStyle(color: Color(0xFF64748B), fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     const assumedDays = 30.0;
     final daily = usage > 0 ? usage / assumedDays : 0.0;

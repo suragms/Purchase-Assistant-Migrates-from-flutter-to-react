@@ -72,7 +72,8 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
 
   static final _kgInName =
       RegExp(r'(\d+(?:\.\d+)?)\s*kg', caseSensitive: false);
-  static final _boxInName = RegExp(r'\bbox\b', caseSensitive: false);
+  static final _boxInName =
+      RegExp(r'\b(?:box|ctn)\b', caseSensitive: false);
 
   String _packageTypeForMode(String mode) {
     switch (mode) {
@@ -406,6 +407,13 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
         return false;
       }
     }
+    if (_packagingMode == StockTrackingMode.tin) {
+      final wpt = double.tryParse(_wptCtrl.text.trim());
+      if (wpt == null || wpt <= 0) {
+        setState(() => _error = 'Enter litres/kg per tin.');
+        return false;
+      }
+    }
     setState(() {
       _error = null;
       _kgFieldError = null;
@@ -555,6 +563,20 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
       if (!mounted) return;
       final newId = created['id']?.toString() ?? '';
       final itemCode = created['item_code']?.toString() ?? '';
+      final existingBarcode = created['barcode']?.toString() ?? '';
+      if (newId.isNotEmpty &&
+          itemCode.isNotEmpty &&
+          existingBarcode.isEmpty) {
+        try {
+          await ref.read(hexaApiProvider).patchCatalogItemBarcode(
+                businessId: session.primaryBusiness.id,
+                itemId: newId,
+                barcode: itemCode,
+              );
+        } catch (_) {
+          // Non-fatal — item created; barcode can be assigned later.
+        }
+      }
       await CatalogCreatePrefs.save(
         businessId: session.primaryBusiness.id,
         supplierId: _supplierId,
@@ -828,10 +850,7 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
                 items: _supplierItems(sups),
                 controller: _supplierSearchCtrl,
                 placeholder: 'Search supplier…',
-                onSelected: (it) => setState(() {
-                  _supplierId = it.id;
-                  _supplierSearchCtrl.text = it.label;
-                }),
+                onSelected: (it) => setState(() => _supplierId = it.id),
               ),
               const SizedBox(height: 14),
             ],
@@ -863,10 +882,7 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
                 items: _brokerItems(rows),
                 controller: _brokerSearchCtrl,
                 placeholder: 'Search broker…',
-                onSelected: (it) => setState(() {
-                  _brokerId = it.id;
-                  _brokerSearchCtrl.text = it.label;
-                }),
+                onSelected: (it) => setState(() => _brokerId = it.id),
               ),
               const SizedBox(height: 14),
             ],

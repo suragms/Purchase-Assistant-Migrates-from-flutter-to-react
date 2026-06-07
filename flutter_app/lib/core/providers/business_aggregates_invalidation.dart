@@ -363,14 +363,14 @@ void invalidateWarehouseSurfacesAfterStockWrite(dynamic ref, {String? itemId}) {
   if (itemId != null && itemId.isNotEmpty) {
     invalidateWarehouseItemSurfacesLight(ref, itemId: itemId);
   }
-  const delay = Duration(milliseconds: 1500);
-  deferInvalidateDelayed(ref, stockListProvider, delay: delay);
-  deferInvalidateDelayed(ref, stockDeliveryIndicatorCountsProvider, delay: delay);
-  deferInvalidateDelayed(ref, bulkStockListProvider, delay: delay);
-  deferInvalidateDelayed(ref, stockStatusCountsProvider, delay: delay);
-  deferInvalidateDelayed(ref, stockOnHandTotalsProvider, delay: delay);
-  deferInvalidateDelayed(ref, staffLowStockAlertsProvider, delay: delay);
-  deferInvalidateDelayed(ref, warehouseAlertsProvider, delay: delay);
+  const listDelay = Duration(milliseconds: 800);
+  deferInvalidateDelayed(ref, stockListProvider, delay: listDelay);
+  deferInvalidateDelayed(ref, stockDeliveryIndicatorCountsProvider, delay: listDelay);
+  deferInvalidateDelayed(ref, bulkStockListProvider, delay: listDelay);
+  deferInvalidateDelayed(ref, stockStatusCountsProvider, delay: listDelay);
+  deferInvalidateDelayed(ref, stockOnHandTotalsProvider, delay: listDelay);
+  deferInvalidateDelayed(ref, staffLowStockAlertsProvider, delay: listDelay);
+  deferInvalidateDelayed(ref, warehouseAlertsProvider, delay: listDelay);
   ref.invalidate(staffTodayActivityProvider);
   ref.invalidate(staffTodaySummaryProvider);
 }

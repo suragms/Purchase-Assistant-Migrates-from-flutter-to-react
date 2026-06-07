@@ -86,5 +86,7 @@ bool hexaErrorLikelyNonFatal(FlutterErrorDetails details) {
       s.contains('Cannot use "ref"') ||
       s.contains('childAspectRatio') ||
       s.contains('AssertionError') ||
-      s.contains('is not a subtype of');
+      s.contains('is not a subtype of') ||
+      s.contains('mA<void>') ||
+      s.contains('minified:mA');
 }
