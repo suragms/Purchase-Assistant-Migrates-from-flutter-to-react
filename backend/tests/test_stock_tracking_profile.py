@@ -68,3 +68,27 @@ def test_owner_box_unit_overrides_retail_packet_package_type():
     assert p.mode == "box"
     assert p.primary_unit == "box"
     assert p.pieces_per_box == Decimal("1")
+
+
+def test_box_name_overrides_piece_default_unit():
+    """Legacy rows: piece + RETAIL_PACKET but name ends with BOX → box profile."""
+    item = SimpleNamespace(
+        id=uuid.uuid4(),
+        default_unit="piece",
+        default_items_per_box=None,
+        package_type="RETAIL_PACKET",
+        package_size=Decimal("400"),
+        package_measurement="GM",
+        name="SUNRICH 400GM BOX",
+    )
+    p = profile_from_catalog_item(item)
+    assert p.mode == "box"
+    assert p.primary_unit == "box"
+    line = SimpleNamespace(
+        qty=Decimal("1"),
+        unit="box",
+        qty_in_stock_unit=None,
+        item_name="SUNRICH 400GM BOX",
+    )
+    assert line_qty_in_stock_unit(line, item) == Decimal("1.000")
+    assert validate_purchase_line_unit(item, "box") is None

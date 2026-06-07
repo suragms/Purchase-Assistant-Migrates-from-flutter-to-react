@@ -19,7 +19,6 @@ class _BatchLine {
   _BatchLine()
       : name = TextEditingController(),
         kgPerBag = TextEditingController(),
-        itemsPerBox = TextEditingController(),
         weightPerTin = TextEditingController();
 
   final TextEditingController name;
@@ -28,13 +27,11 @@ class _BatchLine {
   String unit = 'kg';
   String packagingMode = StockTrackingMode.retailPacket;
   final TextEditingController kgPerBag;
-  final TextEditingController itemsPerBox;
   final TextEditingController weightPerTin;
 
   void dispose() {
     name.dispose();
     kgPerBag.dispose();
-    itemsPerBox.dispose();
     weightPerTin.dispose();
   }
 }
@@ -127,20 +124,11 @@ class _BatchItemCreatePageState extends ConsumerState<BatchItemCreatePage> {
       }
       final u = l.unit;
       final kg = double.tryParse(l.kgPerBag.text.trim());
-      final ipb = double.tryParse(l.itemsPerBox.text.trim());
       final wpt = double.tryParse(l.weightPerTin.text.trim());
       if (u == 'bag' && (kg == null || kg <= 0)) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Enter kg per bag for "$name".')),
-          );
-        }
-        return;
-      }
-      if (u == 'box' && (ipb == null || ipb <= 0)) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Enter items per box for "$name".')),
           );
         }
         return;
@@ -159,7 +147,7 @@ class _BatchItemCreatePageState extends ConsumerState<BatchItemCreatePage> {
         'default_unit': u,
         'package_type': _packageTypeForMode(l.packagingMode),
         if (u == 'bag') 'default_kg_per_bag': kg,
-        if (u == 'box') 'default_items_per_box': ipb,
+        if (u == 'box') 'default_items_per_box': 1,
         if (u == 'tin') 'default_weight_per_tin': wpt,
         'default_supplier_ids': [sid],
       });
@@ -386,7 +374,6 @@ class _BatchItemCreatePageState extends ConsumerState<BatchItemCreatePage> {
                         line.packagingMode = m;
                         line.unit = StockTrackingMode.catalogUnitForMode(m);
                         line.kgPerBag.clear();
-                        line.itemsPerBox.clear();
                         line.weightPerTin.clear();
                       }),
                       weightController: line.kgPerBag,
@@ -404,7 +391,6 @@ class _BatchItemCreatePageState extends ConsumerState<BatchItemCreatePage> {
                               line.unit = u;
                               line.packagingMode = _modeForUnit(u);
                               line.kgPerBag.clear();
-                              line.itemsPerBox.clear();
                               line.weightPerTin.clear();
                             }),
                           ),
@@ -418,18 +404,6 @@ class _BatchItemCreatePageState extends ConsumerState<BatchItemCreatePage> {
                             decimal: true),
                         decoration: const InputDecoration(
                           labelText: 'Kg per bag *',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ],
-                    if (line.unit == 'box') ...[
-                      const SizedBox(height: 8),
-                      TextField(
-                        controller: line.itemsPerBox,
-                        keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Items per box *',
                           border: OutlineInputBorder(),
                         ),
                       ),

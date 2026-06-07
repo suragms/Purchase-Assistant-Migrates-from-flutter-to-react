@@ -172,6 +172,13 @@ def line_qty_in_stock_unit(line: Any, item: CatalogItem | Any) -> Decimal:
     if stock_type == "box" and line_type == "box":
         return _round_qty(qty)
 
+    # Retail rows named "* BOX" purchased in boxes — 1 box = 1 unit until owner sets box default_unit.
+    if line_type == "box" and stock_type in ("pcs", "other"):
+        name = (getattr(item, "name", None) or "").upper()
+        pt = (getattr(item, "package_type", None) or "").strip().upper()
+        if "BOX" in name or pt == "BOX":
+            return _round_qty(qty)
+
     if stock_type == "tin" and line_type == "tin":
         return _round_qty(qty)
 

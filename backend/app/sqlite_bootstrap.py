@@ -71,6 +71,7 @@ def apply_sqlite_bootstrap(sync_conn) -> None:
     _ensure_trade_purchase_line_columns(sync_conn)
     _ensure_catalog_items_smart_unit_columns(sync_conn)
     _ensure_catalog_items_stock_columns(sync_conn)
+    _ensure_box_default_items_per_box(sync_conn)
     logger.info("SQLite bootstrap: create_all + legacy column patches complete")
 
 
@@ -829,6 +830,44 @@ def _ensure_catalog_items_stock_columns(sync_conn):
             sync_conn.exec_driver_sql(sql)
         except Exception as exc:  # noqa: BLE001
             log.warning("sqlite bootstrap catalog_items stock column failed: %s — %s", sql, exc)
+
+
+def _ensure_box_default_items_per_box(sync_conn):
+    """Backfill box rows: default_items_per_box=1 when missing."""
+    insp = inspect(sync_conn)
+    if not insp.has_table("catalog_items"):
+        return
+    try:
+        sync_conn.exec_driver_sql(
+            """
+            UPDATE catalog_items
+            SET default_items_per_box = 1,
+                package_type = COALESCE(NULLIF(TRIM(package_type), ''), 'BOX'),
+                stock_unit = COALESCE(NULLIF(TRIM(stock_unit), ''), 'BOX')
+            WHERE deleted_at IS NULL
+              AND LOWER(COALESCE(default_unit, '')) = 'box'
+              AND (default_items_per_box IS NULL OR default_items_per_box <= 0)
+            """
+        )
+        sync_conn.exec_driver_sql(
+            """
+            UPDATE catalog_items
+            SET default_unit = 'box',
+                default_items_per_box = 1,
+                package_type = 'BOX',
+                stock_unit = 'BOX'
+            WHERE deleted_at IS NULL
+              AND LOWER(COALESCE(default_unit, 'piece')) IN ('piece', 'pcs')
+              AND UPPER(name) LIKE '% BOX%'
+              AND (default_items_per_box IS NULL OR default_items_per_box <= 0)
+            """
+        )
+    except Exception as exc:  # noqa: BLE001
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "sqlite bootstrap box ipb backfill failed: %s", exc
+        )
 
 
 def _ensure_trade_purchase_line_columns(sync_conn):

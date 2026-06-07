@@ -33,7 +33,6 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
   late final TextEditingController _hsnCtrl;
   late final TextEditingController _taxCtrl;
   late final TextEditingController _kgCtrl;
-  late final TextEditingController _ipbCtrl;
   late final TextEditingController _wptCtrl;
   late final TextEditingController _landCtrl;
   late final TextEditingController _sellCtrl;
@@ -41,7 +40,6 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
   bool _controllersBound = false;
   String? _nameError;
   String? _kgError;
-  String? _ipbError;
 
   @override
   void initState() {
@@ -51,7 +49,6 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
     _hsnCtrl = TextEditingController();
     _taxCtrl = TextEditingController();
     _kgCtrl = TextEditingController();
-    _ipbCtrl = TextEditingController();
     _wptCtrl = TextEditingController();
     _landCtrl = TextEditingController();
     _sellCtrl = TextEditingController();
@@ -72,7 +69,6 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
     _hsnCtrl.dispose();
     _taxCtrl.dispose();
     _kgCtrl.dispose();
-    _ipbCtrl.dispose();
     _wptCtrl.dispose();
     _landCtrl.dispose();
     _sellCtrl.dispose();
@@ -89,9 +85,6 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
         item['tax_percent'] != null ? item['tax_percent'].toString() : '';
     _kgCtrl.text = item['default_kg_per_bag'] != null
         ? item['default_kg_per_bag'].toString()
-        : '';
-    _ipbCtrl.text = item['default_items_per_box'] != null
-        ? item['default_items_per_box'].toString()
         : '';
     _wptCtrl.text = item['default_weight_per_tin'] != null
         ? item['default_weight_per_tin'].toString()
@@ -143,13 +136,11 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
       nameCtrl: _nameCtrl,
       codeCtrl: _codeCtrl,
       kgCtrl: _kgCtrl,
-      ipbCtrl: _ipbCtrl,
     );
     if (!validation.ok) {
       setState(() {
         _nameError = validation.nameError;
         _kgError = validation.kgError;
-        _ipbError = validation.ipbError;
       });
       return;
     }
@@ -157,7 +148,6 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
     setState(() {
       _nameError = null;
       _kgError = null;
-      _ipbError = null;
       _saving = true;
     });
     try {
@@ -170,7 +160,6 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
         hsnCtrl: _hsnCtrl,
         taxCtrl: _taxCtrl,
         kgCtrl: _kgCtrl,
-        ipbCtrl: _ipbCtrl,
         wptCtrl: _wptCtrl,
         landCtrl: _landCtrl,
         sellCtrl: _sellCtrl,
@@ -186,11 +175,6 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
       if (!mounted) return;
       final inline = e.error is String ? e.error as String : null;
       if (inline != null) {
-        if (inline.toLowerCase().contains('items per box') ||
-            inline.toLowerCase().contains('default_items_per_box')) {
-          setState(() => _ipbError = inline);
-          return;
-        }
         if (inline.toLowerCase().contains('kg per bag') ||
             inline.toLowerCase().contains('default_kg_per_bag')) {
           setState(() => _kgError = inline);
@@ -203,11 +187,6 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
         }
       }
       final apiMsg = fastApiDetailString(e.response?.data) ?? friendlyApiError(e);
-      if (apiMsg.toLowerCase().contains('default_items_per_box') ||
-          apiMsg.toLowerCase().contains('items per box')) {
-        setState(() => _ipbError = apiMsg);
-        return;
-      }
       if (apiMsg.toLowerCase().contains('default_kg_per_bag') ||
           apiMsg.toLowerCase().contains('kg per bag')) {
         setState(() => _kgError = apiMsg);
@@ -319,13 +298,11 @@ class _ItemEditPageState extends ConsumerState<ItemEditPage> {
             pickerContext: context,
             nameError: _nameError,
             kgError: _kgError,
-            ipbError: _ipbError,
             nameCtrl: _nameCtrl,
             codeCtrl: _codeCtrl,
             hsnCtrl: _hsnCtrl,
             taxCtrl: _taxCtrl,
             kgCtrl: _kgCtrl,
-            ipbCtrl: _ipbCtrl,
             wptCtrl: _wptCtrl,
             landCtrl: _landCtrl,
             sellCtrl: _sellCtrl,

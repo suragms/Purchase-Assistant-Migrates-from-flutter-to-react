@@ -21,7 +21,6 @@ class CatalogItemDefaultsEditForm extends StatefulWidget {
     required this.hsnCtrl,
     required this.taxCtrl,
     required this.kgCtrl,
-    required this.ipbCtrl,
     required this.wptCtrl,
     required this.landCtrl,
     required this.sellCtrl,
@@ -33,7 +32,6 @@ class CatalogItemDefaultsEditForm extends StatefulWidget {
     this.onSetOpeningStock,
     this.nameError,
     this.kgError,
-    this.ipbError,
   });
 
   final BuildContext pickerContext;
@@ -42,7 +40,6 @@ class CatalogItemDefaultsEditForm extends StatefulWidget {
   final TextEditingController hsnCtrl;
   final TextEditingController taxCtrl;
   final TextEditingController kgCtrl;
-  final TextEditingController ipbCtrl;
   final TextEditingController wptCtrl;
   final TextEditingController landCtrl;
   final TextEditingController sellCtrl;
@@ -55,7 +52,6 @@ class CatalogItemDefaultsEditForm extends StatefulWidget {
   final VoidCallback? onSetOpeningStock;
   final String? nameError;
   final String? kgError;
-  final String? ipbError;
 
   @override
   State<CatalogItemDefaultsEditForm> createState() =>
@@ -70,7 +66,6 @@ class CatalogItemDefaultsEditFormState
   late final FocusNode _hsnFocus;
   late final FocusNode _taxFocus;
   late final FocusNode _kgFocus;
-  late final FocusNode _ipbFocus;
   late final FocusNode _wptFocus;
   late final FocusNode _landFocus;
   late final FocusNode _sellFocus;
@@ -83,15 +78,11 @@ class CatalogItemDefaultsEditFormState
         (_unit == null || _unit == 'piece')) {
       _unit = 'box';
     }
-    if (_unit == 'box' && widget.ipbCtrl.text.trim().isEmpty) {
-      widget.ipbCtrl.text = '1';
-    }
     _nameFocus = FocusNode();
     _codeFocus = FocusNode();
     _hsnFocus = FocusNode();
     _taxFocus = FocusNode();
     _kgFocus = FocusNode();
-    _ipbFocus = FocusNode();
     _wptFocus = FocusNode();
     _landFocus = FocusNode();
     _sellFocus = FocusNode();
@@ -101,7 +92,6 @@ class CatalogItemDefaultsEditFormState
       _hsnFocus,
       _taxFocus,
       _kgFocus,
-      _ipbFocus,
       _wptFocus,
       _landFocus,
       _sellFocus,
@@ -117,7 +107,6 @@ class CatalogItemDefaultsEditFormState
     _hsnFocus.dispose();
     _taxFocus.dispose();
     _kgFocus.dispose();
-    _ipbFocus.dispose();
     _wptFocus.dispose();
     _landFocus.dispose();
     _sellFocus.dispose();
@@ -217,12 +206,7 @@ class CatalogItemDefaultsEditFormState
             );
             if (!mounted) return;
             if (id != null) {
-              setState(() {
-                _unit = id == none ? null : id;
-                if (_unit == 'box' && widget.ipbCtrl.text.trim().isEmpty) {
-                  widget.ipbCtrl.text = '1';
-                }
-              });
+              setState(() => _unit = id == none ? null : id);
             }
           },
           child: Align(
@@ -259,24 +243,6 @@ class CatalogItemDefaultsEditFormState
               }(),
             ),
           ],
-        ],
-        if (_unit == 'box') ...[
-          const SizedBox(height: 12),
-          TextField(
-            controller: widget.ipbCtrl,
-            focusNode: _ipbFocus,
-            scrollPadding: sp,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'Items per box *',
-              hintText: 'How many pieces per box',
-              errorText: widget.ipbError,
-              helperText:
-                  'Use 1 for single retail boxes (e.g. 400GM BOX). Required for owner commit-stock.',
-            ),
-            onChanged: (_) => setState(() {}),
-          ),
         ],
         if (_unit == 'tin') ...[
           const SizedBox(height: 12),
@@ -390,15 +356,12 @@ class CatalogItemDefaultsValidation {
   const CatalogItemDefaultsValidation({
     this.nameError,
     this.kgError,
-    this.ipbError,
   });
 
   final String? nameError;
   final String? kgError;
-  final String? ipbError;
 
-  bool get ok =>
-      nameError == null && kgError == null && ipbError == null;
+  bool get ok => nameError == null && kgError == null;
 }
 
 CatalogItemDefaultsValidation validateCatalogItemDefaults({
@@ -406,11 +369,9 @@ CatalogItemDefaultsValidation validateCatalogItemDefaults({
   required TextEditingController nameCtrl,
   required TextEditingController codeCtrl,
   required TextEditingController kgCtrl,
-  required TextEditingController ipbCtrl,
 }) {
   String? nameError;
   String? kgError;
-  String? ipbError;
 
   if (nameCtrl.text.trim().isEmpty) {
     nameError = 'Item name is required';
@@ -429,18 +390,9 @@ CatalogItemDefaultsValidation validateCatalogItemDefaults({
     }
   }
 
-  if (unit == 'box') {
-    final ipb = double.tryParse(ipbCtrl.text.trim());
-    if (ipb == null || ipb <= 0) {
-      ipbError =
-          'Enter items per box (use 1 if each box is one unit)';
-    }
-  }
-
   return CatalogItemDefaultsValidation(
     nameError: nameError,
     kgError: kgError,
-    ipbError: ipbError,
   );
 }
 
@@ -454,7 +406,6 @@ Future<bool> saveCatalogItemDefaults({
   required TextEditingController hsnCtrl,
   required TextEditingController taxCtrl,
   required TextEditingController kgCtrl,
-  required TextEditingController ipbCtrl,
   required TextEditingController wptCtrl,
   required TextEditingController landCtrl,
   required TextEditingController sellCtrl,
@@ -467,13 +418,11 @@ Future<bool> saveCatalogItemDefaults({
     nameCtrl: nameCtrl,
     codeCtrl: codeCtrl,
     kgCtrl: kgCtrl,
-    ipbCtrl: ipbCtrl,
   );
   if (!validation.ok) {
     throw DioException(
       requestOptions: RequestOptions(path: ''),
-      error: validation.ipbError ??
-          validation.kgError ??
+      error: validation.kgError ??
           validation.nameError ??
           'Please check your input',
     );
@@ -483,7 +432,6 @@ Future<bool> saveCatalogItemDefaults({
 
   final kgParsed = unit == 'bag' ? parseOptionalKgPerBag(kgCtrl.text) : null;
   final tax = double.tryParse(taxCtrl.text.trim());
-  final ipb = double.tryParse(ipbCtrl.text.trim());
   final wpt = double.tryParse(wptCtrl.text.trim());
   final land = double.tryParse(landCtrl.text.trim());
   final sell = double.tryParse(sellCtrl.text.trim());
@@ -502,8 +450,8 @@ Future<bool> saveCatalogItemDefaults({
           patchDefaultKgPerBag:
               unit == 'bag' && kgParsed != null && kgParsed > 0,
           defaultKgPerBag: kgParsed,
-          patchDefaultItemsPerBox: unit == 'box' && ipb != null && ipb > 0,
-          defaultItemsPerBox: ipb,
+          patchDefaultItemsPerBox: unit == 'box',
+          defaultItemsPerBox: unit == 'box' ? 1.0 : null,
           patchDefaultWeightPerTin: unit == 'tin' && wpt != null && wpt > 0,
           defaultWeightPerTin: wpt,
         );

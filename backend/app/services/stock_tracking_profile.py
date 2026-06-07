@@ -26,6 +26,14 @@ _BULK_CATEGORIES = frozenset(
 )
 _KG_TOKEN = re.compile(r"(\d+(?:\.\d+)?)\s*KG\b", re.IGNORECASE)
 _BAG_WORDS = re.compile(r"\b(BAG|SACK|BAGS|SACKS)\b", re.IGNORECASE)
+_BOX_WORDS = re.compile(r"\b(BOX|CTN|CARTON)\b", re.IGNORECASE)
+
+
+def _name_looks_like_retail_box(name: str | None) -> bool:
+    if not name:
+        return False
+    upper = name.strip().upper()
+    return bool(_BOX_WORDS.search(upper))
 
 
 @dataclass(frozen=True)
@@ -134,7 +142,20 @@ def profile_from_catalog_item(item: Any) -> StockTrackingProfile:
             mode="box",
             primary_unit="box",
             base_unit="box",
-            pieces_per_box=ipb,
+            pieces_per_box=ipb or Decimal("1"),
+            allowed_line_units=frozenset({"box", "other"}),
+        )
+
+    # Retail single-unit boxes (e.g. "400GM BOX") — treat as box even if default_unit still piece.
+    item_name = getattr(item, "name", None)
+    if du not in ("bag", "kg", "tin") and (
+        pt == "BOX" or _name_looks_like_retail_box(item_name)
+    ):
+        return StockTrackingProfile(
+            mode="box",
+            primary_unit="box",
+            base_unit="box",
+            pieces_per_box=ipb or Decimal("1"),
             allowed_line_units=frozenset({"box", "other"}),
         )
 
@@ -174,7 +195,7 @@ def profile_from_catalog_item(item: Any) -> StockTrackingProfile:
             mode="box",
             primary_unit="box",
             base_unit="box",
-            pieces_per_box=ipb,
+            pieces_per_box=ipb or Decimal("1"),
             allowed_line_units=frozenset({"box", "other"}),
         )
 

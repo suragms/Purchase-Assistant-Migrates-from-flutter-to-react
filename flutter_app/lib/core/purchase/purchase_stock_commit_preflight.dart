@@ -41,8 +41,7 @@ class PurchaseStockCommitIssue {
       return '$itemName · ${_fmtQty(qty)} $lu — stock unit is not configured on the catalog item.';
     }
     if (deriveTradeUnitType(lineUnit) == 'box' && stockUnit == 'piece') {
-      return '$itemName · ${_fmtQty(qty)} $lu — catalog tracks pieces but this purchase is in boxes. '
-          'Edit catalog item: set unit to box and items per box (use 1 for single retail boxes).';
+      return '$itemName · ${_fmtQty(qty)} $lu — set catalog stock unit to box for this item.';
     }
     return '$itemName · ${_fmtQty(qty)} $lu — catalog stock is tracked in $su; '
         'add kg-per-bag/box weight or change the line unit to match.';
@@ -111,6 +110,18 @@ String catalogStockUnit(
   if (du == 'kg') return 'kg';
 
   if (pt == 'LOOSE' || pt == 'LOOSE_KG' || du == 'kg') return 'kg';
+
+  // Retail "* BOX" rows still tracked as piece in DB — commit as box when name says so.
+  final name =
+      (catalogRow['name']?.toString() ?? line.itemName).trim().toUpperCase();
+  if (du != 'bag' && du != 'kg' && du != 'tin') {
+    if (name.contains(' BOX') ||
+        name.endsWith(' BOX') ||
+        RegExp(r'\bBOX\b').hasMatch(name) ||
+        pt == 'BOX') {
+      return 'box';
+    }
+  }
 
   if (pt == 'RETAIL_PACKET' ||
       pt == 'PACKET' ||
@@ -249,6 +260,17 @@ double estimateLineQtyInStockUnit(
 
   if (stockType == 'box' && lineType == 'box') return rawQty;
   if (stockType == 'tin' && lineType == 'tin') return rawQty;
+
+  // Retail rows named "* BOX" purchased in boxes — 1:1 until catalog default_unit is box.
+  if (lineType == 'box' &&
+      (stockType == 'pcs' || stockType == 'other')) {
+    final name = line.itemName.toUpperCase();
+    final pt =
+        (catalogRow?['package_type']?.toString() ?? '').trim().toUpperCase();
+    if (name.contains(' BOX') || name.endsWith(' BOX') || pt == 'BOX') {
+      return rawQty;
+    }
+  }
 
   final lu = line.unit.trim().toLowerCase();
   if (stockUnit.isNotEmpty && lu.isNotEmpty && stockUnit == lu) return rawQty;

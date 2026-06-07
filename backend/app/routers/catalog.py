@@ -204,9 +204,8 @@ class CatalogItemCreate(BaseModel):
         elif u == "piece" and self.default_kg_per_bag is not None:
             if self.default_kg_per_bag <= 0:
                 raise ValueError("weight per packet must be positive")
-        elif u == "box":
-            if self.default_items_per_box is None:
-                raise ValueError("default_items_per_box is required when default_unit is box")
+        elif u == "box" and self.default_items_per_box is None:
+            self.default_items_per_box = 1.0
         return self
 
 
@@ -242,9 +241,8 @@ class CatalogBatchItemIn(BaseModel):
         if u == "bag":
             if self.default_kg_per_bag is None:
                 raise ValueError("default_kg_per_bag is required when default_unit is bag")
-        elif u == "box":
-            if self.default_items_per_box is None:
-                raise ValueError("default_items_per_box is required when default_unit is box")
+        elif u == "box" and self.default_items_per_box is None:
+            self.default_items_per_box = 1.0
         return self
 
 
@@ -299,12 +297,8 @@ class CatalogItemUpdate(BaseModel):
                     "default_kg_per_bag is required when default_unit is bag"
                 )
         elif u == "box":
-            if "default_items_per_box" in self.model_fields_set and (
-                self.default_items_per_box is None or self.default_items_per_box <= 0
-            ):
-                raise ValueError(
-                    "default_items_per_box must be positive when default_unit is box"
-                )
+            if self.default_items_per_box is None or self.default_items_per_box <= 0:
+                self.default_items_per_box = 1.0
         return self
 
 
@@ -973,6 +967,24 @@ def _sync_stock_fields_from_default_unit(i: CatalogItem) -> None:
         i.stock_unit = "TIN"
 
 
+def _coerce_box_items_per_box(value: float | None) -> float:
+    """Single retail boxes default to 1 piece per box — no UI field required."""
+    if value is not None and value > 0:
+        return float(value)
+    return 1.0
+
+
+def _ensure_box_catalog_defaults(i: CatalogItem) -> None:
+    if (i.default_unit or "").strip().lower() != "box":
+        return
+    from decimal import Decimal
+
+    ipb = i.default_items_per_box
+    if ipb is None or float(ipb) <= 0:
+        i.default_items_per_box = Decimal("1")
+    _sync_stock_fields_from_default_unit(i)
+
+
 def _validate_item_unit_constraints(i: CatalogItem) -> None:
     u = i.default_unit
     if u == "bag":
@@ -982,11 +994,7 @@ def _validate_item_unit_constraints(i: CatalogItem) -> None:
                 detail="default_kg_per_bag is required and must be positive when default_unit is bag",
             )
     elif u == "box":
-        if i.default_items_per_box is None or float(i.default_items_per_box) <= 0:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST,
-                detail="default_items_per_box is required and must be positive when default_unit is box",
-            )
+        _ensure_box_catalog_defaults(i)
     elif u == "tin" and i.default_weight_per_tin is not None and float(i.default_weight_per_tin) <= 0:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
@@ -1996,7 +2004,7 @@ async def create_catalog_item(
         )
     u = body.default_unit
     dkg = body.default_kg_per_bag if u in ("bag", "piece") else None
-    dbox = body.default_items_per_box if u == "box" else None
+    dbox = _coerce_box_items_per_box(body.default_items_per_box) if u == "box" else None
     dwt = body.default_weight_per_tin if u == "tin" else None
     purchase_u = body.default_purchase_unit or body.default_unit
     supplier_ids = _dedupe_preserve_order(body.default_supplier_ids)
@@ -2139,7 +2147,7 @@ async def batch_create_catalog_items(
             continue
         u = line.default_unit
         dkg = line.default_kg_per_bag if u == "bag" else None
-        dbox = line.default_items_per_box if u == "box" else None
+        dbox = _coerce_box_items_per_box(line.default_items_per_box) if u == "box" else None
         dwt = line.default_weight_per_tin if u == "tin" else None
         purchase_u = line.default_unit
         supplier_ids = _dedupe_preserve_order(line.default_supplier_ids)
@@ -2904,7 +2912,11 @@ async def update_catalog_item(
             i.default_kg_per_bag = None
     if "default_items_per_box" in data:
         if i.default_unit == "box":
-            i.default_items_per_box = data["default_items_per_box"]
+            from decimal import Decimal
+
+            i.default_items_per_box = Decimal(
+                str(_coerce_box_items_per_box(data.get("default_items_per_box")))
+            )
         else:
             i.default_items_per_box = None
     if "default_weight_per_tin" in data:

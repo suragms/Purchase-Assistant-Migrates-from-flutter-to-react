@@ -40,7 +40,6 @@ class _ItemWizardPageState extends ConsumerState<ItemWizardPage> {
   String? _unit;
   final _name = TextEditingController();
   final _kg = TextEditingController();
-  final _perBox = TextEditingController();
   final _perTin = TextEditingController();
   final _hsn = TextEditingController();
   final _tax = TextEditingController();
@@ -104,7 +103,6 @@ class _ItemWizardPageState extends ConsumerState<ItemWizardPage> {
   void _resetItemFieldsForBatch() {
     _name.clear();
     _kg.clear();
-    _perBox.clear();
     _perTin.clear();
     _unit = null;
     _nameError = null;
@@ -171,7 +169,6 @@ class _ItemWizardPageState extends ConsumerState<ItemWizardPage> {
     _nameFocus.dispose();
     _name.dispose();
     _kg.dispose();
-    _perBox.dispose();
     _perTin.dispose();
     _hsn.dispose();
     _tax.dispose();
@@ -223,11 +220,6 @@ class _ItemWizardPageState extends ConsumerState<ItemWizardPage> {
     } else if (_unit == 'bag') {
       if (parseOptionalKgPerBag(_kg.text) == null) {
         _nameError = 'Enter kg per bag';
-      }
-    } else if (_unit == 'box') {
-      final v = double.tryParse(_perBox.text.trim());
-      if (v == null || v <= 0) {
-        _nameError = 'Enter items per box';
       }
     }
     setState(() {});
@@ -381,7 +373,7 @@ class _ItemWizardPageState extends ConsumerState<ItemWizardPage> {
             defaultBrokerIds: _brokerIds.toList(),
             hsnCode: _hsn.text.trim().isEmpty ? null : _hsn.text.trim(),
             defaultKgPerBag: _unit == 'bag' ? parseOptionalKgPerBag(_kg.text) : null,
-            defaultItemsPerBox: _unit == 'box' ? double.tryParse(_perBox.text.trim()) : null,
+            defaultItemsPerBox: _unit == 'box' ? 1.0 : null,
             defaultWeightPerTin: (tinW != null && tinW > 0) ? tinW : null,
             defaultPurchaseUnit: _unit,
             taxPercent: double.tryParse(_tax.text),
@@ -643,15 +635,6 @@ class _ItemWizardPageState extends ConsumerState<ItemWizardPage> {
             controller: _kg,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: _d('Default kg per bag'),
-            onChanged: (_) => _markDirty(),
-          ),
-        ],
-        if (_unit == 'box') ...[
-          const SizedBox(height: 8),
-          TextField(
-            controller: _perBox,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: _d('Items per box'),
             onChanged: (_) => _markDirty(),
           ),
         ],

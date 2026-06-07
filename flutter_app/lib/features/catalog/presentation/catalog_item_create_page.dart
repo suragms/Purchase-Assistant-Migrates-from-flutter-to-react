@@ -757,7 +757,6 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
                     const SizedBox(height: 14),
                     PackagingTypeSelector(
                       compactLayout: true,
-                      showItemsPerBoxField: false,
                       selectedMode: _packagingMode,
                       onModeChanged: _onPackagingModeChanged,
                       suggestedMode: StockTrackingMode.suggestFromName(

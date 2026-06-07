@@ -11,27 +11,12 @@ class PackagingTypeSelector extends StatelessWidget {
     required this.onModeChanged,
     this.suggestedMode,
     this.weightController,
-    this.itemsPerBoxController,
     this.weightPerTinController,
     this.weightError,
-    this.boxError,
     this.tinError,
     this.itemNameForAutofill,
     this.compactLayout = false,
-    this.showItemsPerBoxField = true,
   });
-
-  void _autofillBoxFromName(String mode) {
-    if (itemsPerBoxController == null || itemNameForAutofill == null) return;
-    if (mode != StockTrackingMode.box) return;
-    if (!RegExp(r'\bbox\b', caseSensitive: false)
-        .hasMatch(itemNameForAutofill!)) {
-      return;
-    }
-    if (itemsPerBoxController!.text.trim().isEmpty) {
-      itemsPerBoxController!.text = '1';
-    }
-  }
 
   void _autofillWeightFromName(String mode) {
     if (weightController == null || itemNameForAutofill == null) return;
@@ -50,18 +35,13 @@ class PackagingTypeSelector extends StatelessWidget {
   final ValueChanged<String> onModeChanged;
   final String? suggestedMode;
   final TextEditingController? weightController;
-  final TextEditingController? itemsPerBoxController;
   final TextEditingController? weightPerTinController;
   final String? weightError;
-  final String? boxError;
   final String? tinError;
   final String? itemNameForAutofill;
 
   /// When true, show all unit chips in one row with short labels (kg, bag, pc, …).
   final bool compactLayout;
-
-  /// Hide items-per-box input (create form uses silent default of 1).
-  final bool showItemsPerBoxField;
 
   static const modes = [
     StockTrackingMode.looseKg,
@@ -116,7 +96,6 @@ class PackagingTypeSelector extends StatelessWidget {
                 onPressed: () {
                   onModeChanged(suggestedMode!);
                   _autofillWeightFromName(suggestedMode!);
-                  _autofillBoxFromName(suggestedMode!);
                 },
                 child: const Text('Use'),
               ),
@@ -139,20 +118,6 @@ class PackagingTypeSelector extends StatelessWidget {
                   ? 'Kg per bag *'
                   : 'Kg per packet (optional)',
               errorText: weightError,
-              border: const OutlineInputBorder(),
-            ),
-          ),
-        ],
-        if (selectedMode == StockTrackingMode.box &&
-            showItemsPerBoxField &&
-            itemsPerBoxController != null) ...[
-          TextField(
-            controller: itemsPerBoxController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'Items per box *',
-              hintText: 'Use 1 if each box is one unit',
-              errorText: boxError,
               border: const OutlineInputBorder(),
             ),
           ),
@@ -207,7 +172,6 @@ class PackagingTypeSelector extends StatelessWidget {
             onSelected: (_) {
               onModeChanged(m);
               _autofillWeightFromName(m);
-              _autofillBoxFromName(m);
             },
           ),
       ],
@@ -226,7 +190,6 @@ class PackagingTypeSelector extends StatelessWidget {
             onSelected: (_) {
               onModeChanged(m);
               _autofillWeightFromName(m);
-              _autofillBoxFromName(m);
             },
           ),
       ],

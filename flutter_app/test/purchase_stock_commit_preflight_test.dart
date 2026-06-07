@@ -92,6 +92,18 @@ void main() {
       expect(estimateLineQtyInStockUnit(line, row), 0);
     });
 
+    test('piece profile + box purchase line with BOX in name → 1:1', () {
+      final line = _line(unit: 'box', qty: 2, itemName: 'SUNRICH 400GM BOX');
+      final row = {
+        'id': 'item-1',
+        'default_unit': 'piece',
+        'name': 'SUNRICH 400GM BOX',
+        'unit_resolution': {'package_type': 'RETAIL_PACKET', 'stock_unit': 'PIECE'},
+      };
+      expect(catalogStockUnit(row, line), 'box');
+      expect(estimateLineQtyInStockUnit(line, row), 2);
+    });
+
     test('owner box unit + RETAIL_PACKET package → box line passes', () {
       final line = _line(unit: 'box', qty: 1, itemName: 'SUNRICH 400GM BOX');
       final row = {

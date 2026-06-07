@@ -226,7 +226,7 @@ def test_catalog_fuzzy_check():
     assert "Toor" in top["name"]
 
 
-def test_catalog_item_patch_box_requires_items_per_box():
+def test_catalog_item_patch_box_defaults_items_per_box_to_one():
     h, bid = _auth_and_business()
     r = client.post(
         f"/v1/businesses/{bid}/item-categories",
@@ -257,14 +257,7 @@ def test_catalog_item_patch_box_requires_items_per_box():
 
     r = client.patch(
         f"/v1/businesses/{bid}/catalog-items/{iid}",
-        json={"default_unit": "box", "default_items_per_box": None},
-        headers=h,
-    )
-    assert r.status_code == 422, r.text
-
-    r = client.patch(
-        f"/v1/businesses/{bid}/catalog-items/{iid}",
-        json={"default_unit": "box", "default_items_per_box": 1},
+        json={"default_unit": "box"},
         headers=h,
     )
     assert r.status_code == 200, r.text
