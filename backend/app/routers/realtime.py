@@ -38,8 +38,9 @@ async def sse_events(
 @router.get("/recent")
 async def recent_events(
     business_id: uuid.UUID,
-    _m: Annotated[Membership, Depends(require_membership)],
+    m: Annotated[Membership, Depends(require_membership)],
     limit: int = Query(50, ge=1, le=100),
 ):
-    del _m
+    if m.role not in ("owner", "admin", "super_admin", "manager"):
+        return []
     return recent_business_events(business_id, limit=limit)

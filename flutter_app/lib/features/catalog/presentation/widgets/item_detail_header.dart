@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/design_system/hexa_ds_tokens.dart';
+import '../../../../core/router/navigation_ext.dart';
 import '../../../../core/theme/hexa_colors.dart';
 import '../../domain/item_stock_snapshot.dart';
 
@@ -38,7 +38,7 @@ class ItemDetailHeader extends ConsumerWidget {
         children: [
           IconButton(
             tooltip: 'Back',
-            onPressed: () => context.pop(),
+            onPressed: () => context.popOrGo('/catalog'),
             icon: const Icon(Icons.arrow_back_rounded),
           ),
           const SizedBox(width: 4),

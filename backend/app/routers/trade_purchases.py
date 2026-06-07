@@ -500,6 +500,16 @@ async def commit_trade_purchase_delivery(
         )
     except StaleStockVersionError as e:
         raise _stock_version_conflict_http(e) from e
+    except tps.UnitSetupRequiredError as e:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "UNIT_SETUP_REQUIRED",
+                "message": e.message,
+                "items_needing_setup": e.items_needing_setup,
+                "count": e.count,
+            },
+        ) from e
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
     if not out:

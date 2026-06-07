@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/router/navigation_ext.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import 'package:dio/dio.dart';
 
@@ -71,7 +72,7 @@ class _StaffReceiveShipmentPageState
       if (ds == DeliveryStatus.stockCommitted || p.isDeliveryCommitted) {
         if (mounted) {
           showTopSnack(context, 'Already committed to stock');
-          context.pop();
+          context.popOrGo('/staff/deliveries');
         }
         return;
       }
@@ -81,7 +82,7 @@ class _StaffReceiveShipmentPageState
             context,
             'Waiting for owner to commit verified qty to stock',
           );
-          context.pop();
+          context.popOrGo('/staff/deliveries');
         }
         return;
       }
@@ -142,7 +143,7 @@ class _StaffReceiveShipmentPageState
             context,
             'Received — quantities verified. Owner will commit stock to warehouse.',
           );
-          context.pop();
+          context.popOrGo('/staff/deliveries');
         }
         return;
       }
@@ -168,7 +169,7 @@ class _StaffReceiveShipmentPageState
           context,
           'Received as ordered. Owner will commit stock to warehouse.',
         );
-        context.pop();
+        context.popOrGo('/staff/deliveries');
       }
     } catch (e) {
       if (mounted) {
@@ -220,7 +221,7 @@ class _StaffReceiveShipmentPageState
                     ),
                     const SizedBox(height: 16),
                     OutlinedButton(
-                      onPressed: () => context.pop(),
+                      onPressed: () => context.popOrGo('/staff/deliveries'),
                       child: const Text('Back'),
                     ),
                   ],
@@ -250,7 +251,7 @@ class _StaffReceiveShipmentPageState
                     ),
                     const SizedBox(height: 16),
                     OutlinedButton(
-                      onPressed: () => context.pop(),
+                      onPressed: () => context.popOrGo('/staff/deliveries'),
                       child: const Text('Back'),
                     ),
                   ],
@@ -383,7 +384,9 @@ class _StaffReceiveShipmentPageState
                         children: [
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: _saving ? null : () => context.pop(),
+                              onPressed: _saving
+                                  ? null
+                                  : () => context.popOrGo('/staff/deliveries'),
                               child: const Text('Not yet'),
                             ),
                           ),

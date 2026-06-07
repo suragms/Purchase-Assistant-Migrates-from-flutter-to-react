@@ -89,7 +89,10 @@ class ReportsCategoryDrillPage extends ConsumerWidget {
               const SizedBox(height: 16),
               itemsAsync.when(
                 loading: () => const LinearProgressIndicator(minHeight: 2),
-                error: (_, __) => const SizedBox.shrink(),
+                error: (_, __) => FriendlyLoadError(
+                  message: 'Could not load items for this category.',
+                  onRetry: () => ref.invalidate(analyticsItemsTableProvider),
+                ),
                 data: (items) {
                   final filtered = reportsItemsForCategory(items, categoryName);
                   final list = filtered.isNotEmpty

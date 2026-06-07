@@ -109,7 +109,7 @@ class _WrongWebHostGate extends StatelessWidget {
   Widget build(BuildContext context) {
     final target = AppConfig.wrongHostRedirectUrl();
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFFF0FDF4),
       body: SafeArea(
         child: Center(
           child: Padding(

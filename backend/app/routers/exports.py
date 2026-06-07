@@ -255,10 +255,7 @@ async def get_purchases_month_pdf(
         db, business_id, month_start=month_start, month_end=today
     )
     if not purchases:
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND,
-            detail="No trade purchases this month to export.",
-        )
+        purchases = []
     br = await db.execute(select(Business.name).where(Business.id == business_id))
     label = (br.scalar_one_or_none() or "").strip() or str(business_id)
     try:

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/router/navigation_ext.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/providers/operations_providers.dart';
 
@@ -99,7 +100,7 @@ class _StaffChecklistPageState extends ConsumerState<StaffChecklistPage>
         automaticallyImplyLeading: !widget.embeddedInShell,
         leading: widget.embeddedInShell
             ? null
-            : BackButton(onPressed: () => context.pop()),
+            : BackButton(onPressed: () => context.popOrGo('/staff/tasks')),
         title: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

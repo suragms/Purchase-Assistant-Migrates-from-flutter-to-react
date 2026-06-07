@@ -1087,8 +1087,11 @@ class StaffHomeRecentScansStrip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final scansAsync = ref.watch(staffRecentScansProvider);
     return scansAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      loading: () => const LinearProgressIndicator(minHeight: 2),
+      error: (_, __) => SectionInlineError(
+        message: 'Could not load recent scans.',
+        onRetry: () => ref.invalidate(staffRecentScansProvider),
+      ),
       data: (scans) {
         if (scans.isEmpty) return const SizedBox.shrink();
         final recent = scans.take(5).toList();

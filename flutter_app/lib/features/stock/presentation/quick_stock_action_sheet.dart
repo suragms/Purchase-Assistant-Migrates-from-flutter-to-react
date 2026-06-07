@@ -284,7 +284,12 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
   }
 
   String _messageForSaveError(Object e) {
-    if (e is StaleStockConflict) return StaleStockConflict.userMessage;
+    if (e is StaleStockConflict) {
+      if (e.currentStock != null && e.currentStock!.isNotEmpty) {
+        return 'Stock was updated: current is ${e.currentStock}. Review and retry.';
+      }
+      return StaleStockConflict.userMessage;
+    }
     if (e is StockIntegrityError) return StockIntegrityError.userMessage;
     if (e is DioException) {
       final detail = e.response?.data;

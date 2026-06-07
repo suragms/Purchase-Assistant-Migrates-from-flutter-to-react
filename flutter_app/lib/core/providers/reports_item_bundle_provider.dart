@@ -7,6 +7,7 @@ import 'analytics_kpi_provider.dart';
 /// Backend SSOT for Reports → item drill-down (properties + period purchases).
 final reportsItemBundleProvider = FutureProvider.autoDispose
     .family<Map<String, dynamic>, String>((ref, catalogItemId) async {
+  ref.keepAlive();
   final session = ref.watch(sessionProvider);
   if (session == null) {
     throw StateError('Not signed in');

@@ -140,7 +140,12 @@ class _StockPageState extends ConsumerState<StockPage>
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scroll.hasClients) return;
+      if (!mounted) return;
+      if (widget.initialTab == null) {
+        ref.read(stockDeliveryFilterProvider.notifier).state =
+            StockDeliveryFilter.all;
+      }
+      if (!_scroll.hasClients) return;
       final saved = ref.read(stockListScrollOffsetProvider);
       if (saved > 0) {
         final max = _scroll.position.maxScrollExtent;

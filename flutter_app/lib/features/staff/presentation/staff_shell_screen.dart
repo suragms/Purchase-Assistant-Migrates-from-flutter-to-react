@@ -100,8 +100,12 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
       navigationShell.goBranch(branch);
     }
 
+    // NavigationRail asserts selectedIndex is in [0, destinations.length).
+    final navSelectedIndex =
+        idx.clamp(StaffShellBranch.home, StaffShellBranch.tasks);
+
     final staffRail = NavigationRail(
-      selectedIndex: idx,
+      selectedIndex: navSelectedIndex,
       extended: railExtended,
       minExtendedWidth: kDesktopSidebarWidth,
       labelType: railExtended
@@ -218,7 +222,7 @@ class _StaffShellScreenState extends ConsumerState<StaffShellScreen> {
                     ],
                     bottomBar: showBottomBar
                         ? _StaffShellBottomBar(
-                            selectedIndex: idx,
+                            selectedIndex: navSelectedIndex,
                             pendingDeliveryCount: pendingDel,
                             onDestinationSelected: go,
                           )

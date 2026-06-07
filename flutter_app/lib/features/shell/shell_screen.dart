@@ -188,7 +188,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         NavigationRailDestination(
           icon: Icon(Icons.receipt_long_outlined),
           selectedIcon: Icon(Icons.receipt_long_rounded),
-          label: Text('Purchases'),
+          label: Text('History'),
         ),
         NavigationRailDestination(
           icon: Icon(Icons.search_rounded),
@@ -208,9 +208,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         : const SizedBox.shrink();
 
     return PopScope(
-      canPop: idx == ShellBranch.home,
+      canPop: !isPrimaryTab || idx == ShellBranch.home,
       onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
+        if (didPop || !isPrimaryTab) return;
         if (idx == ShellBranch.reports || idx == ShellBranch.stock) {
           go(ShellBranch.home);
         } else if (idx != ShellBranch.home) {
@@ -327,7 +327,7 @@ class _ShellBottomBar extends StatelessWidget {
                                     selected: selectedIndex == 3,
                                     icon: Icons.receipt_long_outlined,
                                     selectedIcon: Icons.receipt_long_rounded,
-                                    label: 'Purchases',
+                                    label: 'History',
                                     onTap: () => onDestinationSelected(3),
                                   ),
                                 ),

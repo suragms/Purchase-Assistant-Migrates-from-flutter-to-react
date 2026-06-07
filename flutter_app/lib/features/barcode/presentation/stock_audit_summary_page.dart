@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/router/navigation_ext.dart';
 import '../../../core/json_coerce.dart';
 
 /// Post-audit summary (matched vs discrepant lines).
@@ -68,7 +69,7 @@ class _StockAuditSummaryPageState extends ConsumerState<StockAuditSummaryPage> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: BackButton(onPressed: () => context.pop()),
+        leading: BackButton(onPressed: () => context.popOrGo('/barcode/scan')),
         title: const Text('Audit summary'),
       ),
       body: ListView(
@@ -131,7 +132,7 @@ class _StockAuditSummaryPageState extends ConsumerState<StockAuditSummaryPage> {
           ),
           const SizedBox(height: 8),
           OutlinedButton(
-            onPressed: () => context.pop(),
+            onPressed: () => context.popOrGo('/barcode/scan'),
             child: const Text('Done'),
           ),
         ],

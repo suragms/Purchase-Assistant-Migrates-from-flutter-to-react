@@ -66,6 +66,8 @@ final realtimeInvalidationProvider =
   if (providerSkipApi(ref)) return;
   final session = ref.watch(sessionProvider);
   if (session == null) return;
+  final role = session.primaryBusiness.role.toLowerCase();
+  if (role == 'staff') return;
   final api = ref.read(hexaApiProvider);
   final seen = <String>{};
   var tick = 0;
@@ -82,7 +84,7 @@ final realtimeInvalidationProvider =
       );
     } on DioException catch (e) {
       final sc = e.response?.statusCode;
-      if (sc == 401 || sc == 403) {
+      if (sc == 401) {
         ref.read(authApiGateProvider.notifier).suspendFor401();
       }
       return RealtimeInvalidationSignal(tick: tick);

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import '../../../core/json_coerce.dart';
+import '../../../core/router/navigation_ext.dart';
 import '../../../core/providers/catalog_providers.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/widgets/friendly_load_error.dart';
@@ -28,7 +28,9 @@ class CatalogItemTimelinePage extends ConsumerWidget {
         historyState.loadingInitial) {
       return Scaffold(
         appBar: AppBar(
-          leading: BackButton(onPressed: () => context.pop()),
+          leading: BackButton(
+            onPressed: () => context.popOrGo('/catalog/item/$itemId'),
+          ),
           title: Text(
             '$itemName · Timeline',
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
@@ -43,7 +45,9 @@ class CatalogItemTimelinePage extends ConsumerWidget {
         historyState.errorMessage != null) {
       return Scaffold(
         appBar: AppBar(
-          leading: BackButton(onPressed: () => context.pop()),
+          leading: BackButton(
+            onPressed: () => context.popOrGo('/catalog/item/$itemId'),
+          ),
           title: const Text('Timeline'),
         ),
         body: FriendlyLoadError(
@@ -91,7 +95,9 @@ class CatalogItemTimelinePage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        leading: BackButton(onPressed: () => context.pop()),
+        leading: BackButton(
+          onPressed: () => context.popOrGo('/catalog/item/$itemId'),
+        ),
         title: Text(
           '$itemName · Timeline',
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),

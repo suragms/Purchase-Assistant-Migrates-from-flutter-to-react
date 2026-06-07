@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/json_coerce.dart';
+import '../../../../core/widgets/section_inline_error.dart';
 import '../../../../core/providers/stock_audit_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
 
@@ -14,8 +15,11 @@ class HomeStockAuditStrip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final kpis = ref.watch(stockAuditKpisProvider);
     return kpis.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      loading: () => const LinearProgressIndicator(minHeight: 2),
+      error: (_, __) => SectionInlineError(
+        message: 'Could not load audit summary.',
+        onRetry: () => ref.invalidate(stockAuditKpisProvider),
+      ),
       data: (k) {
         final audited = coerceToInt(k['items_audited_today']);
         final mismatch = coerceToInt(k['mismatch_lines_today']);

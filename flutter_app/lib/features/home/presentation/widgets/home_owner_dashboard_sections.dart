@@ -9,6 +9,7 @@ import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
+import '../../../../core/widgets/section_inline_error.dart';
 import '../../../../shared/widgets/operational_ui.dart';
 import '../../home_pack_unit_word.dart';
 
@@ -196,8 +197,11 @@ class HomeStaffActivitySection extends ConsumerWidget {
     final staffAsync = ref.watch(activeStaffSessionsProvider);
 
     return staffAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      loading: () => const LinearProgressIndicator(minHeight: 2),
+      error: (_, __) => SectionInlineError(
+        message: 'Could not load staff activity.',
+        onRetry: () => ref.invalidate(activeStaffSessionsProvider),
+      ),
       data: (rows) {
         if (rows.isEmpty) return const SizedBox.shrink();
         return OperationalSection(
@@ -309,8 +313,11 @@ class HomeRecentActivitySection extends ConsumerWidget {
     final feedAsync = ref.watch(homeRecentActivityFeedProvider);
 
     return feedAsync.when(
-      loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      loading: () => const LinearProgressIndicator(minHeight: 2),
+      error: (_, __) => SectionInlineError(
+        message: 'Could not load recent changes.',
+        onRetry: () => ref.invalidate(homeRecentActivityFeedProvider),
+      ),
       data: (items) {
         if (items.isEmpty) return const SizedBox.shrink();
         return OperationalSection(

@@ -19,6 +19,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
     with SingleTickerProviderStateMixin {
   bool _busy = true;
   String? _error;
+  bool _warmupRetried = false;
 
   late AnimationController _anim;
   late Animation<double> _fade;
@@ -51,6 +52,15 @@ class _SplashPageState extends ConsumerState<SplashPage>
             kIsWeb ? const Duration(seconds: 8) : const Duration(seconds: 25),
           );
     } catch (_) {
+      if (!_warmupRetried && mounted) {
+        _warmupRetried = true;
+        setState(() {
+          _busy = true;
+          _error = 'Server is warming up. Retrying in 10 seconds…';
+        });
+        await Future<void>.delayed(const Duration(seconds: 10));
+        if (mounted) return _boot();
+      }
       // Timeout / offline — continue to token check below.
     }
     if (!mounted) return;

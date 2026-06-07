@@ -238,6 +238,19 @@ class TradePurchaseStateConflictError(Exception):
         self.message = message
 
 
+class UnitSetupRequiredError(Exception):
+    """Commit-stock blocked: catalog lines need unit / items-per-box setup."""
+
+    def __init__(self, items_needing_setup: list[str]) -> None:
+        self.items_needing_setup = items_needing_setup
+        self.count = len(items_needing_setup)
+        names = ", ".join(items_needing_setup) if items_needing_setup else "some items"
+        self.message = (
+            f"Set up stock units for: {names}. "
+            "Edit each item's catalog entry to set its unit type."
+        )
+
+
 async def _advisory_xact_lock(db: AsyncSession, lock_key: str) -> None:
     """Serialize concurrent purchase create/commit/update on Postgres."""
     dialect_name = ""
@@ -1652,15 +1665,16 @@ async def commit_trade_purchase_delivery(
             db, business_id, purchase_id
         ):
             return trade_purchase_to_out(tp, stock_updates=[])
-        detail = (
+        if skipped_setup:
+            setup_names = [
+                str(u.get("item_name") or u.get("name") or "Unknown")
+                for u in skipped_setup
+            ]
+            raise UnitSetupRequiredError(setup_names)
+        raise ValueError(
             "No stock was added. Link each line to a catalog item and set stock "
             "units, then commit again."
         )
-        if skipped_setup:
-            detail = (
-                f"{detail} ({len(skipped_setup)} line(s) need unit setup.)"
-            )
-        raise ValueError(detail)
     committed_qty = applied_delta
     if committed_qty <= 0 and tp.staff_verified_qty is not None:
         committed_qty = _dec(tp.staff_verified_qty)

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
+import '../../../../core/router/navigation_ext.dart';
 
 /// Compact top bar for Opening Stock Setup.
 class OpeningStockTopBar extends StatelessWidget
@@ -32,7 +32,7 @@ class OpeningStockTopBar extends StatelessWidget
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_rounded, size: 22),
         tooltip: 'Back',
-        onPressed: () => context.pop(),
+        onPressed: () => context.popOrGo('/stock'),
       ),
       title: const Text(
         'Opening Stock Setup',

@@ -1078,7 +1078,34 @@ class PurchaseDetailBodyState extends ConsumerState<PurchaseDetailBody> {
         duration: const Duration(seconds: 6),
       );
       if (e is DioException && e.response?.statusCode == 400) {
-        final detail = (fastApiDetailString(e.response?.data) ?? '').toLowerCase();
+        final data = e.response?.data;
+        String detail = '';
+        if (data is Map) {
+          final nested = data['detail'];
+          if (nested is Map && nested['code']?.toString() == 'UNIT_SETUP_REQUIRED') {
+            final items = (nested['items_needing_setup'] as List?)
+                    ?.map((x) => x.toString())
+                    .join(', ') ??
+                'some items';
+            showTopSnack(
+              context,
+              'Set up units for: $items. Tap "Edit catalog item" on each.',
+              isError: true,
+              duration: const Duration(seconds: 8),
+            );
+            final issues = _stockCommitIssues(p);
+            if (issues.isNotEmpty && context.mounted) {
+              WidgetsBinding.instance.addPostFrameCallback((_) async {
+                if (!context.mounted) return;
+                await _showStockCommitBlockedDialog(context, p, issues);
+              });
+            }
+            return;
+          }
+          detail = (fastApiDetailString(data) ?? '').toLowerCase();
+        } else {
+          detail = (fastApiDetailString(data) ?? '').toLowerCase();
+        }
         if (detail.contains('no stock was added') ||
             detail.contains('unit setup')) {
           final issues = _stockCommitIssues(p);

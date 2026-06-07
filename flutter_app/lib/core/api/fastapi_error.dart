@@ -108,6 +108,17 @@ String? fastApiDetailString(Object? data) {
     final t = detail.trim();
     return t.isEmpty ? null : t;
   }
+  if (detail is Map) {
+    final msg = detail['message']?.toString().trim();
+    if (msg != null && msg.isNotEmpty) return msg;
+    final code = detail['code']?.toString();
+    if (code == 'UNIT_SETUP_REQUIRED') {
+      final items = detail['items_needing_setup'];
+      if (items is List && items.isNotEmpty) {
+        return 'Set up units for: ${items.join(', ')}.';
+      }
+    }
+  }
   if (detail is List) {
     final parts = <String>[];
     for (final e in detail) {

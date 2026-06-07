@@ -26,13 +26,13 @@ class DioAutoRetryInterceptor extends Interceptor {
   int _delayMs(DioException err, int attempt) {
     final sc = err.response?.statusCode;
     if (sc == 503) {
-      return const [2000, 4000][math.min(attempt - 1, 1)];
+      return const [3000, 6000, 12000, 20000][math.min(attempt - 1, 3)];
     }
     return const [100, 300, 900][math.min(attempt - 1, 2)];
   }
 
   int _maxAttemptsFor(DioException err) {
-    if (err.response?.statusCode == 503) return 2;
+    if (err.response?.statusCode == 503) return 4;
     return maxAttempts;
   }
 

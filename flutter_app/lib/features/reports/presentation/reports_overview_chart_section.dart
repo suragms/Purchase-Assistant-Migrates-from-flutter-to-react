@@ -13,6 +13,7 @@ import '../../../core/json_coerce.dart';
 import '../../../core/providers/analytics_breakdown_providers.dart';
 import '../../../core/reporting/trade_report_aggregate.dart';
 import '../../../core/theme/hexa_colors.dart';
+import '../../../core/widgets/friendly_load_error.dart';
 import '../../../widgets/spend_ring_chart.dart';
 
 String _inr0(num n) =>
@@ -200,13 +201,19 @@ class ReportsOverviewChartSection extends ConsumerWidget {
         ],
         catsAsync.when(
           loading: () => _chartPlaceholder(chartSize),
-          error: (_, __) => const SizedBox.shrink(),
+          error: (e, _) => FriendlyLoadError(
+            message: 'Could not load category chart.',
+            onRetry: () => ref.invalidate(analyticsCategoriesTableProvider),
+          ),
           data: (rows) => _CategoryPieCard(rows: rows, size: chartSize),
         ),
         const SizedBox(height: 12),
         supsAsync.when(
           loading: () => _chartPlaceholder(chartSize),
-          error: (_, __) => const SizedBox.shrink(),
+          error: (e, _) => FriendlyLoadError(
+            message: 'Could not load supplier chart.',
+            onRetry: () => ref.invalidate(analyticsSuppliersTableProvider),
+          ),
           data: (rows) => _SupplierDonutCard(
             rows: rows,
             diameter: chartSize,
