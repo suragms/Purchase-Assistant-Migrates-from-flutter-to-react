@@ -203,10 +203,27 @@
       window.setTimeout(function () {
         setBoot('Still loading — server may be waking up. Please wait…');
       }, 45000);
+      // Safety: if Dart never calls removeBootOverlayIfPresent (dev server / stale tab),
+      // do not leave #splash blocking the Flutter canvas forever.
+      window.setTimeout(function () {
+        var splash = document.getElementById('splash');
+        if (splash && splash.dataset.dismissed !== '1') {
+          splash.dataset.dismissed = '1';
+          splash.classList.add('removing');
+          setTimeout(function () { splash.remove(); }, 280);
+        }
+        var boot = document.getElementById('boot');
+        if (boot) boot.remove();
+      }, 20000);
     })();
   </script>
   <script>
     (function () {
+      var host = location.hostname;
+      // Flutter `run -d chrome` serves via the dev compiler — main.dart.js HEAD is not
+      // a reliable production bundle probe on localhost; skip to avoid false wrong-host UI.
+      if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') return;
+
       var boot = document.getElementById('boot');
       function showBootError(msg) {
         if (!boot) return;

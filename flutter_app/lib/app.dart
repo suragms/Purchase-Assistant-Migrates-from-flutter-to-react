@@ -329,11 +329,9 @@ class HexaApp extends ConsumerWidget {
         final routed = child != null
             ? SizedBox.expand(child: child)
             : const SizedBox.expand(child: _RouterBootPlaceholder());
-        if (child != null) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            removeBootOverlayIfPresent();
-          });
-        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          removeBootOverlayIfPresent();
+        });
         // Web: the router [child] can lay out with zero intrinsic height unless we
         // force it to fill the viewport — otherwise the shell / Home body stays blank
         // while the bottom bar (sibling scaffold) still paints.

@@ -49,11 +49,14 @@ def apply_sqlite_bootstrap(sync_conn) -> None:
     _ensure_businesses_branding(sync_conn)
     _ensure_users_ai_budget_columns(sync_conn)
     _ensure_users_modern_columns(sync_conn)
+    _ensure_memberships_columns(sync_conn)
     _ensure_catalog_items_type_id(sync_conn)
     _ensure_catalog_items_item_code(sync_conn)
     _ensure_catalog_items_barcode(sync_conn)
     _ensure_catalog_items_public_token(sync_conn)
     _ensure_catalog_items_opening_stock(sync_conn)
+    _ensure_notifications_columns(sync_conn)
+    _ensure_item_categories_columns(sync_conn)
     _ensure_stock_physical_counts(sync_conn)
     _ensure_stock_movements(sync_conn)
     _ensure_staff_purchase_logs(sync_conn)
@@ -124,6 +127,10 @@ def _ensure_businesses_branding(sync_conn):
             )
         else:
             sync_conn.exec_driver_sql("ALTER TABLE businesses ADD COLUMN contact_email VARCHAR(255) NULL")
+    if "accounts_whatsapp_number" not in cols:
+        sync_conn.exec_driver_sql(
+            "ALTER TABLE businesses ADD COLUMN accounts_whatsapp_number VARCHAR(20) NULL"
+        )
     if "default_currency" not in cols:
         if dialect == "postgresql":
             sync_conn.exec_driver_sql(
@@ -168,6 +175,16 @@ def _ensure_users_modern_columns(sync_conn):
         sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN device_info JSON NULL")
     if "created_by" not in cols:
         sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN created_by CHAR(32) NULL")
+    if "is_blocked" not in cols:
+        sync_conn.exec_driver_sql(
+            "ALTER TABLE users ADD COLUMN is_blocked BOOLEAN NOT NULL DEFAULT 0"
+        )
+    if "notes" not in cols:
+        sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN notes VARCHAR(2000) NULL")
+    if "deleted_at" not in cols:
+        sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN deleted_at DATETIME NULL")
+    if "google_sub" not in cols:
+        sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN google_sub VARCHAR(128) NULL")
 
 
 def _ensure_catalog_items_type_id(sync_conn):
@@ -302,6 +319,55 @@ def _ensure_catalog_items_opening_stock(sync_conn):
     for sql in alters:
         try:
             sync_conn.exec_driver_sql(sql)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _ensure_notifications_columns(sync_conn):
+    """Patch legacy SQLite notifications table for AppNotification ORM fields."""
+    insp = inspect(sync_conn)
+    if not insp.has_table("notifications"):
+        return
+    cols = {c["name"] for c in insp.get_columns("notifications")}
+    alters = []
+    if "priority" not in cols:
+        alters.append(
+            "ALTER TABLE notifications ADD COLUMN priority VARCHAR(16) NOT NULL DEFAULT 'medium'"
+        )
+    if "category" not in cols:
+        alters.append(
+            "ALTER TABLE notifications ADD COLUMN category VARCHAR(32) NOT NULL DEFAULT 'system'"
+        )
+    if "action_route" not in cols:
+        alters.append("ALTER TABLE notifications ADD COLUMN action_route VARCHAR(256) NULL")
+    if "triggered_by_user_id" not in cols:
+        alters.append("ALTER TABLE notifications ADD COLUMN triggered_by_user_id CHAR(32) NULL")
+    if "related_item_id" not in cols:
+        alters.append("ALTER TABLE notifications ADD COLUMN related_item_id CHAR(32) NULL")
+    if "related_purchase_id" not in cols:
+        alters.append("ALTER TABLE notifications ADD COLUMN related_purchase_id CHAR(32) NULL")
+    if "related_supplier_id" not in cols:
+        alters.append("ALTER TABLE notifications ADD COLUMN related_supplier_id CHAR(32) NULL")
+    if "metadata" not in cols:
+        alters.append("ALTER TABLE notifications ADD COLUMN metadata JSON NULL")
+    for sql in alters:
+        try:
+            sync_conn.exec_driver_sql(sql)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _ensure_item_categories_columns(sync_conn):
+    """Patch legacy SQLite item_categories (e.g. is_perishable for stock alerts)."""
+    insp = inspect(sync_conn)
+    if not insp.has_table("item_categories"):
+        return
+    cols = {c["name"] for c in insp.get_columns("item_categories")}
+    if "is_perishable" not in cols:
+        try:
+            sync_conn.exec_driver_sql(
+                "ALTER TABLE item_categories ADD COLUMN is_perishable BOOLEAN NOT NULL DEFAULT 0"
+            )
         except Exception:  # noqa: BLE001
             pass
 
@@ -623,6 +689,37 @@ def _ensure_trade_purchases_delivery_columns(sync_conn):
             )
         except Exception:  # noqa: BLE001
             pass
+    for col, ddl in (
+        ("delivery_status", "VARCHAR(32) NULL"),
+        ("dispatched_at", "DATETIME NULL"),
+        ("arrived_at", "DATETIME NULL"),
+        ("staff_verified_at", "DATETIME NULL"),
+        ("staff_verified_by", "CHAR(32) NULL"),
+        ("staff_verified_by_name", "VARCHAR(255) NULL"),
+        ("stock_committed_at", "DATETIME NULL"),
+        ("staff_verified_qty", "NUMERIC(14,3) NULL"),
+        ("delivered_qty_committed", "NUMERIC(14,3) NULL"),
+        ("dispatch_note", "TEXT NULL"),
+        ("truck_number", "VARCHAR(64) NULL"),
+        ("driver_contact", "VARCHAR(64) NULL"),
+    ):
+        cols = {c["name"] for c in insp.get_columns("trade_purchases")}
+        if col not in cols:
+            try:
+                sync_conn.exec_driver_sql(
+                    f"ALTER TABLE trade_purchases ADD COLUMN {col} {ddl}"
+                )
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def _ensure_memberships_columns(sync_conn):
+    insp = inspect(sync_conn)
+    if not insp.has_table("memberships"):
+        return
+    cols = {c["name"] for c in insp.get_columns("memberships")}
+    if "permissions_json" not in cols:
+        sync_conn.exec_driver_sql("ALTER TABLE memberships ADD COLUMN permissions_json JSON NULL")
 
 
 def _ensure_catalog_items_smart_unit_columns(sync_conn):

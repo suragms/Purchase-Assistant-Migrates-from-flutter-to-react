@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -24,7 +24,9 @@ class ReportSavedView(Base):
     )
     name: Mapped[str] = mapped_column(String(120))
     tab: Mapped[str] = mapped_column(String(32))
-    filters_json: Mapped[dict] = mapped_column(JSONB, default=dict)
+    filters_json: Mapped[dict] = mapped_column(
+        JSON().with_variant(JSONB, "postgresql"), default=dict
+    )
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

@@ -79,9 +79,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final pathBranch = shellBranchIndexForPath(routePath);
     final isPushedModal = shellIsPushedModalPath(routePath);
     final isPrimaryTab = shellIsPrimaryTabLocation(routePath);
-    final navSelectedIndex = (pathBranch != null && !isPushedModal && isPrimaryTab)
+    final rawNavIndex = (pathBranch != null && !isPushedModal && isPrimaryTab)
         ? pathBranch
         : idx;
+    // NavigationRail asserts selectedIndex is in [0, destinations.length).
+    final navSelectedIndex = rawNavIndex.clamp(ShellBranch.home, ShellBranch.search);
     // Sync IndexedStack only for shell tab URLs — not pushed overlays (/catalog/*, etc.).
     if (pathBranch != null &&
         !isPushedModal &&

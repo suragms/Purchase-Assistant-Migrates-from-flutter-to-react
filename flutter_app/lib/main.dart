@@ -18,6 +18,7 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/hexa_colors.dart';
 import 'core/notifications/local_notifications_service.dart';
 import 'core/platform/hexa_layout_error_widget.dart';
+import 'core/platform/remove_boot_overlay.dart';
 import 'core/providers/prefs_provider.dart'
     show kNotificationsOptInKey, sharedPreferencesProvider;
 import 'core/providers/api_degraded_provider.dart';
@@ -232,6 +233,9 @@ class _HexaBootstrapState extends State<_HexaBootstrap> {
       });
     });
     unawaited(_prepare());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      removeBootOverlayIfPresent();
+    });
   }
 
   Future<void> _prepare() async {
@@ -324,6 +328,9 @@ class _HexaBootstrapState extends State<_HexaBootstrap> {
       _splashSlowTimer?.cancel();
       _bootstrapLog('starting HexaApp');
       setState(() => _container = container);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        removeBootOverlayIfPresent(force: true);
+      });
       // Defer PDF locale setup: avoids blocking cold start path.
       unawaited(() async {
         try {
