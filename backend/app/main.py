@@ -358,7 +358,7 @@ async def harisree_request_monitor_middleware(request: Request, call_next):
         )
     )
     log_json = (
-        cfg.http_access_log_all
+        getattr(cfg, "http_access_log_all", False)
         or path.startswith("/v1/businesses")
         or is_slow
         or heavy_read

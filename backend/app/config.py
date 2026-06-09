@@ -109,6 +109,8 @@ class Settings(BaseSettings):
     http_slow_request_warning_ms: int = 500
     # Echo X-Request-Id through responses (reuse client-supplied UUID or allocate one).
     http_propagate_request_id: bool = True
+    # Structured HTTP_JSON on every request (noisy on Render; keep false in production).
+    http_access_log_all: bool = False
 
     redis_url: str | None = "redis://localhost:6379/0"
 
