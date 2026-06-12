@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,7 +20,8 @@ import '../../../core/providers/stock_providers.dart'
     show
         applyStockListRowPatch,
         stockChangesFeedProvider,
-        stockListQueryProvider;
+        stockListQueryProvider,
+        stockStatusCountsProvider;
 import '../stock_list_row_patch.dart'
     show stockListPatchFromPhysicalCount, stockListPatchFromStockDetail;
 import '../../../core/providers/notification_center_provider.dart';
@@ -281,7 +283,14 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     }
     if (patch.isEmpty) return;
     _patchApplied = true;
+    if (kDebugMode) {
+      debugPrint('[STOCK_CACHE_REFRESH] patchKeys=${patch.keys.toList()}');
+    }
     applyStockListRowPatch(widget.parentRef, itemId: _itemId, patch: patch);
+  }
+
+  void _invalidateCountChipsImmediately() {
+    widget.parentRef.invalidate(stockStatusCountsProvider);
   }
 
   void _rollbackOptimisticPatch() {
@@ -343,6 +352,11 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     final parsed = _parseEnteredQty()!;
     if (_saving) return;
     if (!mounted) return;
+    if (kDebugMode) {
+      debugPrint(
+        '[STOCK_SAVE_START] itemId=$_itemId mode=$_mode qty=$parsed',
+      );
+    }
     _preSaveItemSnapshot = Map<String, dynamic>.from(_item);
     setState(() {
       _saving = true;
@@ -352,7 +366,13 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     try {
       final saved = await _persistStock(parsed);
       if (!mounted) return;
+      if (kDebugMode) {
+        debugPrint(
+          '[STOCK_SAVE_SUCCESS] status=${saved?['current_stock'] ?? saved?['physical_stock_qty']}',
+        );
+      }
       _applyOptimisticListPatch(saved, parsed);
+      _invalidateCountChipsImmediately();
       unawaited(_afterSaveBackground(parsed));
       if (!context.mounted) return;
       await HapticFeedback.mediumImpact();

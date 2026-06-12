@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,6 +62,8 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
   String? _typeId;
   String? _supplierId;
   String? _brokerId;
+  String? _supplierDisplayName;
+  String? _brokerDisplayName;
   String _packagingMode = StockTrackingMode.looseKg;
   bool _saving = false;
   String? _error;
@@ -132,6 +135,7 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
     }
     setState(() {
       _supplierId = null;
+      _supplierDisplayName = null;
       _supplierManuallySelected = false;
     });
   }
@@ -150,6 +154,7 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
     }
     setState(() {
       _brokerId = null;
+      _brokerDisplayName = null;
       _brokerManuallySelected = false;
     });
   }
@@ -161,41 +166,58 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
     final row = sups.first;
     final id = row['id']?.toString() ?? '';
     if (id.isEmpty) return;
+    final name = row['name']?.toString() ?? '';
     setState(() {
       _supplierId = id;
-      _supplierSearchCtrl.text = row['name']?.toString() ?? '';
+      _supplierDisplayName = name;
+      _supplierSearchCtrl.text = name;
     });
   }
 
   void _onSupplierPicked(InlineSearchItem it) {
     if (it.id.isEmpty) return;
     _selectingSupplier = true;
+    if (kDebugMode) {
+      debugPrint(
+        '[SUPPLIER_SELECTED] supplierId=${it.id} supplierName=${it.label}',
+      );
+    }
     setState(() {
       _supplierId = it.id;
-      _supplierSearchCtrl.text = it.label;
+      _supplierDisplayName = it.label;
       _supplierManuallySelected = true;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _selectingSupplier = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _selectingSupplier = false);
+      });
     });
   }
 
   void _onBrokerPicked(InlineSearchItem it) {
     if (it.id.isEmpty) return;
     _selectingBroker = true;
+    if (kDebugMode) {
+      debugPrint(
+        '[BROKER_SELECTED] brokerId=${it.id} brokerName=${it.label}',
+      );
+    }
     setState(() {
       _brokerId = it.id;
-      _brokerSearchCtrl.text = it.label;
+      _brokerDisplayName = it.label;
       _brokerManuallySelected = true;
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _selectingBroker = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _selectingBroker = false);
+      });
     });
   }
 
   void _clearSupplier() {
     setState(() {
       _supplierId = null;
+      _supplierDisplayName = null;
       _supplierSearchCtrl.clear();
       _supplierManuallySelected = false;
     });
@@ -204,6 +226,7 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
   void _clearBroker() {
     setState(() {
       _brokerId = null;
+      _brokerDisplayName = null;
       _brokerSearchCtrl.clear();
       _brokerManuallySelected = false;
     });
@@ -250,6 +273,7 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
       for (final s in sups) {
         if (s['id']?.toString() == saved.supplierId) {
           _supplierId = saved.supplierId;
+          _supplierDisplayName = s['name']?.toString();
           _supplierSearchCtrl.text = s['name']?.toString() ?? '';
           changed = true;
           break;
@@ -263,6 +287,7 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
       for (final b in brokers) {
         if (b['id']?.toString() == saved.brokerId) {
           _brokerId = saved.brokerId;
+          _brokerDisplayName = b['name']?.toString();
           _brokerSearchCtrl.text = b['name']?.toString() ?? '';
           changed = true;
           break;
@@ -371,6 +396,7 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
       for (final s in sups) {
         if (s['id']?.toString() == widget.defaultSupplierId) {
           _supplierId = widget.defaultSupplierId;
+          _supplierDisplayName = s['name']?.toString();
           _supplierSearchCtrl.text = s['name']?.toString() ?? '';
           break;
         }
@@ -380,6 +406,7 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
       for (final b in brokers) {
         if (b['id']?.toString() == widget.defaultBrokerId) {
           _brokerId = widget.defaultBrokerId;
+          _brokerDisplayName = b['name']?.toString();
           _brokerSearchCtrl.text = b['name']?.toString() ?? '';
           break;
         }
@@ -549,10 +576,16 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
         }
       }
       if (brow == null ||
-          brow['name']?.toString().trim() != _brokerSearchCtrl.text.trim()) {
+          brow['name']?.toString().trim() != (_brokerDisplayName ?? '').trim()) {
         setState(() => _error = 'Pick a broker from search or clear broker.');
         return;
       }
+    }
+
+    if (_supplierId != null && kDebugMode) {
+      debugPrint(
+        '[ITEM_CREATE] supplier_id=$_supplierId name=$_supplierDisplayName',
+      );
     }
 
     if (!mounted) return;
@@ -892,9 +925,10 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
               child: Text('No suppliers yet — add in Contacts.'),
             );
           }
-          final supplierLock = (_supplierId != null && _supplierId!.isNotEmpty)
-              ? _supplierSearchCtrl.text.trim()
-              : null;
+          final supplierLock =
+              (_supplierDisplayName != null && _supplierDisplayName!.isNotEmpty)
+                  ? _supplierDisplayName!.trim()
+                  : null;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -937,9 +971,10 @@ class _CatalogItemCreatePageState extends ConsumerState<CatalogItemCreatePage> {
         ),
         data: (rows) {
           if (rows.isEmpty) return const SizedBox.shrink();
-          final brokerLock = (_brokerId != null && _brokerId!.isNotEmpty)
-              ? _brokerSearchCtrl.text.trim()
-              : null;
+          final brokerLock =
+              (_brokerDisplayName != null && _brokerDisplayName!.isNotEmpty)
+                  ? _brokerDisplayName!.trim()
+                  : null;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

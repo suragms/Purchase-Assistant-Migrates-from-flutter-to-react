@@ -661,6 +661,9 @@ class _StockPageState extends ConsumerState<StockPage>
 
   @override
   Widget build(BuildContext context) {
+    // Register patch dependency on every build path (not only inside _prepareItems).
+    ref.watch(stockListRowPatchProvider);
+
     ref.listen(businessWriteEventProvider, (prev, next) {
       if (prev == null || prev.revision == next.revision) return;
       ref.invalidate(stockChangesFeedProvider);

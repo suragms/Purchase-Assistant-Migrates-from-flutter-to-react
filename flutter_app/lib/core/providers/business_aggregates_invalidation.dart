@@ -127,7 +127,7 @@ void invalidateWarehouseSurfacesAfterStockWrite(
   ref.invalidate(staffTodayActivityProvider);
   ref.invalidate(staffTodaySummaryProvider);
   if (deferFullList) {
-    const listDelay = Duration(seconds: 3);
+    const listDelay = Duration(seconds: 1);
     deferInvalidateDelayed(ref, stockListProvider, delay: listDelay);
     deferInvalidateDelayed(ref, bulkStockListProvider, delay: listDelay);
     deferInvalidateDelayed(ref, stockOnHandTotalsProvider, delay: listDelay);

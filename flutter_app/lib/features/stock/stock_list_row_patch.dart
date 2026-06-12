@@ -82,11 +82,15 @@ Map<String, dynamic> stockListPatchFromPhysicalCount(
       out['counted_at']?.toString();
   final by = out['physical_stock_counted_by']?.toString() ??
       out['counted_by_name']?.toString();
+  final systemAt = out['last_stock_updated_at']?.toString();
+  final systemBy = out['last_stock_updated_by']?.toString();
   return {
     'physical_stock_qty': counted,
     'physical_stock_difference_qty': diff,
     if (by != null && by.isNotEmpty) 'physical_stock_counted_by': by,
     if (at != null && at.isNotEmpty) 'physical_stock_counted_at': at,
+    if (systemAt != null && systemAt.isNotEmpty) 'last_stock_updated_at': systemAt,
+    if (systemBy != null && systemBy.isNotEmpty) 'last_stock_updated_by': systemBy,
   };
 }
 
