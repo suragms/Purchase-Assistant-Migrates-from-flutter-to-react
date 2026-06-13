@@ -38,7 +38,8 @@ flutter analyze lib/features/purchase lib/features/barcode lib/core/providers/st
 | Check | Status |
 |-------|--------|
 | iOS 17+ Safari live camera (`preferUploadBarcodeOnWeb`) | Code |
-| Scan debounce 200ms, 3 formats, detection timeout 150/100ms | Code |
+| Scan debounce 200ms, 3 formats, detection timeout web 400ms / native 100ms | Code |
+| iOS PWA fresh `MobileScannerController` on each scan page entry | Code (`e630e47`) |
 | Lookup SnackBar + `_busy` finally | Code |
 | Backend parallel lookup + 30s TTL cache | Code |
 | Alembic **058** barcode indexes | Migration added |
@@ -52,6 +53,17 @@ cd flutter_app && flutter analyze lib/features/barcode
 ```
 
 **Result (2026-06-03):** pytest barcode tests **3 passed**; `flutter analyze lib/features/barcode` **0 issues**.
+
+## Stock + barcode fix (2026-06-13)
+
+| Check | Result |
+|-------|--------|
+| `flutter analyze` (stock/barcode/invalidation paths) | No issues |
+| `stock_list_row_patch_test.dart` | 7 passed (incl. `serverRowNewerThanPatch` reconcile) |
+| `barcode_camera_session_test.dart` | 2 passed |
+| Commit | `e630e47` on `main` |
+
+**Device QA (pending):** G2 physical count immediate PHYS; G3 system stock immediate SYS; G4 iOS PWA multi-scan after back navigation.
 
 ## Manual QA matrix (recommended before release)
 

@@ -14,8 +14,10 @@ Verify anytime:
 GET https://my-purchases-api.onrender.com/health/ready
 ```
 
-Expect `"db":"ok"` and `alembic_version` at head (`060_stock_list_performance_indexes` as of 2026-06-05).
+Expect `"db":"ok"` and `alembic_version` at head (`061_catalog_unit_simplify` as of 2026-06-13).
 
-**Important:** Production migrations must run against **Render Postgres** (`harisree-db`), not the Supabase MCP project. Use Render pre-deploy `alembic upgrade head` or `RENDER_DB_EXTERNAL_URL` locally.
+Also expect `expected_alembic_head: 061_catalog_unit_simplify`, `schema_ok: true`, and `stock_sync_ready: true`.
+
+**Important:** Production migrations must run against **Render Postgres** (`harisree-db`), not the Supabase MCP project. Prefer Render pre-deploy `alembic upgrade head` (see [`render-service-sync.ps1`](../scripts/render-service-sync.ps1)); if preDeploy is missing on the live service, apply via `backend/scripts/apply_render_upgrade_061.py` or Render Shell + `RENDER_DB_EXTERNAL_URL` locally.
 
 After deploy, hard-refresh the PWA (Ctrl+Shift+R) so the browser does not use a cached `main.dart.js`.

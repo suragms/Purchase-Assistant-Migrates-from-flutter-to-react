@@ -1,6 +1,6 @@
 # Purchase Assistant — Living task board
 
-**Last updated:** 2026-06-01 (Production bug sprint BUG-001–015)
+**Last updated:** 2026-06-13 (BUG-016/017 stock + iOS barcode; Alembic 061 on Render)
 
 ## Production bugs (2026-06-01)
 
@@ -20,14 +20,22 @@
 - [x] **BUG-014** Category items route: no double `Uri.decodeComponent`
 - [x] **BUG-015** `.gitignore` for `clean_analyze.txt`, `.cursor/KICHU`
 
-## Live DB (Supabase MCP 2026-06-01)
+## Production bugs (2026-06-13)
 
-- [x] **Alembic head:** `060_stock_list_performance_indexes` (repo chain; apply on Render via preDeploy)
+- [x] **BUG-016** Stock list PHYS/SYS stale after quick save — pop before background invalidation; defer 500ms; immediate list reconcile (`e630e47`)
+- [x] **BUG-017** iOS PWA barcode dies after 1–2 scans — fresh MobileScanner on iOS, 400ms web timeout, keyboard scan-line pause (`e630e47`)
+
+## Live DB (Render harisree-db 2026-06-13)
+
+- [x] **Alembic head:** `061_catalog_unit_simplify` (applied on Render via `backend/scripts/apply_render_upgrade_061.py`; `/health/ready` → `schema_ok: true`)
 - [x] **Full audit pass (2026-06-05):** purchase race guards, duplicate line/share guards, barcode desktop split + web camera gesture, advisory locks, structured 409 stock conflicts, keepalive 8min+retry, activity WhatsApp dedupe
 
 ## Manual QA handoff (post-deploy)
 
-- [ ] Resume Render API + `alembic upgrade head` to **060** + redeploy Flutter web (Vercel)
+- [x] Alembic **061** applied on Render; Flutter web **`e630e47`** on Vercel (hard-refresh PWA after deploy)
+- [ ] **G2 — Physical count:** save from stock sheet → PHYS column updates immediately; no revert after 3s (iOS/Android PWA)
+- [ ] **G3 — System stock:** save from stock sheet → SYS column updates immediately (iOS/Android PWA)
+- [ ] **G4 — iOS PWA barcode:** fresh camera each scan page entry; scan → detail → back → scan 5×; manual search keyboard → dismiss → scan still works
 - [ ] **Stock race:** owner + staff edit same item 1s apart — one wins, other gets 409 refresh message
 - [ ] **Duplicate purchase:** two owners save same supplier/date/lines — second gets duplicate dialog (409)
 - [ ] **Double commit:** two tabs commit same purchase — stock increases once only
@@ -37,7 +45,7 @@
 - [ ] **Wizard double save:** double-tap Save — one API create; button disabled while saving
 - [ ] **Remote delete:** open purchase detail on device B; delete on device A — B pops with “deleted” message
 - [ ] Delivery commit → stock/home/reports refresh without pull-to-refresh
-- [ ] iOS PWA: second scanner open reuses camera session; web shows **Start camera** on first visit
+- [ ] iOS PWA: web shows **Start camera** on first visit; after BUG-017 fix verify 5× scan after back navigation (see G4)
 - [ ] Desktop: barcode split view (camera left, search right) at ≥900px; reports 3-col; settings sidebar
 - [ ] Backup/export with fresh session; WhatsApp share deduped within 30s
 - [x] **API liveness:** `GET https://my-purchases-api.onrender.com/health/ready` → 200, `db: ok`, `stock_sync_ready: true`

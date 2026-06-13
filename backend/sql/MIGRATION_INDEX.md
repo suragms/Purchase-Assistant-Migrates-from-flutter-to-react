@@ -8,7 +8,7 @@ See also: [migrations_and_backfill.md](../docs/migrations_and_backfill.md), [ale
 
 ---
 
-## A — Alembic chain (001 → 059, head)
+## A — Alembic chain (001 → 061, head)
 
 Revisions **026** and **027** are absent in git (jump **025** → **028**). Do not renumber production revisions.
 
@@ -69,7 +69,8 @@ Revisions **026** and **027** are absent in git (jump **025** → **028**). Do n
 | 057 | `purchase_damage_reports_v2` | Damage report workflow columns |
 | 058 | `barcode_lookup_indexes` | Barcode lookup performance indexes |
 | 059 | `staff_activity_action_types_v2` | Extend `staff_activity_log` action_type CHECK |
-| 060 | `stock_list_performance_indexes` | Stock list / low-stock / movement performance indexes (**head**) |
+| 060 | `stock_list_performance_indexes` | Stock list / low-stock / movement performance indexes |
+| 061 | `catalog_unit_simplify` | Canonical KG/BAG/BOX/TIN/PC unit profiles (data backfill) (**head**) |
 
 Inspect live chain: `cd backend && python -m alembic heads` (production target: Render `harisree-db`, not Supabase)
 
@@ -121,6 +122,7 @@ Inspect live chain: `cd backend && python -m alembic heads` (production target: 
 | `058_barcode_lookup_perf.sql` | **058** | Barcode / item_code lookup indexes |
 | `059_staff_activity_action_types_v2.sql` | **059** | Staff activity action_type CHECK v2 |
 | `060_stock_list_performance_indexes.sql` | **060** | Stock list / low-stock / movement performance indexes |
+| `061_catalog_unit_simplify.sql` | **061** | Canonical 5-unit catalog profiles (data backfill) |
 
 **Note:** `033_catalog_public_qr` is the Alembic **033** revision. `033b_*` is a sibling supplemental script — do not rename to `033_` (avoids runner sort confusion).
 
