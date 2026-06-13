@@ -13,7 +13,10 @@ import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/item_detail_providers.dart';
 import '../../../../core/providers/stock_providers.dart'
-    show stockItemActivityProvider, stockItemAuditProvider, stockItemDetailProvider;
+    show
+        applyStockItemDetailFromSave,
+        stockItemAuditProvider,
+        stockItemDetailProvider;
 import '../../../../core/theme/hexa_colors.dart';
 
 String stockAdjustmentTypeLabel(String? raw) {
@@ -73,7 +76,13 @@ class _ItemPhysicalVerificationCardState
   @override
   Widget build(BuildContext context) {
     final stockAsync = ref.watch(itemDetailStockProvider(widget.itemId));
-    final auditAsync = ref.watch(stockItemAuditProvider(widget.itemId));
+    final stockRow = stockAsync.valueOrNull;
+    final needsAudit = stockRow != null &&
+        (stockRow['physical_stock_counted_at'] != null ||
+            stockRow['needs_verification'] == true);
+    final auditAsync = needsAudit
+        ? ref.watch(stockItemAuditProvider(widget.itemId))
+        : const AsyncValue<List<Map<String, dynamic>>>.data([]);
 
     stockAsync.whenOrNull(
       data: (_) {
@@ -247,15 +256,14 @@ class _ItemPhysicalVerificationCardState
         ref.read(itemDetailStockProvider(widget.itemId)).valueOrNull ??
             const <String, dynamic>{};
     try {
-      await ref.read(hexaApiProvider).verifyStockCountWithRetry(
+      final saved = await ref.read(hexaApiProvider).verifyStockCountWithRetry(
             businessId: session.primaryBusiness.id,
             itemId: widget.itemId,
             countedQty: countedQty,
             reason: 'Physical count',
             initialStockVersion: stockVersionFromItem(stock),
           );
-      ref.invalidate(itemDetailBundleProvider(widget.itemId));
-      ref.invalidate(stockItemActivityProvider(widget.itemId));
+      applyStockItemDetailFromSave(ref, itemId: widget.itemId, saved: saved);
       ref.invalidate(stockItemAuditProvider(widget.itemId));
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

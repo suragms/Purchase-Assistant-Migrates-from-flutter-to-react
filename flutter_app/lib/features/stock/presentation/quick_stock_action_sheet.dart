@@ -16,6 +16,7 @@ import '../../../core/providers/business_aggregates_invalidation.dart'
 import '../../../core/notifications/local_notifications_service.dart';
 import '../../../core/providers/stock_providers.dart'
     show
+        applyStockItemDetailPatch,
         applyStockListRowPatch,
         patchStockItemInCache,
         stockStatusCountsProvider;
@@ -307,6 +308,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
       debugPrint('[STOCK_CACHE_REFRESH] patchKeys=${patch.keys.toList()}');
     }
     applyStockListRowPatch(ref, itemId: id, patch: patch);
+    applyStockItemDetailPatch(ref, itemId: id, patch: patch);
   }
 
   static void _rollbackOptimisticPatchWithRef({
@@ -477,6 +479,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     }
     if (patch.isEmpty) return;
     applyStockListRowPatch(parentRef, itemId: itemId, patch: patch);
+    applyStockItemDetailPatch(parentRef, itemId: itemId, patch: patch);
   }
 
   Future<void> _save() async {

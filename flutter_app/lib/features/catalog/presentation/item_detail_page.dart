@@ -9,10 +9,10 @@ import '../../../core/providers/deferred_invalidation.dart';
 import '../../../core/providers/item_detail_providers.dart';
 import '../../../core/providers/catalog_providers.dart' show catalogItemDetailProvider;
 import '../../../core/providers/stock_providers.dart'
-    show stockItemActivityProvider, stockItemDetailProvider;
-import '../../../core/providers/trade_purchases_provider.dart';
+    show stockItemDetailProvider;
+import '../../../core/providers/trade_purchases_provider.dart'
+    show tradePurchasesForItemProvider;
 import '../../../core/theme/hexa_colors.dart';
-import '../../../core/widgets/async_value_form.dart';
 import '../../../core/widgets/friendly_load_error.dart';
 import '../../../core/auth/session_notifier.dart' show sessionProvider;
 import '../../../core/router/post_auth_route.dart' show sessionIsStaff;
@@ -41,39 +41,49 @@ class ItemDetailPage extends ConsumerWidget {
     ref.listen<BusinessWriteEvent>(businessWriteEventProvider, (prev, next) {
       if (next.revision <= (prev?.revision ?? -1)) return;
       if (next.kind == 'stock_patch') return;
-      final purchaseOrStock = next.kind == 'purchase' ||
-          next.kind == 'stock';
+      final purchaseOrStock =
+          next.kind == 'purchase' || next.kind == 'stock';
       if (purchaseOrStock &&
           (next.affectsItem(itemId) || next.isGlobal)) {
-        deferInvalidate(ref, itemDetailBundleProvider(itemId));
-        deferInvalidate(ref, tradePurchasesForItemProvider(itemId));
-        deferInvalidate(ref, stockItemDetailProvider(itemId));
+        deferInvalidateDelayed(ref, stockItemDetailProvider(itemId));
+        if (next.kind == 'purchase') {
+          deferInvalidateDelayed(ref, tradePurchasesForItemProvider(itemId));
+        }
       }
     });
 
-    final bundleAsync = ref.watch(itemDetailBundleProvider(itemId));
-    final cachedBundle = bundleAsync.valueOrNull;
+    final catalogAsync = ref.watch(catalogItemDetailProvider(itemId));
+    final stockAsync = ref.watch(itemDetailStockProvider(itemId));
+    final catalog = catalogAsync.valueOrNull ?? const <String, dynamic>{};
+    final stock = stockAsync.valueOrNull ?? const <String, dynamic>{};
+    final hasAnyData = catalog.isNotEmpty || stock.isNotEmpty;
     final gutter = HexaResponsive.pageGutter(context, operational: true);
     final desktop = HexaBreakpoints.isDesktop(context);
 
-    Widget buildDetail(ItemDetailBundle bundle, {bool refreshing = false}) {
-      final item = bundle.catalogItem;
-      final stock = bundle.stockDetail;
+    Future<void> doRefresh() async {
+      ref.invalidate(catalogItemDetailProvider(itemId));
+      ref.invalidate(stockItemDetailProvider(itemId));
+      await Future.wait<void>([
+        ref.read(catalogItemDetailProvider(itemId).future).then((_) {}),
+        ref.read(stockItemDetailProvider(itemId).future).then((_) {}),
+      ]);
+    }
+
+    Widget buildDetail({
+      required Map<String, dynamic> item,
+      required Map<String, dynamic> stockRow,
+    }) {
       final name = (item['name']?.toString() ?? '').trim();
       final code = (item['item_code']?.toString() ?? '').trim();
-      final cat = (stock['category_name']?.toString() ??
+      final cat = (stockRow['category_name']?.toString() ??
               item['category_name']?.toString() ??
               '')
           .trim();
-      final sub = (stock['subcategory_name']?.toString() ??
+      final sub = (stockRow['subcategory_name']?.toString() ??
               item['type_name']?.toString() ??
               '')
           .trim();
       final categoryLabel = [cat, sub].where((s) => s.isNotEmpty).join(' · ');
-
-      Future<void> doRefresh() async {
-        ref.invalidate(itemDetailBundleProvider(itemId));
-      }
 
       final Widget scrollBody;
       if (desktop) {
@@ -119,62 +129,50 @@ class ItemDetailPage extends ConsumerWidget {
       }
 
       Widget content = SizedBox.expand(child: scrollBody);
+      return content;
+    }
 
-      if (!refreshing) return content;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          formReloadBanner(),
-          Expanded(child: content),
-        ],
+    final itemName = (catalog['name']?.toString() ?? '').trim();
+
+    if (!hasAnyData &&
+        catalogAsync.isLoading &&
+        stockAsync.isLoading &&
+        !catalogAsync.hasError &&
+        !stockAsync.hasError) {
+      return const Scaffold(
+        backgroundColor: HexaColors.brandBackground,
+        body: SafeArea(
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    if (!hasAnyData && catalogAsync.hasError && stockAsync.hasError) {
+      return Scaffold(
+        backgroundColor: HexaColors.brandBackground,
+        body: SafeArea(
+          child: FriendlyLoadError(
+            message: 'Could not load item. Tap to retry.',
+            onRetry: () {
+              ref.invalidate(catalogItemDetailProvider(itemId));
+              ref.invalidate(stockItemDetailProvider(itemId));
+            },
+          ),
+        ),
       );
     }
 
     return Scaffold(
       backgroundColor: HexaColors.brandBackground,
       body: SafeArea(
-        child: bundleAsync.whenForm(
-          initialLoading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, __) {
-            if (cachedBundle != null && cachedBundle.hasAnyData) {
-              return buildDetail(
-                cachedBundle,
-                refreshing: bundleAsync.isLoading,
-              );
-            }
-            return FriendlyLoadError(
-              message: 'Could not load item. Tap to retry.',
-              onRetry: () {
-                ref.invalidate(catalogItemDetailProvider(itemId));
-                ref.invalidate(stockItemDetailProvider(itemId));
-                ref.invalidate(stockItemActivityProvider(itemId));
-                ref.invalidate(itemDetailBundleProvider(itemId));
-              },
-            );
-          },
-          data: (bundle) {
-            if (bundle.allSectionsFailed) {
-              return FriendlyLoadError(
-                message: 'Could not load item. Tap to retry.',
-                onRetry: () {
-                  ref.invalidate(catalogItemDetailProvider(itemId));
-                  ref.invalidate(stockItemDetailProvider(itemId));
-                  ref.invalidate(stockItemActivityProvider(itemId));
-                  ref.invalidate(itemDetailBundleProvider(itemId));
-                },
-              );
-            }
-            return buildDetail(
-              bundle,
-              refreshing: bundleAsync.isLoading && cachedBundle != null,
-            );
-          },
-        ),
+        child: buildDetail(item: catalog, stockRow: stock),
       ),
-      bottomNavigationBar: bundleAsync.hasValue && !bundleAsync.hasError && !desktop
+      bottomNavigationBar: hasAnyData && !desktop
           ? _ItemStickyActions(
               itemId: itemId,
-              itemName: (bundleAsync.valueOrNull?.catalogItem['name']?.toString() ?? '').trim(),
+              itemName: itemName.isNotEmpty
+                  ? itemName
+                  : (catalog['item_code']?.toString() ?? '').trim(),
             )
           : null,
     );
@@ -572,7 +570,7 @@ class _ItemDetailMobileScrollState extends ConsumerState<_ItemDetailMobileScroll
             _paddedSection(
               ItemAnalyticsSection(
                 itemId: widget.itemId,
-                loadIntelligence: true,
+                loadIntelligence: false,
               ),
             ),
           ],
@@ -662,31 +660,37 @@ class _ItemDetailMobileScrollState extends ConsumerState<_ItemDetailMobileScroll
     return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: EdgeInsets.fromLTRB(widget.gutter, 8, widget.gutter, 0),
-            child: HexaResponsiveCenter(
-              maxWidth: HexaResponsive.maxContentWidth,
-              padding: EdgeInsets.zero,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  ItemDetailHeader(
-                    itemName: widget.name,
-                    categoryLabel: widget.categoryLabel,
-                    snapshot: null,
-                    onEdit: () =>
-                        context.push('/catalog/item/${widget.itemId}/edit'),
-                    onMore: widget.onMore,
+          Flexible(
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: Padding(
+                padding:
+                    EdgeInsets.fromLTRB(widget.gutter, 8, widget.gutter, 0),
+                child: HexaResponsiveCenter(
+                  maxWidth: HexaResponsive.maxContentWidth,
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ItemDetailHeader(
+                        itemName: widget.name,
+                        categoryLabel: widget.categoryLabel,
+                        snapshot: null,
+                        onEdit: () => context
+                            .push('/catalog/item/${widget.itemId}/edit'),
+                        onMore: widget.onMore,
+                      ),
+                      const SizedBox(height: 8),
+                      ItemStockSnapshotCard(itemId: widget.itemId),
+                      const SizedBox(height: 8),
+                      ItemQuickActionsBar(
+                        itemId: widget.itemId,
+                        itemName: widget.name,
+                        itemCode: widget.code,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  ItemStockSnapshotCard(itemId: widget.itemId),
-                  const SizedBox(height: 8),
-                  ItemQuickActionsBar(
-                    itemId: widget.itemId,
-                    itemName: widget.name,
-                    itemCode: widget.code,
-                  ),
-                ],
+                ),
               ),
             ),
           ),

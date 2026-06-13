@@ -8,7 +8,6 @@ import 'home_owner_dashboard_providers.dart';
 import 'analytics_breakdown_providers.dart';
 import 'business_write_event.dart';
 import 'business_write_revision.dart';
-import 'item_detail_providers.dart';
 import 'analytics_kpi_provider.dart';
 import 'reports_provider.dart';
 import 'reports_bi_providers.dart';
@@ -311,7 +310,6 @@ void invalidateWarehouseItemSurfacesLight(dynamic ref, {required String itemId})
   ref.invalidate(stockItemDetailProvider(itemId));
   ref.invalidate(stockItemIntelligenceProvider(itemId));
   ref.invalidate(stockItemActivityProvider(itemId));
-  ref.invalidate(itemDetailBundleProvider(itemId));
   ref.invalidate(tradePurchasesForItemProvider(itemId));
 }
 
@@ -369,8 +367,8 @@ void invalidateStockRowSaveSurfaces(
   bool refreshItemDetail = false,
 }) {
   if (refreshItemDetail && itemId.isNotEmpty) {
-    ref.invalidate(stockItemDetailProvider(itemId));
-    ref.invalidate(stockItemActivityProvider(itemId));
+    deferInvalidateDelayed(ref, stockItemDetailProvider(itemId));
+    deferInvalidateDelayed(ref, stockItemActivityProvider(itemId));
   }
   ref.invalidate(stockStatusCountsProvider);
   ref.invalidate(stockFilteredStatusCountsProvider);

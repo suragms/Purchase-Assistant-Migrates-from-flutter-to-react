@@ -52,11 +52,8 @@ class ItemDetailBundle {
       !hasAnyData;
 }
 
-/// Parallel fetch for item detail. Keep this light: it is mounted whenever
-/// `/catalog/item/:id` is opened.
-///
-/// Do not [ref.watch] leaf detail providers here — that caused reload loops when
-/// stock list saves invalidated [stockItemDetailProvider].
+/// Parallel fetch for item detail warm-up (catalog + stock only).
+/// Activity / purchases load lazily when their tabs open.
 final itemDetailBundleProvider =
     FutureProvider.autoDispose.family<ItemDetailBundle, String>((ref, itemId) async {
   final keepAlive = ref.keepAlive();
@@ -87,8 +84,6 @@ final itemDetailBundleProvider =
   Map<String, dynamic> catalog = {};
   Object? stockError;
   Map<String, dynamic> stock = {};
-  Object? activityError;
-  Map<String, dynamic> activity = {};
 
   await Future.wait<void>([
     () async {
@@ -115,28 +110,15 @@ final itemDetailBundleProvider =
         stockError = e;
       }
     }(),
-    () async {
-      try {
-        activity = Map<String, dynamic>.from(
-          await _fetchWithRetry(
-            () => ref.read(stockItemActivityProvider(itemId).future),
-          ),
-        );
-      } catch (e, st) {
-        logSilencedApiError(e, st);
-        activityError = e;
-      }
-    }(),
   ]);
 
   return ItemDetailBundle(
     catalogItem: catalog,
     stockDetail: stock,
-    activity: activity,
+    activity: const {},
     tradePurchases: const [],
     catalogError: catalogError,
     stockError: stockError,
-    activityError: activityError,
   );
 });
 
@@ -161,11 +143,20 @@ final itemStockIntelligenceProvider =
       );
 });
 
-/// Stock map for item detail sections — leaf provider (retry invalidates stock only).
+/// Stock map for item detail sections — merges optimistic patches (no flash on save).
 final itemDetailStockProvider =
     Provider.autoDispose.family<AsyncValue<Map<String, dynamic>>, String>(
         (ref, itemId) {
-  return ref.watch(stockItemDetailProvider(itemId));
+  final async = ref.watch(stockItemDetailProvider(itemId));
+  final patch = ref.watch(stockItemDetailPatchProvider(itemId));
+  if (patch.isEmpty) return async;
+  return async.when(
+    data: (data) => AsyncValue.data({...data, ...patch}),
+    loading: () => AsyncValue.data(Map<String, dynamic>.from(patch)),
+    error: (e, st) => async.hasValue
+        ? AsyncValue.data({...async.requireValue, ...patch})
+        : AsyncValue.data(Map<String, dynamic>.from(patch)),
+  );
 });
 
 /// Catalog map for item detail sections (leaf provider).

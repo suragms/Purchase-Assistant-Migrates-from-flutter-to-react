@@ -17,6 +17,7 @@ import '../../features/stock/stock_list_row_patch.dart'
         stockListPatchFromStockDetail;
 import 'analytics_kpi_provider.dart' show analyticsDateRangeProvider;
 import 'app_period_provider.dart';
+import 'deferred_invalidation.dart';
 import 'home_dashboard_provider.dart';
 
 void _providerKeepAlive(Ref ref, Duration ttl) {
@@ -463,6 +464,43 @@ final bulkStockListProvider =
 final stockListRowPatchProvider =
     StateProvider<Map<String, Map<String, dynamic>>>((ref) => const {});
 
+/// Optimistic item-detail stock overlays (instant UI after save; cleared on refetch).
+final stockItemDetailPatchProvider =
+    StateProvider.autoDispose.family<Map<String, dynamic>, String>(
+  (ref, itemId) => const {},
+);
+
+void clearStockItemDetailPatch(dynamic ref, {required String itemId}) {
+  if (itemId.isEmpty) return;
+  ref.read(stockItemDetailPatchProvider(itemId).notifier).state = const {};
+}
+
+void applyStockItemDetailPatch(
+  dynamic ref, {
+  required String itemId,
+  required Map<String, dynamic> patch,
+}) {
+  if (itemId.isEmpty || patch.isEmpty) return;
+  ref.read(stockItemDetailPatchProvider(itemId).notifier).update(
+        (current) => {...current, ...patch},
+      );
+  final listPatch = stockListPatchFromStockDetail(patch);
+  if (listPatch.isNotEmpty) {
+    applyStockListRowPatch(ref, itemId: itemId, patch: listPatch);
+  }
+}
+
+/// Apply save response instantly; reconcile with server in the background.
+void applyStockItemDetailFromSave(
+  dynamic ref, {
+  required String itemId,
+  required Map<String, dynamic> saved,
+}) {
+  if (itemId.isEmpty || saved.isEmpty) return;
+  applyStockItemDetailPatch(ref, itemId: itemId, patch: saved);
+  deferInvalidateDelayed(ref, stockItemDetailProvider(itemId));
+}
+
 void applyStockListRowPatch(
   dynamic ref, {
   required String itemId,
@@ -538,6 +576,7 @@ Future<void> patchStockItemInCache(
     if (patch.isNotEmpty) {
       applyStockListRowPatch(ref, itemId: itemId, patch: patch);
     }
+    clearStockItemDetailPatch(ref, itemId: itemId);
     ref.invalidate(stockItemDetailProvider(itemId));
     ref.invalidate(stockItemIntelligenceProvider(itemId));
     ref.invalidate(stockItemActivityProvider(itemId));
@@ -552,15 +591,18 @@ Future<void> patchStockItemInCache(
 final stockItemDetailProvider =
     FutureProvider.autoDispose.family<Map<String, dynamic>, String>(
   (ref, itemId) async {
+    _providerKeepAlive(ref, const Duration(seconds: 45));
     final session = ref.watch(sessionProvider);
     if (session == null) return {};
     await awaitProviderApiReady(ref);
     if (providerSkipApi(ref)) return {};
     try {
-      return await ref.read(hexaApiProvider).getStockItem(
+      final row = await ref.read(hexaApiProvider).getStockItem(
             businessId: session.primaryBusiness.id,
             itemId: itemId,
           );
+      clearStockItemDetailPatch(ref, itemId: itemId);
+      return row;
     } on DioException catch (e) {
       if (e.response?.statusCode == 404) return {};
       rethrow;

@@ -8,7 +8,8 @@ import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
 import '../../../../core/json_coerce.dart';
 import '../../../../core/providers/item_detail_providers.dart';
-import '../../../../core/providers/stock_providers.dart' show stockItemDetailProvider;
+import '../../../../core/providers/stock_providers.dart'
+    show applyStockItemDetailFromSave, applyStockItemDetailPatch, stockItemDetailProvider;
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../../core/utils/unit_utils.dart';
 import 'item_stock_metric_strip.dart';
@@ -25,17 +26,23 @@ class ItemStockSnapshotCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final stockAsync = ref.watch(itemDetailStockProvider(itemId));
-    return stockAsync.when(
-      loading: () => const SizedBox(
+    if (stockAsync.isLoading && !stockAsync.hasValue) {
+      return const SizedBox(
         height: 72,
         child: Center(child: LinearProgressIndicator()),
-      ),
-      error: (_, __) => _sectionRetryCard(
+      );
+    }
+    if (stockAsync.hasError && !stockAsync.hasValue) {
+      return _sectionRetryCard(
         context,
         ref,
         'Could not load stock summary',
-      ),
-      data: (stock) => _buildWithStock(context, ref, stock),
+      );
+    }
+    return _buildWithStock(
+      context,
+      ref,
+      stockAsync.valueOrNull ?? const <String, dynamic>{},
     );
   }
 
@@ -589,13 +596,20 @@ class _OpeningStockSheetState extends ConsumerState<_OpeningStockSheet> {
     if (!mounted) return;
     setState(() => _saving = true);
     try {
-      await ref.read(hexaApiProvider).setOpeningStock(
+      final saved = await ref.read(hexaApiProvider).setOpeningStock(
             businessId: session.primaryBusiness.id,
             itemId: widget.itemId,
             qty: val,
           );
       if (!mounted) return;
-      ref.invalidate(itemDetailBundleProvider(widget.itemId));
+      applyStockItemDetailFromSave(
+        ref,
+        itemId: widget.itemId,
+        saved: {
+          ...saved,
+          'opening_stock_qty': val,
+        },
+      );
       if (mounted) Navigator.pop(context);
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -679,7 +693,11 @@ class _ReorderLevelSheetState extends ConsumerState<_ReorderLevelSheet> {
             reorderLevel: val,
           );
       if (!mounted) return;
-      ref.invalidate(itemDetailBundleProvider(widget.itemId));
+      applyStockItemDetailPatch(
+        ref,
+        itemId: widget.itemId,
+        patch: {'reorder_level': val},
+      );
       if (mounted) Navigator.pop(context);
     } finally {
       if (mounted) setState(() => _saving = false);

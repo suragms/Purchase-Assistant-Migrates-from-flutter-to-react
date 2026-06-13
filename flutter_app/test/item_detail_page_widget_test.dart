@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:harisree_warehouse/core/auth/session_notifier.dart';
 import 'package:harisree_warehouse/core/models/session.dart';
+import 'package:harisree_warehouse/core/providers/catalog_providers.dart';
 import 'package:harisree_warehouse/core/providers/item_detail_providers.dart';
 import 'package:harisree_warehouse/core/providers/prefs_provider.dart';
 import 'package:harisree_warehouse/core/providers/stock_providers.dart';
@@ -66,7 +67,12 @@ void main() {
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           sessionProvider.overrideWith(() => _FakeSessionNotifier()),
-          itemDetailBundleProvider(_itemId).overrideWith((ref) async => _bundle),
+          catalogItemDetailProvider(_itemId).overrideWith(
+            (ref) async => _bundle.catalogItem,
+          ),
+          stockItemDetailProvider(_itemId).overrideWith(
+            (ref) async => _bundle.stockDetail,
+          ),
           stockItemIntelligenceProvider(_itemId).overrideWith((ref) async => {}),
           stockItemAuditProvider(_itemId).overrideWith((ref) async => []),
         ],

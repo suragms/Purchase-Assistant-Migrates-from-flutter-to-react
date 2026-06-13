@@ -9,7 +9,9 @@ import '../../../core/auth/dashboard_role.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/json_coerce.dart';
 import '../../../core/providers/catalog_providers.dart';
+import '../../../core/providers/deferred_invalidation.dart';
 import '../../../core/providers/item_detail_providers.dart';
+import '../../../core/providers/stock_providers.dart' show stockItemDetailProvider;
 import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/router/navigation_ext.dart';
 import '../../../core/utils/unit_utils.dart';
@@ -364,8 +366,8 @@ class _EditOpeningStockSheetState extends ConsumerState<_EditOpeningStockSheet> 
             itemId: widget.itemId,
             qty: val,
           );
-      ref.invalidate(itemDetailBundleProvider(widget.itemId));
       ref.invalidate(catalogItemDetailProvider(widget.itemId));
+      deferInvalidateDelayed(ref, stockItemDetailProvider(widget.itemId));
       if (mounted) Navigator.pop(context);
     } finally {
       if (mounted) setState(() => _saving = false);
