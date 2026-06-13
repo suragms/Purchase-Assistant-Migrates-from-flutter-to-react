@@ -44,4 +44,43 @@ void main() {
     expect(patch['physical_stock_difference_qty'], 1);
     expect(patch['physical_stock_counted_by'], 'Ananduk');
   });
+
+  test('serverRowNewerThanPatch keeps patch when server row is older', () {
+    final patch = {
+      kStockListPatchAtKey: '2026-06-13T10:00:00.000Z',
+      'physical_stock_qty': 21,
+    };
+    final serverRow = {
+      'last_stock_updated_at': '2026-06-13T09:00:00.000Z',
+    };
+    expect(serverRowNewerThanPatch(serverRow, patch), isFalse);
+  });
+
+  test('serverRowNewerThanPatch drops patch when server row is newer', () {
+    final patch = {
+      kStockListPatchAtKey: '2026-06-13T10:00:00.000Z',
+      'current_stock': 21,
+    };
+    final serverRow = {
+      'last_stock_updated_at': '2026-06-13T11:00:00.000Z',
+    };
+    expect(serverRowNewerThanPatch(serverRow, patch), isTrue);
+  });
+
+  test('mergeStockListRowMap keeps patch when server timestamp is older', () {
+    final out = mergeStockListRowMap(
+      {
+        'id': 'a',
+        'current_stock': 10,
+        'last_stock_updated_at': '2026-06-13T09:00:00.000Z',
+      },
+      {
+        'a': {
+          kStockListPatchAtKey: '2026-06-13T10:00:00.000Z',
+          'current_stock': 21,
+        },
+      },
+    );
+    expect(out['current_stock'], 21);
+  });
 }

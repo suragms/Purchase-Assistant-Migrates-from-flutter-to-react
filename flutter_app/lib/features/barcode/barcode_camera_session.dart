@@ -12,8 +12,10 @@ abstract final class BarcodeCameraSession {
   static bool get hasLiveWebDetector =>
       useWebDetectorPreview && (webDetector?.isActive ?? false);
 
-  static bool get hasLiveMobile =>
-      mobile != null && (mobile!.value.isRunning);
+  static bool get hasLiveMobile {
+    if (mobile == null) return false;
+    return mobile!.value.isRunning && mobile!.value.error == null;
+  }
 
   static void retainMobile(MobileScannerController controller) {
     if (!kIsWeb) return;

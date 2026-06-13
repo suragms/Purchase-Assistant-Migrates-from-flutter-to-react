@@ -108,6 +108,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
       duration: const Duration(seconds: 2),
     )..repeat(reverse: true); // paused via _setBusy when camera is processing
     _manualCtrl.addListener(_onManualChanged);
+    _manualFocus.addListener(_onManualFocusChange);
     unawaited(_loadRecent());
     unawaited(_bootstrapCamera());
   }
@@ -129,6 +130,14 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   Future<void> _startCameraFromUserGesture() async {
     if (mounted) setState(() => _webCameraAwaitingGesture = false);
     await _initCamera();
+  }
+
+  void _onManualFocusChange() {
+    if (_manualFocus.hasFocus) {
+      _scanLineCtrl.stop();
+    } else if (!_busy) {
+      _scanLineCtrl.repeat(reverse: true);
+    }
   }
 
   void _onManualChanged() {
@@ -233,7 +242,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   MobileScannerController _newScannerController() {
     return MobileScannerController(
       detectionSpeed: DetectionSpeed.noDuplicates,
-      detectionTimeoutMs: kIsWeb ? 90 : 100,
+      detectionTimeoutMs: kIsWeb ? 400 : 100,
       facing: CameraFacing.back,
       formats: _kWarehouseBarcodeFormats,
       cameraResolution: const Size(1280, 720),
@@ -292,7 +301,15 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
   Future<void> _startWebMobileScanner() async {
     await _stopWebLiveScanner();
     try {
-      _camera = BarcodeCameraSession.mobile ?? _newScannerController();
+      if (defaultTargetPlatform == TargetPlatform.iOS && _camera == null) {
+        if (BarcodeCameraSession.mobile != null) {
+          await BarcodeCameraSession.mobile!.dispose();
+          BarcodeCameraSession.mobile = null;
+        }
+      }
+      _camera = (defaultTargetPlatform == TargetPlatform.iOS)
+          ? _newScannerController()
+          : (BarcodeCameraSession.mobile ?? _newScannerController());
       BarcodeCameraSession.retainMobile(_camera!);
       await _markCameraPermGranted();
       if (mounted) {
@@ -381,15 +398,23 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
         }
         if (BarcodeCameraSession.hasLiveMobile &&
             BarcodeCameraSession.mobile != null) {
-          _camera = BarcodeCameraSession.mobile;
-          if (mounted) {
-            setState(() {
-              _cameraDenied = false;
-              _cameraPermanent = false;
-              _cameraDeniedMessage = null;
-            });
+          final retained = BarcodeCameraSession.mobile!;
+          var reuseOk = true;
+          if (defaultTargetPlatform == TargetPlatform.iOS) {
+            reuseOk = false;
+            await BarcodeCameraSession.reset();
           }
-          return;
+          if (reuseOk) {
+            _camera = retained;
+            if (mounted) {
+              setState(() {
+                _cameraDenied = false;
+                _cameraPermanent = false;
+                _cameraDeniedMessage = null;
+              });
+            }
+            return;
+          }
         }
         if (await _tryStartWebBarcodeDetector()) return;
         await _startWebMobileScanner();
@@ -889,6 +914,7 @@ class _BarcodeScanPageState extends ConsumerState<BarcodeScanPage>
     _scanLineCtrl.dispose();
     _manualCtrl.removeListener(_onManualChanged);
     _manualCtrl.dispose();
+    _manualFocus.removeListener(_onManualFocusChange);
     _manualFocus.dispose();
     if (kIsWeb) {
       _webLiveScanner = null;

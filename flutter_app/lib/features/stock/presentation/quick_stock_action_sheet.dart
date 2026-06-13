@@ -17,6 +17,7 @@ import '../../../core/notifications/local_notifications_service.dart';
 import '../../../core/providers/stock_providers.dart'
     show
         applyStockListRowPatch,
+        patchStockItemInCache,
         stockListQueryProvider,
         stockStatusCountsProvider;
 import '../stock_list_row_patch.dart'
@@ -317,8 +318,8 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       invalidateWarehouseSurfacesAfterStockWrite(
         widget.parentRef,
-        deferFullList: true,
-        light: true,
+        deferFullList: false,
+        light: false,
       );
     });
   }
@@ -375,11 +376,16 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
       }
       _applyOptimisticListPatch(saved, parsed);
       _invalidateCountChipsImmediately();
-      unawaited(_afterSaveBackground(parsed));
+      if (_mode == StockUpdateMode.system && _itemId.isNotEmpty) {
+        unawaited(patchStockItemInCache(widget.parentRef, itemId: _itemId));
+      }
       if (!context.mounted) return;
       await HapticFeedback.mediumImpact();
       if (!context.mounted) return;
       Navigator.of(context).pop(true);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        unawaited(_afterSaveBackground(parsed));
+      });
     } catch (e) {
       _rollbackOptimisticPatch();
       if (e is StaleStockConflict) {

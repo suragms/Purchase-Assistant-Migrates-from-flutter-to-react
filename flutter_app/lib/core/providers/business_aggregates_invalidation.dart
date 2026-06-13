@@ -384,7 +384,7 @@ void invalidateWarehouseSurfacesAfterStockWrite(
   ref.invalidate(stockStatusCountsProvider);
   ref.invalidate(stockFilteredStatusCountsProvider);
   if (deferFullList) {
-    const listDelay = Duration(seconds: 2);
+    const listDelay = Duration(milliseconds: 500);
     deferInvalidateDelayed(ref, stockListProvider, delay: listDelay);
     if (!light) {
       deferInvalidateDelayed(
