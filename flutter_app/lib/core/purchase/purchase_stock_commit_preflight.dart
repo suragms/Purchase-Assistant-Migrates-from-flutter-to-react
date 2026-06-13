@@ -205,6 +205,11 @@ double estimateLineQtyInStockUnit(
   TradePurchaseLine line,
   Map<String, dynamic>? catalogRow,
 ) {
+  final snap = line.qtyInStockUnit;
+  if (snap != null && snap > 0) {
+    return snap;
+  }
+
   final rawQty = line.receivedQty ?? line.qty;
   if (rawQty <= 0) return 0;
 
@@ -278,6 +283,112 @@ double estimateLineQtyInStockUnit(
   return 0;
 }
 
+/// Client mirror of backend [line_qty_for_stock_commit] (commit preflight SSOT).
+double estimateLineQtyForStockCommit(
+  TradePurchaseLine line,
+  Map<String, dynamic>? catalogRow,
+) {
+  final recv = line.receivedQty;
+  if (recv != null) {
+    if (recv <= 0) return 0;
+    final ordered = line.qty;
+    final snap = line.qtyInStockUnit;
+    if (snap != null && ordered > 0 && snap > 0) {
+      return snap * recv / ordered;
+    }
+    final proxy = TradePurchaseLine(
+      id: line.id,
+      itemName: line.itemName,
+      qty: recv,
+      unit: line.unit,
+      landingCost: line.landingCost,
+      catalogItemId: line.catalogItemId,
+      kgPerUnit: line.kgPerUnit,
+      totalWeight: line.totalWeight,
+      defaultKgPerBag: line.defaultKgPerBag,
+    );
+    return estimateLineQtyInStockUnit(proxy, catalogRow);
+  }
+  return estimateLineQtyInStockUnit(line, catalogRow);
+}
+
+String suggestCatalogUnitForStockCommitIssue(
+  PurchaseStockCommitIssue issue,
+  Map<String, dynamic>? catalogRow,
+) {
+  final lineType = deriveTradeUnitType(issue.lineUnit);
+  if (lineType == 'box') return 'box';
+  if (lineType == 'bag') return 'bag';
+  if (lineType == 'tin') return 'tin';
+  if (lineType == 'kg') return 'kg';
+
+  final du = (catalogRow?['default_unit']?.toString() ?? '').trim().toLowerCase();
+  if (du == 'box' || du == 'bag' || du == 'tin' || du == 'kg') return du;
+
+  final name =
+      (catalogRow?['name']?.toString() ?? issue.itemName).trim().toUpperCase();
+  if (name.contains(' BOX') ||
+      name.endsWith(' BOX') ||
+      RegExp(r'\bBOX\b').hasMatch(name)) {
+    return 'box';
+  }
+  if (parseKgPerBagFromName(issue.itemName) != null) return 'bag';
+
+  final su = (issue.stockUnit ?? '').trim().toLowerCase();
+  if (su == 'box' || su == 'bag' || su == 'tin' || su == 'kg') return su;
+  if (lineType == 'pcs') return 'piece';
+  return 'piece';
+}
+
+List<PurchaseStockCommitIssue> issuesFromUnitSetupItemNames(
+  TradePurchase purchase,
+  List<dynamic> itemNames,
+  List<Map<String, dynamic>> catalogRows,
+) {
+  final byId = <String, Map<String, dynamic>>{
+    for (final row in catalogRows)
+      if ((row['id']?.toString() ?? '').isNotEmpty) row['id'].toString(): row,
+  };
+  final wanted = itemNames
+      .map((x) => x.toString().trim().toUpperCase())
+      .where((s) => s.isNotEmpty)
+      .toSet();
+  if (wanted.isEmpty) return const [];
+
+  final out = <PurchaseStockCommitIssue>[];
+  for (final line in purchase.lines) {
+    final rawQty = line.receivedQty ?? line.qty;
+    if (rawQty <= 0) continue;
+    if (!wanted.contains(line.itemName.trim().toUpperCase())) continue;
+    final cid = line.catalogItemId?.trim();
+    if (cid == null || cid.isEmpty) {
+      out.add(
+        PurchaseStockCommitIssue(
+          kind: PurchaseStockCommitIssueKind.missingCatalogLink,
+          lineId: line.id,
+          itemName: line.itemName,
+          qty: rawQty,
+          lineUnit: line.unit,
+        ),
+      );
+      continue;
+    }
+    final row = byId[cid];
+    out.add(
+      PurchaseStockCommitIssue(
+        kind: PurchaseStockCommitIssueKind.needsUnitSetup,
+        lineId: line.id,
+        itemName: line.itemName,
+        catalogItemId: cid,
+        qty: rawQty,
+        lineUnit: line.unit,
+        stockUnit: row == null ? null : catalogStockUnit(row, line),
+      ),
+    );
+  }
+  return out;
+}
+
 List<PurchaseStockCommitIssue> findPurchaseStockCommitIssues(
   TradePurchase purchase,
   List<Map<String, dynamic>> catalogRows,
@@ -319,7 +430,7 @@ List<PurchaseStockCommitIssue> findPurchaseStockCommitIssues(
       continue;
     }
     final stockUnit = catalogStockUnit(row, line);
-    final stockQty = estimateLineQtyInStockUnit(line, row);
+    final stockQty = estimateLineQtyForStockCommit(line, row);
     if (stockQty <= 0) {
       out.add(
         PurchaseStockCommitIssue(

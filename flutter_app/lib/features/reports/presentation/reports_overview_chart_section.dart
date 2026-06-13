@@ -174,6 +174,8 @@ class ReportsOverviewChartSection extends ConsumerWidget {
 
     final t = agg.totals;
     final catsAsync = ref.watch(analyticsCategoriesTableProvider);
+    final typesAsync = ref.watch(analyticsTypesTableProvider);
+    final itemsAsync = ref.watch(analyticsItemsTableProvider);
     final supsAsync = ref.watch(analyticsSuppliersTableProvider);
 
     return Column(
@@ -197,7 +199,7 @@ class ReportsOverviewChartSection extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
         ],
         catsAsync.when(
           loading: () => _chartPlaceholder(chartSize),
@@ -207,7 +209,37 @@ class ReportsOverviewChartSection extends ConsumerWidget {
           ),
           data: (rows) => _CategoryPieCard(rows: rows, size: chartSize),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
+        typesAsync.when(
+          loading: () => const SizedBox.shrink(),
+          error: (e, _) => FriendlyLoadError(
+            message: 'Could not load subcategory breakdown.',
+            onRetry: () => ref.invalidate(analyticsTypesTableProvider),
+          ),
+          data: (rows) => _RankedSpendListCard(
+            title: 'Subcategory breakdown',
+            rows: rows,
+            labelKey: 'type_name',
+            subtitleKey: 'category_name',
+            onViewAll: () => context.push('/reports?tab=items'),
+          ),
+        ),
+        const SizedBox(height: 8),
+        itemsAsync.when(
+          loading: () => const SizedBox.shrink(),
+          error: (e, _) => FriendlyLoadError(
+            message: 'Could not load item breakdown.',
+            onRetry: () => ref.invalidate(analyticsItemsTableProvider),
+          ),
+          data: (rows) => _RankedSpendListCard(
+            title: 'Top items by spend',
+            rows: rows,
+            labelKey: 'item_name',
+            subtitleKey: 'category_name',
+            onViewAll: () => context.push('/reports?tab=items'),
+          ),
+        ),
+        const SizedBox(height: 8),
         supsAsync.when(
           loading: () => _chartPlaceholder(chartSize),
           error: (e, _) => FriendlyLoadError(
@@ -477,6 +509,106 @@ class _SupplierDonutCard extends StatelessWidget {
   }
 }
 
+class _RankedSpendListCard extends StatelessWidget {
+  const _RankedSpendListCard({
+    required this.title,
+    required this.rows,
+    required this.labelKey,
+    this.subtitleKey,
+    this.onViewAll,
+  });
+
+  final String title;
+  final List<Map<String, dynamic>> rows;
+  final String labelKey;
+  final String? subtitleKey;
+  final VoidCallback? onViewAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final usable = rows
+        .where((r) => coerceToDouble(r['total_purchase']) > 1e-9)
+        .take(8)
+        .toList();
+    if (usable.isEmpty) return const SizedBox.shrink();
+
+    final palette = HexaColors.chartPalette;
+    return _ChartCard(
+      title: title,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < usable.length; i++)
+            Padding(
+              padding: EdgeInsets.only(bottom: i == usable.length - 1 ? 0 : 6),
+              child: Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: palette[i % palette.length],
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          (usable[i][labelKey] ?? usable[i]['name'] ?? '—')
+                              .toString(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: HexaDsType.bodySm(context).copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        if (subtitleKey != null)
+                          Text(
+                            (usable[i][subtitleKey] ?? '').toString(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: HexaDsType.bodySm(context).copyWith(
+                              fontSize: 10,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    _inr0(coerceToDouble(usable[i]['total_purchase'])),
+                    style: HexaDsType.bodySm(context).copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: HexaColors.brandPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (onViewAll != null && rows.length > usable.length) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: onViewAll,
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('View all items'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _ChartCard extends StatelessWidget {
   const _ChartCard({required this.title, required this.child});
 
@@ -486,7 +618,7 @@ class _ChartCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -496,7 +628,7 @@ class _ChartCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(title, style: HexaDsType.h3(context)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           child,
         ],
       ),

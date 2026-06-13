@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../../../core/api/fastapi_error.dart';
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/auth/session_permissions.dart';
@@ -44,6 +43,7 @@ import 'widgets/purchase_damage_report_sheet.dart';
 import 'widgets/staff_verification_sheet.dart';
 import '../../../core/providers/purchase_damage_reports_provider.dart';
 import '../../../core/providers/catalog_providers.dart';
+import '../../../core/purchase/purchase_stock_commit_flow.dart';
 import '../../../core/purchase/purchase_stock_commit_preflight.dart';
 import '../../../core/utils/snack.dart';
 import '../../../core/utils/trade_purchase_commission.dart';
@@ -663,89 +663,6 @@ class PurchaseDetailBodyState extends ConsumerState<PurchaseDetailBody> {
     return findPurchaseStockCommitIssues(p, _catalogRows());
   }
 
-  Future<void> _showStockCommitBlockedDialog(
-    BuildContext context,
-    TradePurchase p,
-    List<PurchaseStockCommitIssue> issues,
-  ) async {
-    if (issues.isEmpty || !context.mounted) return;
-    String? firstCatalogId;
-    for (final issue in issues) {
-      final id = issue.catalogItemId?.trim();
-      if (id != null && id.isNotEmpty) {
-        firstCatalogId = id;
-        break;
-      }
-    }
-    try {
-      await showDialog<void>(
-        context: context,
-        useRootNavigator: true,
-        builder: (dialogContext) => AlertDialog(
-        title: const Text('Set up units before commit'),
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Stock cannot be added until each line converts to the catalog stock unit.',
-              ),
-              const SizedBox(height: 12),
-              ...issues.map(
-                (issue) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        issue.headline,
-                        style: const TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        issue.detail,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: Color(0xFF64748B),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Close'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-              context.push('/purchase/edit/${p.id}');
-            },
-            child: const Text('Edit purchase'),
-          ),
-          if (firstCatalogId != null)
-            FilledButton(
-              onPressed: () {
-                final catalogId = firstCatalogId!;
-                Navigator.of(dialogContext).pop();
-                pushCatalogItemEdit(context, catalogId);
-              },
-              child: const Text('Edit catalog item'),
-            ),
-        ],
-      ),
-    );
-    } catch (_) {
-      // Dialog can fail on web if route context lost — banner/snackbar still shown.
-    }
-  }
-
   Widget _stockCommitSetupBanner(
     BuildContext context,
     TradePurchase p,
@@ -758,7 +675,22 @@ class PurchaseDetailBodyState extends ConsumerState<PurchaseDetailBody> {
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          onTap: () => _showStockCommitBlockedDialog(context, p, issues),
+          onTap: () async {
+            final fixed = await resolvePurchaseStockCommitUnitSetup(
+              context,
+              ref,
+              p,
+              issues,
+            );
+            if (!context.mounted) return;
+            if (fixed) return;
+            await showPurchaseStockCommitBlockedDialog(
+              context,
+              ref,
+              p,
+              issues,
+            );
+          },
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -1022,10 +954,22 @@ class PurchaseDetailBodyState extends ConsumerState<PurchaseDetailBody> {
       );
       return;
     }
-    final issues = _stockCommitIssues(p);
+    var issues = await loadPurchaseStockCommitIssues(ref, p);
     if (issues.isNotEmpty) {
-      await _showStockCommitBlockedDialog(context, p, issues);
-      return;
+      final fixed = await resolvePurchaseStockCommitUnitSetup(
+        context,
+        ref,
+        p,
+        issues,
+      );
+      if (!context.mounted) return;
+      if (fixed) {
+        issues = await loadPurchaseStockCommitIssues(ref, p);
+      }
+      if (issues.isNotEmpty) {
+        await showPurchaseStockCommitBlockedDialog(context, ref, p, issues);
+        return;
+      }
     }
     final ok = await showDialog<bool>(
           context: context,
@@ -1058,6 +1002,40 @@ class PurchaseDetailBodyState extends ConsumerState<PurchaseDetailBody> {
     );
   }
 
+  Future<void> _applyCommitStockResponse(
+    BuildContext context,
+    TradePurchase p,
+    Map<String, dynamic> updated,
+  ) async {
+    final purchase = TradePurchase.fromJson(updated);
+    final applied = (updated['stock_updates'] is List)
+        ? (updated['stock_updates'] as List).where((row) {
+            if (row is! Map) return false;
+            if (row['needs_unit_setup'] == true) return false;
+            return true;
+          }).length
+        : purchase.stockUpdatesCount;
+    final needsSetup = (updated['stock_updates'] is List)
+        ? (updated['stock_updates'] as List)
+            .where((row) => row is Map && row['needs_unit_setup'] == true)
+            .length
+        : 0;
+    final n = applied > 0 ? applied : p.lines.length;
+    var message = n == 1
+        ? 'Stock added to warehouse · 1 item'
+        : 'Stock added to warehouse · $n items';
+    if (needsSetup > 0) {
+      message =
+          '$message · $needsSetup item${needsSetup == 1 ? '' : 's'} need unit setup in catalog';
+    }
+    await _afterDeliveryMutation(
+      context,
+      purchase: purchase,
+      apiBody: updated,
+      message: message,
+    );
+  }
+
   Future<void> _commitStockImpl(BuildContext context, TradePurchase p) async {
     final session = ref.read(sessionProvider);
     if (session == null) return;
@@ -1066,33 +1044,7 @@ class PurchaseDetailBodyState extends ConsumerState<PurchaseDetailBody> {
             businessId: session.primaryBusiness.id,
             purchaseId: p.id,
           );
-      final purchase = TradePurchase.fromJson(updated);
-      final applied = (updated['stock_updates'] is List)
-          ? (updated['stock_updates'] as List).where((row) {
-              if (row is! Map) return false;
-              if (row['needs_unit_setup'] == true) return false;
-              return true;
-            }).length
-          : purchase.stockUpdatesCount;
-      final needsSetup = (updated['stock_updates'] is List)
-          ? (updated['stock_updates'] as List)
-              .where((row) => row is Map && row['needs_unit_setup'] == true)
-              .length
-          : 0;
-      final n = applied > 0 ? applied : p.lines.length;
-      var message = n == 1
-          ? 'Stock added to warehouse · 1 item'
-          : 'Stock added to warehouse · $n items';
-      if (needsSetup > 0) {
-        message =
-            '$message · $needsSetup item${needsSetup == 1 ? '' : 's'} need unit setup in catalog';
-      }
-      await _afterDeliveryMutation(
-        context,
-        purchase: purchase,
-        apiBody: updated,
-        message: message,
-      );
+      await _applyCommitStockResponse(context, p, updated);
     } catch (e) {
       if (!context.mounted) return;
       final msg = e is DioException
@@ -1104,53 +1056,70 @@ class PurchaseDetailBodyState extends ConsumerState<PurchaseDetailBody> {
         isError: true,
         duration: const Duration(seconds: 6),
       );
-      if (e is DioException && e.response?.statusCode == 400) {
-        final data = e.response?.data;
-        String detail = '';
-        if (data is Map) {
-          final nested = data['detail'];
-          if (nested is Map && nested['code']?.toString() == 'UNIT_SETUP_REQUIRED') {
-            final items = (nested['items_needing_setup'] as List?)
-                    ?.map((x) {
-                      if (x is Map) {
-                        return x['name']?.toString() ??
-                            x['item_name']?.toString() ??
-                            '?';
-                      }
-                      return x.toString();
-                    })
-                    .where((s) => s.isNotEmpty)
-                    .join(', ') ??
-                'some items';
-            showTopSnack(
-              context,
-              'Set up units for: $items. Tap "Edit catalog item" on each.',
-              isError: true,
-              duration: const Duration(seconds: 8),
+      if (e is! DioException || e.response?.statusCode != 400) return;
+
+      var retryIssues = await loadPurchaseStockCommitIssues(ref, p);
+      final data = e.response?.data;
+      if (data is Map) {
+        final nested = data['detail'];
+        if (nested is Map && nested['code']?.toString() == 'UNIT_SETUP_REQUIRED') {
+          final names = nested['items_needing_setup'];
+          if (names is List && names.isNotEmpty) {
+            final rows = await ensureCatalogRowsForCommitPreflight(ref);
+            final fromApi = issuesFromUnitSetupItemNames(p, names, rows);
+            if (fromApi.isNotEmpty) retryIssues = fromApi;
+          }
+        }
+      }
+      if (retryIssues.isEmpty || !context.mounted) return;
+
+      final fixed = await resolvePurchaseStockCommitUnitSetup(
+        context,
+        ref,
+        p,
+        retryIssues,
+      );
+      if (!context.mounted) return;
+      if (!fixed) {
+        await showPurchaseStockCommitBlockedDialog(
+          context,
+          ref,
+          p,
+          retryIssues,
+        );
+        return;
+      }
+
+      final afterFix = await loadPurchaseStockCommitIssues(ref, p);
+      if (afterFix.isNotEmpty) {
+        if (context.mounted) {
+          await showPurchaseStockCommitBlockedDialog(
+            context,
+            ref,
+            p,
+            afterFix,
+          );
+        }
+        return;
+      }
+
+      try {
+        final updated = await ref.read(hexaApiProvider).commitPurchaseDelivery(
+              businessId: session.primaryBusiness.id,
+              purchaseId: p.id,
             );
-            final issues = _stockCommitIssues(p);
-            if (issues.isNotEmpty && context.mounted) {
-              WidgetsBinding.instance.addPostFrameCallback((_) async {
-                if (!context.mounted) return;
-                await _showStockCommitBlockedDialog(context, p, issues);
-              });
-            }
-            return;
-          }
-          detail = (fastApiDetailString(data) ?? '').toLowerCase();
-        } else {
-          detail = (fastApiDetailString(data) ?? '').toLowerCase();
+        if (context.mounted) {
+          await _applyCommitStockResponse(context, p, updated);
         }
-        if (detail.contains('no stock was added') ||
-            detail.contains('unit setup')) {
-          final issues = _stockCommitIssues(p);
-          if (issues.isNotEmpty && context.mounted) {
-            WidgetsBinding.instance.addPostFrameCallback((_) async {
-              if (!context.mounted) return;
-              await _showStockCommitBlockedDialog(context, p, issues);
-            });
-          }
-        }
+      } catch (retryErr) {
+        if (!context.mounted) return;
+        showTopSnack(
+          context,
+          retryErr is DioException
+              ? friendlyApiError(retryErr)
+              : 'Could not commit to stock. Try again.',
+          isError: true,
+        );
       }
     }
   }

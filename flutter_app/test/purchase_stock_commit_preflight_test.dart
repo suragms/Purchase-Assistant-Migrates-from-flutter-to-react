@@ -101,7 +101,45 @@ void main() {
         'unit_resolution': {'package_type': 'RETAIL_PACKET', 'stock_unit': 'PIECE'},
       };
       expect(catalogStockUnit(row, line), 'box');
-      expect(estimateLineQtyInStockUnit(line, row), 2);
+      expect(estimateLineQtyForStockCommit(line, row), 2);
+    });
+
+    test('zero qty_in_stock_unit snap falls through to conversion', () {
+      final line = TradePurchaseLine(
+        id: 'line-1',
+        itemName: 'SUNRICH 400GM BOX',
+        qty: 2,
+        unit: 'box',
+        landingCost: 80,
+        catalogItemId: 'item-1',
+        receivedQty: 2,
+        qtyInStockUnit: 0,
+      );
+      final row = {
+        'id': 'item-1',
+        'default_unit': 'box',
+        'name': 'SUNRICH 400GM BOX',
+      };
+      expect(estimateLineQtyForStockCommit(line, row), 2);
+    });
+
+    test('suggest box unit for BOX line on piece catalog', () {
+      final issue = PurchaseStockCommitIssue(
+        kind: PurchaseStockCommitIssueKind.needsUnitSetup,
+        lineId: 'l1',
+        itemName: 'SUNRICH 400GM BOX',
+        catalogItemId: 'item-1',
+        qty: 1,
+        lineUnit: 'box',
+        stockUnit: 'piece',
+      );
+      expect(
+        suggestCatalogUnitForStockCommitIssue(issue, const {
+          'default_unit': 'piece',
+          'name': 'SUNRICH 400GM BOX',
+        }),
+        'box',
+      );
     });
 
     test('owner box unit + RETAIL_PACKET package → box line passes', () {

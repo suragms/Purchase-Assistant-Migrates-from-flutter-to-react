@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/hexa_colors.dart';
+import '../presentation/widgets/reports_period_bar.dart';
 
-/// Reports header: back, title, inline search, filter badge, export.
-class ReportsTopBar extends StatelessWidget implements PreferredSizeWidget {
+/// Reports header: back, title, search, period icons, filter, export.
+class ReportsTopBar extends ConsumerStatefulWidget implements PreferredSizeWidget {
   const ReportsTopBar({
     super.key,
     required this.onBack,
@@ -15,6 +17,11 @@ class ReportsTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.filterCount = 0,
     required this.onExport,
     this.exporting = false,
+    this.selectedPeriodPreset,
+    this.onPeriodPresetSelected,
+    this.onCustomPeriod,
+    this.onSyncHomePeriod,
+    this.showPeriodRow = true,
   });
 
   final VoidCallback onBack;
@@ -26,18 +33,52 @@ class ReportsTopBar extends StatelessWidget implements PreferredSizeWidget {
   final int filterCount;
   final VoidCallback onExport;
   final bool exporting;
+  final String? selectedPeriodPreset;
+  final ValueChanged<String>? onPeriodPresetSelected;
+  final VoidCallback? onCustomPeriod;
+  final VoidCallback? onSyncHomePeriod;
+  final bool showPeriodRow;
 
   @override
-  Size get preferredSize => const Size.fromHeight(112);
+  ConsumerState<ReportsTopBar> createState() => _ReportsTopBarState();
+
+  @override
+  Size get preferredSize {
+    final periodExtra = showPeriodRow && selectedPeriodPreset != null ? 44.0 : 0.0;
+    return Size.fromHeight(104 + periodExtra);
+  }
+}
+
+class _ReportsTopBarState extends ConsumerState<ReportsTopBar> {
+  @override
+  void initState() {
+    super.initState();
+    widget.searchController.addListener(_onSearchTextChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.searchController.removeListener(_onSearchTextChanged);
+    super.dispose();
+  }
+
+  void _onSearchTextChanged() {
+    if (mounted) setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
+    final showPeriod = widget.showPeriodRow &&
+        widget.selectedPeriodPreset != null &&
+        widget.onPeriodPresetSelected != null &&
+        widget.onCustomPeriod != null;
+
     return Material(
       color: HexaColors.brandBackground,
       child: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(4, 4, 8, 8),
+          padding: const EdgeInsets.fromLTRB(4, 2, 8, 6),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -46,7 +87,8 @@ class ReportsTopBar extends StatelessWidget implements PreferredSizeWidget {
                   IconButton(
                     tooltip: 'Back',
                     icon: const Icon(Icons.arrow_back_rounded, size: 22),
-                    onPressed: onBack,
+                    onPressed: widget.onBack,
+                    visualDensity: VisualDensity.compact,
                   ),
                   const Expanded(
                     child: Text(
@@ -63,9 +105,10 @@ class ReportsTopBar extends StatelessWidget implements PreferredSizeWidget {
                       IconButton(
                         tooltip: 'Filters',
                         icon: const Icon(Icons.tune_rounded, size: 22),
-                        onPressed: onFilter,
+                        onPressed: widget.onFilter,
+                        visualDensity: VisualDensity.compact,
                       ),
-                      if (filterCount > 0)
+                      if (widget.filterCount > 0)
                         Positioned(
                           right: 6,
                           top: 6,
@@ -76,7 +119,7 @@ class ReportsTopBar extends StatelessWidget implements PreferredSizeWidget {
                               shape: BoxShape.circle,
                             ),
                             child: Text(
-                              '$filterCount',
+                              '${widget.filterCount}',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 9,
@@ -89,8 +132,9 @@ class ReportsTopBar extends StatelessWidget implements PreferredSizeWidget {
                   ),
                   IconButton(
                     tooltip: 'Export',
-                    onPressed: exporting ? null : onExport,
-                    icon: exporting
+                    onPressed: widget.exporting ? null : widget.onExport,
+                    visualDensity: VisualDensity.compact,
+                    icon: widget.exporting
                         ? const SizedBox(
                             width: 20,
                             height: 20,
@@ -103,35 +147,47 @@ class ReportsTopBar extends StatelessWidget implements PreferredSizeWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: TextField(
-                  controller: searchController,
-                  onChanged: onSearchChanged,
+                  controller: widget.searchController,
+                  onChanged: widget.onSearchChanged,
                   decoration: InputDecoration(
-                    hintText: searchHint,
+                    hintText: widget.searchHint,
                     prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                    suffixIcon: searchController.text.trim().isEmpty
+                    suffixIcon: widget.searchController.text.trim().isEmpty
                         ? null
                         : IconButton(
                             icon: const Icon(Icons.close_rounded, size: 18),
-                            onPressed: onClearSearch,
+                            onPressed: widget.onClearSearch,
                           ),
                     isDense: true,
                     filled: true,
                     fillColor: HexaColors.brandCard,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+                      horizontal: 10,
+                      vertical: 8,
                     ),
                   ),
                 ),
               ),
+              if (showPeriod) ...[
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: ReportsPeriodIconRow(
+                    selectedPreset: widget.selectedPeriodPreset!,
+                    onPresetSelected: widget.onPeriodPresetSelected!,
+                    onCustomRange: widget.onCustomPeriod!,
+                    onSyncHome: widget.onSyncHomePeriod,
+                  ),
+                ),
+              ],
             ],
           ),
         ),

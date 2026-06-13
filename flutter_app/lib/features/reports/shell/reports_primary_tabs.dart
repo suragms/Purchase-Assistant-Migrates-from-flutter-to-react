@@ -17,10 +17,10 @@ class ReportsPrimaryTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 40,
+      height: 36,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
         children: [
           for (final t in ReportsBiTabX.primaryTabs) ...[
             Padding(

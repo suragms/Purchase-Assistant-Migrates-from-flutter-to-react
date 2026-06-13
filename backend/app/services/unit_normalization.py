@@ -113,7 +113,9 @@ def line_qty_in_stock_unit(line: Any, item: CatalogItem | Any) -> Decimal:
     """
     snap = getattr(line, "qty_in_stock_unit", None)
     if snap is not None:
-        return _round_qty(_dec(snap))
+        snap_d = _dec(snap)
+        if snap_d > 0:
+            return _round_qty(snap_d)
 
     qty = _dec(getattr(line, "qty", 0))
     if qty <= 0:

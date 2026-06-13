@@ -140,6 +140,27 @@ final itemDetailBundleProvider =
   );
 });
 
+/// Item analytics intelligence — fixed 30-day window (not tied to stock list query).
+final itemStockIntelligenceProvider =
+    FutureProvider.autoDispose.family<Map<String, dynamic>, String>(
+        (ref, itemId) async {
+  final session = ref.watch(sessionProvider);
+  if (session == null) return {};
+  await awaitProviderApiReady(ref);
+  if (providerSkipApi(ref)) return {};
+  final now = DateTime.now();
+  final end = DateTime(now.year, now.month, now.day);
+  final start = end.subtract(const Duration(days: 29));
+  String iso(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+  return ref.read(hexaApiProvider).getStockIntelligence(
+        businessId: session.primaryBusiness.id,
+        itemId: itemId,
+        periodStart: iso(start),
+        periodEnd: iso(end),
+      );
+});
+
 /// Stock map for item detail sections — leaf provider (retry invalidates stock only).
 final itemDetailStockProvider =
     Provider.autoDispose.family<AsyncValue<Map<String, dynamic>>, String>(

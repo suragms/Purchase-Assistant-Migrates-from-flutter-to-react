@@ -41,7 +41,7 @@ class ReportsOverviewTab extends ConsumerWidget {
     final viewport = chartH.clamp(kReportsChartMinHeight, 420.0);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -51,7 +51,7 @@ class ReportsOverviewTab extends ConsumerWidget {
             onTapPurchases: () => goTab('purchase'),
             onTapItems: () => goTab('items'),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           ReportsOverviewChartSection(
             agg: agg,
             viewportHeight: viewport,

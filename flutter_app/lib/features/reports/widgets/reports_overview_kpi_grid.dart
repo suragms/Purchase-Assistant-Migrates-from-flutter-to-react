@@ -83,45 +83,99 @@ class ReportsOverviewKpiGrid extends ConsumerWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: _HeroKpiTile(
-                    label: 'Total amount',
-                    value: _inr(t.inr),
-                    color: _amountColor,
-                    onTap: onTapPurchases,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _KpiTile(
-                    data: _KpiCardData(
-                      'Bills',
-                      '${t.deals}',
-                      _countColor,
-                      onTap: onTapPurchases,
+            Material(
+              color: HexaColors.brandCard,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Total spend',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              _inr(t.inr),
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                color: _amountColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                    Container(
+                      width: 1,
+                      height: 36,
+                      color: HexaColors.brandBorder,
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 12),
+                      child: InkWell(
+                        onTap: onTapPurchases,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Bills',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: Colors.grey.shade600,
+                                ),
+                              ),
+                              Text(
+                                '${t.deals}',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  color: _countColor,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             ReportsQtyUnitStrip(
               bags: t.bags,
               boxes: t.boxes,
               tins: t.tins,
               kg: t.kg,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: cols,
-                mainAxisExtent: 64,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
+                mainAxisExtent: 56,
+                crossAxisSpacing: 6,
+                mainAxisSpacing: 6,
               ),
               itemCount: secondary.length,
               itemBuilder: (_, i) => _KpiTile(data: secondary[i]),
@@ -141,61 +195,6 @@ class _KpiCardData {
   final VoidCallback? onTap;
 }
 
-class _HeroKpiTile extends StatelessWidget {
-  const _HeroKpiTile({
-    required this.label,
-    required this.value,
-    required this.color,
-    this.onTap,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: HexaColors.brandCard,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF64748B),
-                ),
-              ),
-              const SizedBox(height: 4),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: color,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _KpiTile extends StatelessWidget {
   const _KpiTile({required this.data});
   final _KpiCardData data;
@@ -209,7 +208,7 @@ class _KpiTile extends StatelessWidget {
         onTap: data.onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisAlignment: MainAxisAlignment.center,

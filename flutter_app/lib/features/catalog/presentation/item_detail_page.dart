@@ -471,23 +471,44 @@ class _ItemDetailMobileScroll extends ConsumerStatefulWidget {
       _ItemDetailMobileScrollState();
 }
 
-class _ItemDetailMobileScrollState extends ConsumerState<_ItemDetailMobileScroll> {
-  bool _heavySectionsLoaded = false;
+class _ItemDetailMobileScrollState extends ConsumerState<_ItemDetailMobileScroll>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final Set<int> _loadedTabIndexes = {0};
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final tab = _ItemDetailMobileScrollState._tabQuery(context);
-      if (tab != null && tab.isNotEmpty && tab != 'overview') {
-        if (mounted) setState(() => _heavySectionsLoaded = true);
-      } else {
-        Future.delayed(const Duration(milliseconds: 400), () {
-          if (mounted) setState(() => _heavySectionsLoaded = true);
-        });
-      }
-    });
+    final session = ref.read(sessionProvider);
+    final isStaff =
+        session != null && sessionIsStaff(session);
+    final tabCount = isStaff ? 2 : 3;
+    final initial = _initialTabIndex(isStaff).clamp(0, tabCount - 1);
+    _loadedTabIndexes.add(initial);
+    _tabController = TabController(
+      length: tabCount,
+      vsync: this,
+      initialIndex: initial,
+    );
+    _tabController.addListener(_onTabChanged);
   }
+
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging) return;
+    final idx = _tabController.index;
+    if (_loadedTabIndexes.add(idx) && mounted) {
+      setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  bool _tabReady(int index) => _loadedTabIndexes.contains(index);
 
   int _initialTabIndex(bool isStaff) {
     final tab = _tabQuery(context);
@@ -530,30 +551,45 @@ class _ItemDetailMobileScrollState extends ConsumerState<_ItemDetailMobileScroll
     );
   }
 
+  Widget _scrollTab(Widget child) {
+    return RefreshIndicator(
+      onRefresh: widget.onRefresh,
+      child: child,
+    );
+  }
+
   Widget _overviewTab(bool isStaff) {
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 88),
-      children: [
-        _paddedSection(ItemPhysicalVerificationCard(itemId: widget.itemId)),
-        if (!isStaff && _heavySectionsLoaded) ...[
-          _paddedSection(
-            ItemAnalyticsSection(
-              itemId: widget.itemId,
-              loadIntelligence: true,
+    if (!_tabReady(0)) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+    }
+    return _scrollTab(
+      ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 88),
+        children: [
+          _paddedSection(ItemPhysicalVerificationCard(itemId: widget.itemId)),
+          if (!isStaff) ...[
+            _paddedSection(
+              ItemAnalyticsSection(
+                itemId: widget.itemId,
+                loadIntelligence: true,
+              ),
             ),
-          ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
   Widget _purchasesTab() {
-    if (!_heavySectionsLoaded) {
-      return const Center(child: CircularProgressIndicator());
+    if (!_tabReady(1)) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 88),
-      children: [
+    return _scrollTab(
+      ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 88),
+        children: [
         _paddedSection(ItemLedgerSection(itemId: widget.itemId)),
         _paddedSection(
           ItemPurchaseHistorySection(
@@ -572,16 +608,19 @@ class _ItemDetailMobileScrollState extends ConsumerState<_ItemDetailMobileScroll
             ItemPriceIntelligenceSection(itemName: widget.name),
           ),
       ],
+      ),
     );
   }
 
-  Widget _activityTab() {
-    if (!_heavySectionsLoaded) {
-      return const Center(child: CircularProgressIndicator());
+  Widget _activityTab(int tabIndex) {
+    if (!_tabReady(tabIndex)) {
+      return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     }
-    return ListView(
-      padding: const EdgeInsets.only(bottom: 88),
-      children: [
+    return _scrollTab(
+      ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 88),
+        children: [
         _paddedSection(
           Card(
             margin: EdgeInsets.zero,
@@ -611,6 +650,7 @@ class _ItemDetailMobileScrollState extends ConsumerState<_ItemDetailMobileScroll
         ),
         _paddedSection(ItemTimelineSection(itemId: widget.itemId)),
       ],
+      ),
     );
   }
 
@@ -618,112 +658,76 @@ class _ItemDetailMobileScrollState extends ConsumerState<_ItemDetailMobileScroll
   Widget build(BuildContext context) {
     final session = ref.watch(sessionProvider);
     final isStaff = session != null && sessionIsStaff(session);
-    final tabCount = isStaff ? 2 : 3;
 
-    return RefreshIndicator(
-      onRefresh: widget.onRefresh,
-      child: DefaultTabController(
-        length: tabCount,
-        initialIndex: _initialTabIndex(isStaff).clamp(0, tabCount - 1),
-        child: NestedScrollView(
-          headerSliverBuilder: (context, innerBoxIsScrolled) => [
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(widget.gutter, 8, widget.gutter, 0),
-              sliver: SliverToBoxAdapter(
-                child: HexaResponsiveCenter(
-                  maxWidth: HexaResponsive.maxContentWidth,
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      ItemDetailHeader(
-                        itemName: widget.name,
-                        categoryLabel: widget.categoryLabel,
-                        snapshot: null,
-                        onEdit: () =>
-                            context.push('/catalog/item/${widget.itemId}/edit'),
-                        onMore: widget.onMore,
-                      ),
-                      const SizedBox(height: 8),
-                      ItemStockSnapshotCard(itemId: widget.itemId),
-                      const SizedBox(height: 8),
-                      ItemQuickActionsBar(
-                        itemId: widget.itemId,
-                        itemName: widget.name,
-                        itemCode: widget.code,
-                      ),
-                    ],
+    return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(widget.gutter, 8, widget.gutter, 0),
+            child: HexaResponsiveCenter(
+              maxWidth: HexaResponsive.maxContentWidth,
+              padding: EdgeInsets.zero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ItemDetailHeader(
+                    itemName: widget.name,
+                    categoryLabel: widget.categoryLabel,
+                    snapshot: null,
+                    onEdit: () =>
+                        context.push('/catalog/item/${widget.itemId}/edit'),
+                    onMore: widget.onMore,
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  ItemStockSnapshotCard(itemId: widget.itemId),
+                  const SizedBox(height: 8),
+                  ItemQuickActionsBar(
+                    itemId: widget.itemId,
+                    itemName: widget.name,
+                    itemCode: widget.code,
+                  ),
+                ],
               ),
             ),
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _ItemDetailTabBarDelegate(
-                TabBar(
-                  isScrollable: true,
-                  onTap: (_) {
-                    if (!_heavySectionsLoaded && mounted) {
-                      setState(() => _heavySectionsLoaded = true);
-                    }
-                  },
-                  tabs: isStaff
-                      ? const [
-                          Tab(text: 'Overview'),
-                          Tab(text: 'Activity'),
-                        ]
-                      : const [
-                          Tab(text: 'Overview'),
-                          Tab(text: 'Purchases'),
-                          Tab(text: 'Activity'),
-                        ],
-                ),
-              ),
-            ),
-          ],
-          body: TabBarView(
-            children: isStaff
-                ? [
-                    _overviewTab(isStaff),
-                    _activityTab(),
-                  ]
-                : [
-                    _overviewTab(isStaff),
-                    _purchasesTab(),
-                    _activityTab(),
-                  ],
           ),
-        ),
-      ),
+          Material(
+            color: HexaColors.brandBackground,
+            child: TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              onTap: (index) {
+                if (_loadedTabIndexes.add(index) && mounted) {
+                  setState(() {});
+                }
+              },
+              tabs: isStaff
+                  ? const [
+                      Tab(text: 'Overview'),
+                      Tab(text: 'Activity'),
+                    ]
+                  : const [
+                      Tab(text: 'Overview'),
+                      Tab(text: 'Purchases'),
+                      Tab(text: 'Activity'),
+                    ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: isStaff
+                  ? [
+                      _overviewTab(isStaff),
+                      _activityTab(1),
+                    ]
+                  : [
+                      _overviewTab(isStaff),
+                      _purchasesTab(),
+                      _activityTab(2),
+                    ],
+            ),
+          ),
+        ],
     );
   }
-}
-
-class _ItemDetailTabBarDelegate extends SliverPersistentHeaderDelegate {
-  _ItemDetailTabBarDelegate(this.tabBar);
-
-  final TabBar tabBar;
-
-  @override
-  double get minExtent => tabBar.preferredSize.height;
-
-  @override
-  double get maxExtent => tabBar.preferredSize.height;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return Material(
-      color: HexaColors.brandBackground,
-      elevation: overlapsContent ? 1 : 0,
-      child: tabBar,
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant _ItemDetailTabBarDelegate old) =>
-      tabBar != old.tabBar;
 }

@@ -109,7 +109,8 @@ class _ItemPhysicalVerificationCardState
                 TextButton(
                   onPressed: () {
                     _retryCount = 0;
-                    ref.invalidate(itemDetailBundleProvider(widget.itemId));
+                    ref.invalidate(stockItemDetailProvider(widget.itemId));
+                    ref.invalidate(stockItemAuditProvider(widget.itemId));
                   },
                   child: const Text('Retry'),
                 ),

@@ -5,8 +5,6 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/json_coerce.dart';
-import '../../../../core/providers/catalog_providers.dart'
-    show catalogItemDetailProvider;
 import '../../../../core/providers/item_detail_providers.dart';
 import '../../../../core/providers/stock_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
@@ -36,15 +34,13 @@ class _ItemLedgerSectionState extends ConsumerState<ItemLedgerSection> {
 
   void _invalidateLedger() {
     ref.invalidate(stockItemActivityProvider(widget.itemId));
-    ref.invalidate(itemDetailBundleProvider(widget.itemId));
-    ref.invalidate(catalogItemDetailProvider(widget.itemId));
   }
 
   void _scheduleLedgerAutoRetryOnce() {
     if (_ledgerAutoRetried) return;
     _ledgerAutoRetried = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Future<void>.delayed(const Duration(seconds: 2), () {
+      Future<void>.delayed(const Duration(seconds: 3), () {
         if (mounted) _invalidateLedger();
       });
     });

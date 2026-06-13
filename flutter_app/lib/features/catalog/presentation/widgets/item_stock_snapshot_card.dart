@@ -62,7 +62,6 @@ class ItemStockSnapshotCard extends ConsumerWidget {
             TextButton(
               onPressed: () {
                 ref.invalidate(stockItemDetailProvider(itemId));
-                ref.invalidate(itemDetailBundleProvider(itemId));
               },
               child: const Text('Retry'),
             ),

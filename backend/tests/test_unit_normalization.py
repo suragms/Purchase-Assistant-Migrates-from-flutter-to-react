@@ -54,3 +54,10 @@ def test_uses_persisted_snapshot():
     line = _line(qty=5000, unit="kg")
     line.qty_in_stock_unit = Decimal("99")
     assert line_qty_in_stock_unit(line, item) == Decimal("99.000")
+
+
+def test_zero_snapshot_falls_through_to_conversion():
+    item = _item()
+    line = _line(qty=5000, unit="kg")
+    line.qty_in_stock_unit = Decimal("0")
+    assert line_qty_in_stock_unit(line, item) == Decimal("100.000")

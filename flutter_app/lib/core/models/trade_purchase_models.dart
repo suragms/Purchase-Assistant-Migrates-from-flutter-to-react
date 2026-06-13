@@ -211,6 +211,7 @@ class TradePurchaseLine {
     this.taxPercent,
     this.catalogItemId,
     this.receivedQty,
+    this.qtyInStockUnit,
     this.hsnCode,
     this.itemCode,
     this.paymentDays,
@@ -253,6 +254,8 @@ class TradePurchaseLine {
   final double? taxPercent;
   final String? catalogItemId;
   final double? receivedQty;
+  /// Persisted stock-unit qty snapshot (backend commit-stock SSOT when set).
+  final double? qtyInStockUnit;
   final String? hsnCode;
   final String? itemCode;
   final int? paymentDays;
@@ -291,6 +294,7 @@ class TradePurchaseLine {
       taxPercent: _decNullableDouble(j['tax_percent']),
       catalogItemId: j['catalog_item_id']?.toString(),
       receivedQty: _decNullableDouble(j['received_qty']),
+      qtyInStockUnit: _decNullableDouble(j['qty_in_stock_unit']),
       hsnCode: j['hsn_code']?.toString(),
       itemCode: j['item_code']?.toString(),
       paymentDays: coerceToIntNullable(j['payment_days']),

@@ -5,11 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/json_coerce.dart';
-import '../../../../core/providers/catalog_providers.dart'
-    show catalogItemDetailProvider;
 import '../../../../core/providers/item_detail_providers.dart';
 import '../../../../core/providers/stock_providers.dart'
-    show stockItemIntelligenceProvider;
+    show stockItemDetailProvider;
 import '../../../../core/utils/unit_utils.dart';
 import '../../../../core/widgets/friendly_load_error.dart';
 
@@ -32,17 +30,18 @@ class _ItemAnalyticsSectionState extends ConsumerState<ItemAnalyticsSection> {
   bool _autoRetried = false;
 
   void _invalidateSection() {
-    ref.invalidate(stockItemIntelligenceProvider(widget.itemId));
-    ref.invalidate(itemDetailBundleProvider(widget.itemId));
-    ref.invalidate(catalogItemDetailProvider(widget.itemId));
+    ref.invalidate(itemStockIntelligenceProvider(widget.itemId));
+    ref.invalidate(stockItemDetailProvider(widget.itemId));
   }
 
   void _scheduleAutoRetryOnce() {
     if (_autoRetried) return;
     _autoRetried = true;
     unawaited(
-      Future<void>.delayed(const Duration(seconds: 2), () {
-        if (mounted) _invalidateSection();
+      Future<void>.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          ref.invalidate(itemStockIntelligenceProvider(widget.itemId));
+        }
       }),
     );
   }
@@ -51,7 +50,7 @@ class _ItemAnalyticsSectionState extends ConsumerState<ItemAnalyticsSection> {
   Widget build(BuildContext context) {
     final stockAsync = ref.watch(itemDetailStockProvider(widget.itemId));
     final intelAsync = widget.loadIntelligence
-        ? ref.watch(stockItemIntelligenceProvider(widget.itemId))
+        ? ref.watch(itemStockIntelligenceProvider(widget.itemId))
         : null;
 
     if (stockAsync.hasError && !stockAsync.hasValue) {

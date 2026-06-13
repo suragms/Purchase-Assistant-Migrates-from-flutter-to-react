@@ -24,12 +24,10 @@ import '../../../core/router/shell_navigation.dart';
 import '../../../core/services/reports_pdf.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/utils/unit_utils.dart';
-import '../../../core/utils/currency_utils.dart';
 import '../../../features/analytics/presentation/analytics_report_helpers.dart';
 import '../../../shared/widgets/hexa_empty_state.dart';
 import '../filters/reports_filter_sheet.dart';
 import '../filters/reports_filter_state.dart';
-import '../presentation/widgets/reports_period_bar.dart';
 import '../reports_bi_tab.dart';
 import '../tabs/reports_items_tab.dart';
 import '../tabs/reports_overview_tab.dart';
@@ -86,8 +84,6 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
 
   final TextEditingController _searchCtl = TextEditingController();
   Timer? _searchDebounce;
-  Timer? _rangeInvalidateDebounce;
-  Timer? _periodPresetDebounce;
   Timer? _stallTimer;
   bool _stallBanner = false;
 
@@ -173,8 +169,6 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
   void dispose() {
     _searchCtl.dispose();
     _searchDebounce?.cancel();
-    _rangeInvalidateDebounce?.cancel();
-    _periodPresetDebounce?.cancel();
     _stallTimer?.cancel();
     _homePeriodSub?.close();
     super.dispose();
@@ -214,7 +208,6 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
       _preset = synced;
       _visibleCap = 40;
     });
-    _scheduleReportsReloadForRange();
   }
 
   void _onSearchChanged(String value) {
@@ -234,14 +227,6 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
 
   void _bumpInvalidate() => ref.invalidate(reportsPurchasesPayloadProvider);
 
-  void _scheduleReportsReloadForRange() {
-    _rangeInvalidateDebounce?.cancel();
-    _rangeInvalidateDebounce = Timer(const Duration(milliseconds: 400), () {
-      if (!mounted) return;
-      ref.invalidate(reportsPurchasesPayloadProvider);
-    });
-  }
-
   Future<void> _pickCustomRange() async {
     final now = DateTime.now();
     final range = ref.read(analyticsDateRangeProvider);
@@ -259,7 +244,6 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
       _preset = _DatePreset.custom;
       _visibleCap = 40;
     });
-    _scheduleReportsReloadForRange();
   }
 
   void _applyDatePresetFromLabel(String label) {
@@ -299,11 +283,7 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
       _preset = p;
       _visibleCap = 40;
     });
-    _periodPresetDebounce?.cancel();
-    _periodPresetDebounce = Timer(const Duration(milliseconds: 150), () {
-      if (!mounted) return;
-      _bumpInvalidate();
-    });
+    // analyticsDateRangeProvider change already refetches reports + breakdown APIs.
   }
 
   void _syncRangeWithHome() {
@@ -327,7 +307,6 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
       };
       _visibleCap = 40;
     });
-    _scheduleReportsReloadForRange();
   }
 
   void _selectBiTab(ReportsBiTab tab) {
@@ -565,50 +544,6 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
     }
   }
 
-  Widget _heroSpendCard(TradeReportAgg agg) {
-    final spend = agg.totals.inr;
-    final deals = agg.totals.deals;
-    final tone = spend > 0 ? const Color(0xFF0E4F46) : HexaColors.textSecondary;
-    return Container(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE6EBE8)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'TOTAL SPEND THIS ${_presetLabel(_preset).toUpperCase()}',
-            style: const TextStyle(
-              fontSize: 11,
-              letterSpacing: 0.3,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF64748B),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            formatRupee(spend, decimals: false),
-            style: TextStyle(
-              fontSize: 38,
-              height: 1.0,
-              fontWeight: FontWeight.w900,
-              color: tone,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            deals > 0 ? '$deals purchases in selected range' : 'No purchases in selected range',
-            style: const TextStyle(fontSize: 12, color: Color(0xFF475569)),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     ref.listen<AsyncValue<ReportsPurchasePayload>>(
@@ -678,15 +613,6 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (!wideDesktop)
-                ReportsPeriodBar(
-                  selectedPreset: _presetLabel(_preset),
-                  onPresetSelected: _applyDatePresetFromLabel,
-                  onCustomRange: () => unawaited(_pickCustomRange()),
-                  onSyncHome: _syncRangeWithHome,
-                  compact: true,
-                ),
-              _heroSpendCard(aggAll),
               ReportsPrimaryTabs(
                 selected: _biTab,
                 onSelected: _selectBiTab,
@@ -722,6 +648,12 @@ class _ReportsShellPageState extends ConsumerState<ReportsShellPage> {
           filterCount: filterCount,
           onExport: () => _openExportSheet(merged),
           exporting: _exportingPdf || _exportingCsv,
+          selectedPeriodPreset: wideDesktop ? null : _presetLabel(_preset),
+          onPeriodPresetSelected:
+              wideDesktop ? null : _applyDatePresetFromLabel,
+          onCustomPeriod: wideDesktop ? null : () => unawaited(_pickCustomRange()),
+          onSyncHomePeriod: wideDesktop ? null : _syncRangeWithHome,
+          showPeriodRow: !wideDesktop,
         ),
         body: session == null
             ? const Center(child: Text('Sign in'))

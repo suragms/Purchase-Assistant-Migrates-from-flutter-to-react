@@ -198,9 +198,11 @@ def line_qty_for_stock_commit(line: Any, item: CatalogItem) -> Decimal:
         if snap is not None and ordered_d > 0:
             from decimal import ROUND_HALF_UP
 
-            return (Decimal(str(snap)) * recv_d / ordered_d).quantize(
-                Decimal("0.001"), rounding=ROUND_HALF_UP
-            )
+            snap_d = Decimal(str(snap))
+            if snap_d > 0:
+                return (snap_d * recv_d / ordered_d).quantize(
+                    Decimal("0.001"), rounding=ROUND_HALF_UP
+                )
         class _RecvLine:
             pass
 
