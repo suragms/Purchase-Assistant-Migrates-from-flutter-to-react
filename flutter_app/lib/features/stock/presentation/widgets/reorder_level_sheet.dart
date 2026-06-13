@@ -25,77 +25,102 @@ Future<bool> showReorderLevelSheet({
   final ctrl = TextEditingController(
     text: currentReorder > 0 ? currentReorder.toString() : '',
   );
+  var saving = false;
   final saved = await showHexaBottomSheet<bool>(
     context: context,
     compact: true,
     padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-    child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            'Set reorder level — $itemName',
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'When stock falls below this number, low-stock alerts trigger.',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: ctrl,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: InputDecoration(
-              labelText: 'Reorder at',
-              hintText: 'e.g. 10',
-              suffixText: unit.toUpperCase(),
-              border: const OutlineInputBorder(),
+    child: StatefulBuilder(
+      builder: (context, setSheetState) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Set reorder level — $itemName',
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
             ),
-            autofocus: true,
-          ),
-          const SizedBox(height: 16),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+            const SizedBox(height: 8),
+            Text(
+              'When stock falls below this number, low-stock alerts trigger.',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              enabled: !saving,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Reorder at',
+                hintText: 'e.g. 10',
+                suffixText: unit.toUpperCase(),
+                border: const OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+            const SizedBox(height: 16),
+            FilledButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final text = ctrl.text.trim();
+                      final v = double.tryParse(text);
+                      if (v == null || v < 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Enter a valid number')),
+                        );
+                        return;
+                      }
+                      setSheetState(() => saving = true);
+                      try {
+                        await ref.read(hexaApiProvider).updateCatalogItem(
+                              businessId: session.primaryBusiness.id,
+                              itemId: itemId,
+                              patchReorderLevel: true,
+                              reorderLevel: v,
+                            );
+                        ref.invalidate(catalogItemDetailProvider(itemId));
+                        ref.invalidate(stockItemDetailProvider(itemId));
+                        invalidateCatalogItemSaveSurfaces(ref, itemId: itemId);
+                        invalidateStockRowSaveSurfaces(
+                          ref,
+                          itemId: itemId,
+                          reorderAlert: true,
+                        );
+                        if (!context.mounted) return;
+                        Navigator.pop(context, true);
+                      } on DioException catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(friendlyApiError(e))),
+                          );
+                        }
+                      } finally {
+                        if (context.mounted) {
+                          setSheetState(() => saving = false);
+                        }
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(
+                      height: 20,
+                      width: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Save'),
+            ),
+          ],
+        );
+      },
+    ),
   );
-  final text = ctrl.text.trim();
   ctrl.dispose();
   if (saved != true || !context.mounted) return false;
-
-  final v = double.tryParse(text);
-  if (v == null || v < 0) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Enter a valid number')),
-    );
-    return false;
-  }
-
-  try {
-    await ref.read(hexaApiProvider).updateCatalogItem(
-          businessId: session.primaryBusiness.id,
-          itemId: itemId,
-          patchReorderLevel: true,
-          reorderLevel: v,
-        );
-    ref.invalidate(catalogItemDetailProvider(itemId));
-    ref.invalidate(stockItemDetailProvider(itemId));
-    invalidateWarehouseSurfaces(ref);
-    if (!context.mounted) return false;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Reorder level set to $v ${unit.toUpperCase()}')),
-    );
-    return true;
-  } on DioException catch (e) {
-    if (!context.mounted) return false;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(friendlyApiError(e))),
-    );
-    return false;
-  }
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text('Reorder level updated')),
+  );
+  return true;
 }
 
 /// Reads reorder level from a stock list row map.

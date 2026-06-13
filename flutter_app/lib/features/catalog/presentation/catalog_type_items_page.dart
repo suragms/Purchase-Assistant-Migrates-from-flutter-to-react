@@ -44,6 +44,7 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
   bool _selectionMode = false;
   /// Item IDs hidden immediately while delete API runs (restored on failure).
   final Set<String> _pendingDeleteItemIds = {};
+  bool _bulkDeleting = false;
 
   @override
   void initState() {
@@ -53,7 +54,7 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
 
   void _onSearchChanged() {
     _searchDebounce?.cancel();
-    _searchDebounce = Timer(const Duration(milliseconds: 150), () {
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
       if (!mounted) return;
       setState(() => _searchQuery = _searchCtrl.text);
     });
@@ -138,7 +139,7 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
   }
 
   Future<void> _bulkDelete() async {
-    if (_selected.isEmpty) return;
+    if (_selected.isEmpty || _bulkDeleting) return;
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -153,6 +154,7 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
     if (ok != true) return;
     final session = ref.read(sessionProvider);
     if (session == null) return;
+    setState(() => _bulkDeleting = true);
     final ids = _selected.toList();
     setState(() {
       for (final id in ids) {
@@ -186,7 +188,10 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
     } catch (_) {}
     invalidateBusinessAggregates(ref);
     if (mounted) {
-      setState(() => _pendingDeleteItemIds.removeAll(ids));
+      setState(() {
+        _pendingDeleteItemIds.removeAll(ids);
+        _bulkDeleting = false;
+      });
       if (!stoppedEarly) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Deleted')));
       }
