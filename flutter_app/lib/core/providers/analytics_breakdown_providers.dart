@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 
 import '../auth/session_notifier.dart' show activeSessionProvider, hexaApiProvider;
 import 'analytics_kpi_provider.dart';
+import 'trade_report_snapshot_provider.dart';
 
 const Duration _analyticsProviderKeepAlive = Duration(minutes: 3);
 
@@ -56,14 +57,9 @@ final analyticsItemsTableProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   _keepAnalyticsAlive(ref);
   final session = ref.watch(activeSessionProvider);
-  final range = ref.watch(analyticsDateRangeProvider);
   if (session == null) return [];
-  final fmt = DateFormat('yyyy-MM-dd');
-  return ref.read(hexaApiProvider).tradeReportItems(
-        businessId: session.primaryBusiness.id,
-        from: fmt.format(range.from),
-        to: fmt.format(range.to),
-      );
+  final snap = await ref.watch(tradeReportSnapshotProvider.future);
+  return snap.items;
 });
 
 final analyticsCategoriesTableProvider =
@@ -85,28 +81,18 @@ final analyticsTypesTableProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   _keepAnalyticsAlive(ref);
   final session = ref.watch(activeSessionProvider);
-  final range = ref.watch(analyticsDateRangeProvider);
   if (session == null) return [];
-  final fmt = DateFormat('yyyy-MM-dd');
-  return ref.read(hexaApiProvider).tradeReportTypes(
-        businessId: session.primaryBusiness.id,
-        from: fmt.format(range.from),
-        to: fmt.format(range.to),
-      );
+  final snap = await ref.watch(tradeReportSnapshotProvider.future);
+  return snap.types;
 });
 
 final analyticsSuppliersTableProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   _keepAnalyticsAlive(ref);
   final session = ref.watch(activeSessionProvider);
-  final range = ref.watch(analyticsDateRangeProvider);
   if (session == null) return [];
-  final fmt = DateFormat('yyyy-MM-dd');
-  return ref.read(hexaApiProvider).tradeReportSuppliers(
-        businessId: session.primaryBusiness.id,
-        from: fmt.format(range.from),
-        to: fmt.format(range.to),
-      );
+  final snap = await ref.watch(tradeReportSnapshotProvider.future);
+  return snap.suppliers;
 });
 
 final analyticsBrokersTableProvider =

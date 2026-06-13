@@ -18,6 +18,7 @@ import 'home_dashboard_provider.dart'
         homeTabHasOperationalBundle,
         homePeriodProvider,
         homeCustomDateRangeProvider,
+        homeStockMovementSectionVisibleProvider,
         HomePeriod,
         HomeDashboardData,
         homeDashboardDataFromApiSnapshot,
@@ -353,6 +354,13 @@ final homeOwnerPeriodDashboardProvider =
 final stockVariancesTodayProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   _providerKeepAlive(ref, const Duration(minutes: 2));
+  if (homeTabHasOperationalBundle(ref)) {
+    return const [];
+  }
+  if (shellBranchIsVisible(ref, ShellBranch.home) &&
+      !ref.watch(homeStockMovementSectionVisibleProvider)) {
+    return const [];
+  }
   if (!shellBranchIsVisible(ref, ShellBranch.home) &&
       !shellBranchIsVisible(ref, ShellBranch.reports)) {
     return [];

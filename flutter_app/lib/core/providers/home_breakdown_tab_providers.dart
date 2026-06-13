@@ -8,6 +8,7 @@ import '../../features/shell/shell_branch_provider.dart';
 import '../auth/session_notifier.dart';
 import '../services/offline_store.dart';
 import 'home_dashboard_provider.dart';
+import 'trade_report_snapshot_provider.dart';
 
 /// Breakdown view on Home (drives the ring + rows for non-category tabs).
 enum HomeBreakdownTab {
@@ -126,25 +127,11 @@ void bustHomeShellReportsInflight() {
   _shellInflight.clear();
 }
 
-const _shellEachTimeout = Duration(seconds: 28);
-
 /// connectivity_plus can hang on some devices; never block shell forever.
 const _connectivityTimeout = Duration(seconds: 3);
 
 /// Hard cap so [work] always completes (releases [_shellInflight]).
 const _shellWorkHardTimeout = Duration(seconds: 42);
-
-Future<List<Map<String, dynamic>>> _fetchShellList(
-  Future<List<Map<String, dynamic>>> Function() fn,
-) async {
-  try {
-    return await fn().timeout(_shellEachTimeout);
-  } on TimeoutException {
-    return [];
-  } catch (_) {
-    return [];
-  }
-}
 
 /// Types + suppliers + items for the current Home date range.
 final homeShellReportsProvider =
@@ -159,7 +146,6 @@ final homeShellReportsProvider =
         HomeShellReportsBundle.empty;
   }
   final q = homeDateRangeForRef(ref);
-  final api = ref.read(hexaApiProvider);
   final bid = session.primaryBusiness.id;
   final dedupeKey = '$bid|${q.from}|${q.to}';
 
@@ -204,24 +190,14 @@ final homeShellReportsProvider =
         return fromOverview;
       }
       // Per-endpoint timeout + isolation: one slow/hung API does not block others.
-      final typesF = _fetchShellList(
-        () => api.tradeReportTypes(
-            businessId: bid, from: q.from, to: q.to),
+      final snap = await fetchTradeReportSnapshot(
+        ref,
+        (from: q.from, to: q.to),
       );
-      final supF = _fetchShellList(
-        () => api.tradeReportSuppliers(
-            businessId: bid, from: q.from, to: q.to),
-      );
-      final itemsF = _fetchShellList(
-        () => api.tradeReportItems(
-            businessId: bid, from: q.from, to: q.to),
-      );
-      final out = await Future.wait([typesF, supF, itemsF])
-          .timeout(const Duration(seconds: 32));
       final bundle = HomeShellReportsBundle(
-        subcategories: out[0],
-        suppliers: out[1],
-        items: out[2],
+        subcategories: snap.types,
+        suppliers: snap.suppliers,
+        items: snap.items,
       );
       if (bundle.subcategories.isNotEmpty ||
           bundle.suppliers.isNotEmpty ||

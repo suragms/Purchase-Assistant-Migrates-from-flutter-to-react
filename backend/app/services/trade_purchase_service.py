@@ -9,6 +9,8 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
 
+from time import monotonic
+
 from sqlalchemy import delete, exists, func, not_, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -60,6 +62,42 @@ _ARRIVE_FROM = frozenset({"pending", "dispatched", "in_transit"})
 _VERIFY_FROM = frozenset({"arrived", "staff_verifying"})
 _COMMIT_FROM = frozenset({"staff_verified", "partial"})
 _CATALOG_SNAPSHOT_SKIP_STATUSES = ("deleted", "cancelled", "draft")
+_IDEMPOTENCY_TTL_S = 86400.0
+_idempotency_purchase_ids: dict[tuple[str, str], tuple[float, uuid.UUID]] = {}
+
+
+def lookup_idempotency_purchase_id(
+    business_id: uuid.UUID,
+    key: str,
+) -> uuid.UUID | None:
+    normalized = key.strip()
+    if not normalized:
+        return None
+    cache_key = (str(business_id), normalized)
+    hit = _idempotency_purchase_ids.get(cache_key)
+    if hit is None:
+        return None
+    ts, purchase_id = hit
+    if monotonic() - ts > _IDEMPOTENCY_TTL_S:
+        _idempotency_purchase_ids.pop(cache_key, None)
+        return None
+    return purchase_id
+
+
+def remember_idempotency_purchase_id(
+    business_id: uuid.UUID,
+    key: str,
+    purchase_id: uuid.UUID,
+) -> None:
+    normalized = key.strip()
+    if not normalized:
+        return
+    _idempotency_purchase_ids[(str(business_id), normalized)] = (
+        monotonic(),
+        purchase_id,
+    )
+
+
 _PURCHASE_LIFECYCLE_ALLOWED = {
     "draft": frozenset({"active", "approved", "cancelled"}),
     "active": frozenset({"approved", "ordered", "cancelled"}),
@@ -2076,34 +2114,38 @@ async def refresh_catalog_last_trade_snapshots(
     ids = [i for i in set(catalog_item_ids) if i is not None]
     if not ids:
         return
-    for cid in ids:
-        ir = await db.execute(
-            select(CatalogItem).where(
-                CatalogItem.id == cid,
-                CatalogItem.business_id == business_id,
-            )
+    ir = await db.execute(
+        select(CatalogItem).where(
+            CatalogItem.id.in_(ids),
+            CatalogItem.business_id == business_id,
         )
-        item = ir.scalar_one_or_none()
+    )
+    items_by_id = {item.id: item for item in ir.scalars().all()}
+    lr = await db.execute(
+        select(TradePurchaseLine.catalog_item_id, TradePurchase, TradePurchaseLine)
+        .join(
+            TradePurchase,
+            TradePurchase.id == TradePurchaseLine.trade_purchase_id,
+        )
+        .where(
+            TradePurchase.business_id == business_id,
+            TradePurchase.status.notin_(_CATALOG_SNAPSHOT_SKIP_STATUSES),
+            TradePurchaseLine.catalog_item_id.in_(ids),
+        )
+        .order_by(
+            TradePurchase.purchase_date.desc(),
+            TradePurchase.created_at.desc(),
+        )
+    )
+    latest_by_cid: dict[uuid.UUID, tuple[TradePurchase, TradePurchaseLine]] = {}
+    for cid, tp, line in lr.all():
+        if cid not in latest_by_cid:
+            latest_by_cid[cid] = (tp, line)
+    for cid in ids:
+        item = items_by_id.get(cid)
         if item is None:
             continue
-        lr = await db.execute(
-            select(TradePurchase, TradePurchaseLine)
-            .join(
-                TradePurchaseLine,
-                TradePurchaseLine.trade_purchase_id == TradePurchase.id,
-            )
-            .where(
-                TradePurchase.business_id == business_id,
-                TradePurchase.status.notin_(_CATALOG_SNAPSHOT_SKIP_STATUSES),
-                TradePurchaseLine.catalog_item_id == cid,
-            )
-            .order_by(
-                TradePurchase.purchase_date.desc(),
-                TradePurchase.created_at.desc(),
-            )
-            .limit(1)
-        )
-        pair = lr.first()
+        pair = latest_by_cid.get(cid)
         if pair is None:
             item.last_trade_purchase_id = None
             item.last_line_qty = None

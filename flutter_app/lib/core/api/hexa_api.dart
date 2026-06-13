@@ -293,7 +293,7 @@ class HexaApi {
     _plain.interceptors.add(
       HexaConnectionTimeoutRetryInterceptor(_plain),
     );
-    _dio.interceptors.add(DioAutoRetryInterceptor(_dio, maxAttempts: 3));
+    _dio.interceptors.add(DioAutoRetryInterceptor(_dio, maxAttempts: 2));
     final banner = _onConnectivityBanner;
     if (banner != null) {
       _dio.interceptors.add(_BusinessConnectivityBannerInterceptor(banner));
@@ -1854,6 +1854,7 @@ class HexaApi {
     bool shellBundle = false,
     int? maxSpanDays,
     int? tzOffsetMinutes,
+    String? ifNoneMatch,
   }) async {
     final qp = <String, dynamic>{
       'from': from,
@@ -1867,8 +1868,23 @@ class HexaApi {
     final res = await _dio.get<Map<String, dynamic>>(
       '/v1/businesses/$businessId/reports/home-overview',
       queryParameters: qp,
+      options: Options(
+        headers: {
+          if (ifNoneMatch != null && ifNoneMatch.isNotEmpty)
+            'If-None-Match': ifNoneMatch,
+        },
+        validateStatus: (code) => code != null && (code < 400 || code == 304),
+      ),
     );
-    return Map<String, dynamic>.from(res.data ?? {});
+    if (res.statusCode == 304) {
+      return const {'_not_modified': true};
+    }
+    final data = Map<String, dynamic>.from(res.data ?? {});
+    final etag = res.headers.value('etag');
+    if (etag != null && etag.isNotEmpty) {
+      data['_etag'] = etag;
+    }
+    return data;
   }
 
   /// Per (item, supplier, broker) trade stats and best-supplier recommendations (deals≥2 vwap).

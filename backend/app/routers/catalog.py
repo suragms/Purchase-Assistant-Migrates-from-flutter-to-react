@@ -1653,9 +1653,12 @@ async def list_catalog_items(
     db: Annotated[AsyncSession, Depends(get_db)],
     category_id: uuid.UUID | None = Query(None, description="Filter by category"),
     type_id: uuid.UUID | None = Query(None, description="Filter by category type"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(200, ge=1, le=500),
 ):
 
     async def _read() -> list[CatalogItemOut]:
+        offset = (page - 1) * per_page
         has_type_col = await catalog_items_has_type_id_column(db)
         if has_type_col:
             q = (
@@ -1668,7 +1671,7 @@ async def list_catalog_items(
                 q = q.where(CatalogItem.category_id == category_id)
             if type_id is not None:
                 q = q.where(CatalogItem.type_id == type_id)
-            q = q.order_by(func.lower(CatalogItem.name))
+            q = q.order_by(func.lower(CatalogItem.name)).offset(offset).limit(per_page)
             r = await db.execute(q)
             rows = r.all()
             ids = [i.id for i, _, _ in rows]
@@ -1704,7 +1707,7 @@ async def list_catalog_items(
         )
         if category_id is not None:
             q = q.where(CatalogItem.category_id == category_id)
-        q = q.order_by(func.lower(CatalogItem.name))
+        q = q.order_by(func.lower(CatalogItem.name)).offset(offset).limit(per_page)
         r = await db.execute(q)
         rows = r.all()
         ids = [i.id for i, _ in rows]

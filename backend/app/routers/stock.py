@@ -1813,56 +1813,57 @@ async def stock_alerts_summary(
     )
 
 
-@router.get("/warehouse/alerts-summary", response_model=WarehouseAlertsSummaryOut)
-async def warehouse_alerts_summary(
+async def warehouse_alerts_from_stock(
+    db: AsyncSession,
     business_id: uuid.UUID,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    _m: Annotated[Membership, Depends(require_membership)],
-):
-    """Collapsed owner-home alert summary to avoid Flutter provider waterfalls."""
-    stock = await stock_alerts_summary(business_id=business_id, db=db, _m=_m)
+    stock: StockAlertsSummaryOut,
+) -> WarehouseAlertsSummaryOut:
+    """Warehouse KPIs from an existing stock alert scan (avoids duplicate catalog pass)."""
     today = date.today()
-
-    pending_deliveries_q = await db.execute(
-        select(func.count(TradePurchase.id)).where(
-            TradePurchase.business_id == business_id,
-            TradePurchase.status.notin_(("cancelled", "deleted")),
-            TradePurchase.is_delivered.is_(False),
-        )
+    (
+        pending_deliveries_q,
+        variances_q,
+        templates_q,
+        completed_q,
+    ) = await asyncio.gather(
+        db.execute(
+            select(func.count(TradePurchase.id)).where(
+                TradePurchase.business_id == business_id,
+                TradePurchase.status.notin_(("cancelled", "deleted")),
+                TradePurchase.is_delivered.is_(False),
+            )
+        ),
+        db.execute(
+            select(func.count(StockAdjustmentLog.id)).where(
+                StockAdjustmentLog.business_id == business_id,
+                StockAdjustmentLog.adjustment_type.in_(("verification", "correction", "manual")),
+                func.date(StockAdjustmentLog.updated_at) == today,
+            )
+        ),
+        db.execute(
+            select(func.count())
+            .select_from(StaffChecklistTemplate)
+            .where(
+                or_(
+                    StaffChecklistTemplate.business_id == business_id,
+                    StaffChecklistTemplate.business_id.is_(None),
+                )
+            )
+        ),
+        db.execute(
+            select(func.count(func.distinct(StaffChecklistCompletion.task_key))).where(
+                StaffChecklistCompletion.business_id == business_id,
+                StaffChecklistCompletion.checklist_date == today,
+            )
+        ),
     )
     pending_deliveries = int(pending_deliveries_q.scalar_one() or 0)
-
-    variances_q = await db.execute(
-        select(func.count(StockAdjustmentLog.id)).where(
-            StockAdjustmentLog.business_id == business_id,
-            StockAdjustmentLog.adjustment_type.in_(("verification", "correction", "manual")),
-            func.date(StockAdjustmentLog.updated_at) == today,
-        )
-    )
     pending_verifications = int(variances_q.scalar_one() or 0)
-
-    templates_q = await db.execute(
-        select(func.count())
-        .select_from(StaffChecklistTemplate)
-        .where(
-            or_(
-                StaffChecklistTemplate.business_id == business_id,
-                StaffChecklistTemplate.business_id.is_(None),
-            )
-        )
-    )
     checklist_total = int(templates_q.scalar_one() or 0)
-    completed_q = await db.execute(
-        select(func.count(func.distinct(StaffChecklistCompletion.task_key))).where(
-            StaffChecklistCompletion.business_id == business_id,
-            StaffChecklistCompletion.checklist_date == today,
-        )
-    )
     checklist_done = int(completed_q.scalar_one() or 0)
     checklist_completion_pct = (
         round((checklist_done / checklist_total) * 100, 1) if checklist_total > 0 else 100.0
     )
-
     return WarehouseAlertsSummaryOut(
         pending_deliveries=pending_deliveries,
         low_stock=stock.low_stock,
@@ -1874,6 +1875,17 @@ async def warehouse_alerts_summary(
         checklist_completion_pct=checklist_completion_pct,
         total_items=stock.total_items,
     )
+
+
+@router.get("/warehouse/alerts-summary", response_model=WarehouseAlertsSummaryOut)
+async def warehouse_alerts_summary(
+    business_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _m: Annotated[Membership, Depends(require_membership)],
+):
+    """Collapsed owner-home alert summary to avoid Flutter provider waterfalls."""
+    stock = await stock_alerts_summary(business_id=business_id, db=db, _m=_m)
+    return await warehouse_alerts_from_stock(db, business_id, stock)
 
 
 LowStockOpsFilter = Literal[

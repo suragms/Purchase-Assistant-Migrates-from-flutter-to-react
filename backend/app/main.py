@@ -17,6 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, ProgrammingError, SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.gzip import GZipMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -61,9 +62,11 @@ _BUSINESS_ROUTE_PREFIX_RE = re.compile(r"^/v1/businesses/([^/]+)/")
 
 _GET_CACHE_CONTROL_RULES: tuple[tuple[re.Pattern[str], int], ...] = (
     (re.compile(r"^/v1/businesses/[^/]+/stock/list(?:/compact)?$"), 30),
+    (re.compile(r"^/v1/businesses/[^/]+/stock/alerts/summary$"), 30),
     (re.compile(r"^/v1/businesses/[^/]+/stock/delivery-indicator-counts$"), 30),
     (re.compile(r"^/v1/businesses/[^/]+/dashboard$"), 60),
     (re.compile(r"^/v1/businesses/[^/]+/reports/home-overview$"), 60),
+    (re.compile(r"^/v1/businesses/[^/]+/reports/trade-summary$"), 60),
     (re.compile(r"^/v1/businesses/[^/]+/catalog-items$"), 120),
 )
 
@@ -572,6 +575,8 @@ if settings.trusted_hosts:
     hosts = [h.strip() for h in settings.trusted_hosts.split(",") if h.strip()]
     if hosts:
         app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
+
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 app.include_router(health.router)
 if (settings.whatsapp_reports_cron_secret or "").strip():

@@ -12,15 +12,19 @@ from difflib import SequenceMatcher
 from time import monotonic
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import String, and_, case, cast, desc, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from starlette.responses import Response
 
 from app.async_budget import run_read_budget_bounded
 from app.database import get_db
 from app.db_resilience import execute_with_retry
 from app.deps import get_current_user, require_membership, require_role
+from app.http_etag import json_response_with_etag
+from app.middleware.rate_limit import SlidingWindowLimiter
 from app.models import CatalogItem, CategoryType, ItemCategory, Membership, TradePurchase, TradePurchaseLine, User
 from app.models.stock_adjustment import StockAdjustmentLog
 from app.models.stock_physical_count import StockPhysicalCount
@@ -33,16 +37,35 @@ from app.services.stock_inventory import compute_inventory_summary
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v1/businesses/{business_id}/reports", tags=["reports-trade"])
+_reports_read_limiter = SlidingWindowLimiter(max_requests=60, window_seconds=60.0)
+
+
+async def enforce_reports_read_rate_limit(request: Request) -> None:
+    if request.method not in {"GET", "HEAD"}:
+        return
+    client = request.client
+    ip = client.host if client else "unknown"
+    if not _reports_read_limiter.allow(f"reports-read:{ip}"):
+        raise HTTPException(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="rate_limit_exceeded",
+        )
+
+
+router = APIRouter(
+    prefix="/v1/businesses/{business_id}/reports",
+    tags=["reports-trade"],
+    dependencies=[Depends(enforce_reports_read_rate_limit)],
+)
 
 _trade_line_amount_expr = tq.trade_line_amount_expr
 _trade_purchase_date_filter = tq.trade_purchase_date_filter
 
-_trade_dashboard_ttl_s = 20.0
+_trade_dashboard_ttl_s = 45.0
 _trade_dashboard_cache: dict[tuple[str, str, str, int, bool], tuple[float, dict[str, Any]]] = {}
 _trade_dashboard_cache_max = 256
 
-_trade_summary_ttl_s = 20.0
+_trade_summary_ttl_s = 45.0
 _trade_summary_cache: dict[tuple[str, str, str, str, int], tuple[float, dict[str, Any]]] = {}
 _trade_summary_cache_max = 256
 
@@ -803,6 +826,7 @@ async def trade_dashboard_snapshot(
 
 @router.get("/home-overview")
 async def trade_home_overview(
+    request: Request,
     business_id: uuid.UUID,
     _m: Annotated[Membership, Depends(require_membership)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -819,7 +843,7 @@ async def trade_home_overview(
         le=400,
         description="When set, reject ranges longer than this (inclusive calendar days).",
     ),
-) -> dict[str, Any]:
+) -> Response:
     """Bundled dashboard snapshot shape for Flutter home — delegates to snapshot builder (+ optional compact)."""
     if date_from > date_to:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="from_must_not_exceed_to")
@@ -833,7 +857,11 @@ async def trade_home_overview(
     now_mono = monotonic()
     cached = _trade_dashboard_cache.get(cache_key)
     if cached is not None and now_mono - cached[0] <= _trade_dashboard_ttl_s:
-        return cached[1]
+        return json_response_with_etag(
+            request,
+            cached[1],
+            cache_control="private, max-age=60",
+        )
 
     async def compute() -> dict[str, Any]:
         full = await _compute_trade_dashboard_snapshot_payload(db, business_id, date_from, date_to)
@@ -858,17 +886,27 @@ async def trade_home_overview(
 
     ok, maybe = await run_read_budget_bounded(compute)
     if not ok or maybe is None:
-        return _degraded_dashboard_response(cache_key, date_from, date_to, compact=compact)
+        degraded = _degraded_dashboard_response(cache_key, date_from, date_to, compact=compact)
+        return json_response_with_etag(
+            request,
+            degraded,
+            cache_control="private, max-age=0",
+        )
     payload = _strip_degraded_snapshot_fields(dict(maybe))
     _put_dashboard_last_good(cache_key, payload)
     _trade_dashboard_cache[cache_key] = (now_mono, payload)
     if len(_trade_dashboard_cache) > _trade_dashboard_cache_max:
         _trade_dashboard_cache.clear()
-    return payload
+    return json_response_with_etag(
+        request,
+        payload,
+        cache_control="private, max-age=60",
+    )
 
 
 @router.get("/trade-summary")
 async def trade_purchase_summary(
+    request: Request,
     business_id: uuid.UUID,
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -876,7 +914,7 @@ async def trade_purchase_summary(
     date_from: date | None = Query(None, alias="from"),
     date_to: date | None = Query(None, alias="to"),
     supplier_id: uuid.UUID | None = Query(None),
-):
+) -> Response:
     """
     Line-based totals: same [trade_line_amount_expr] and status filter as
     /trade-items and /trade-dashboard-snapshot. Header [TradePurchase.total_amount]
@@ -894,7 +932,11 @@ async def trade_purchase_summary(
     t0 = monotonic()
     hit = _trade_summary_cache.get(su_key)
     if hit is not None and t0 - hit[0] <= _trade_summary_ttl_s:
-        return hit[1]
+        return json_response_with_etag(
+            request,
+            hit[1],
+            cache_control="private, max-age=60",
+        )
 
     async def compute_summary() -> dict[str, Any]:
         amt_inner = tq.trade_line_amount_expr()
@@ -956,13 +998,22 @@ async def trade_purchase_summary(
 
     ok, maybe = await run_read_budget_bounded(compute_summary)
     if not ok or maybe is None:
-        return _degraded_summary_response(su_key)
+        degraded = _degraded_summary_response(su_key)
+        return json_response_with_etag(
+            request,
+            degraded,
+            cache_control="private, max-age=0",
+        )
     payload = _strip_degraded_snapshot_fields(dict(maybe))
     _put_summary_last_good(su_key, payload)
     _trade_summary_cache[su_key] = (monotonic(), payload)
     if len(_trade_summary_cache) > _trade_summary_cache_max:
         _trade_summary_cache.clear()
-    return payload
+    return json_response_with_etag(
+        request,
+        payload,
+        cache_control="private, max-age=60",
+    )
 
 
 @router.get("/trade-daily-profit")
@@ -1029,9 +1080,11 @@ async def trade_suppliers_breakdown(
     db: Annotated[AsyncSession, Depends(get_db)],
     date_from: date = Query(..., alias="from"),
     date_to: date = Query(..., alias="to"),
+    limit: int = Query(100, ge=1, le=500),
 ) -> list[dict[str, Any]]:
     del _m
-    return await _trade_suppliers_rows(db, business_id, date_from, date_to)
+    rows = await _trade_suppliers_rows(db, business_id, date_from, date_to)
+    return rows[:limit]
 
 
 @router.get("/trade-categories")
@@ -1041,7 +1094,9 @@ async def trade_categories_breakdown(
     db: Annotated[AsyncSession, Depends(get_db)],
     date_from: date = Query(..., alias="from"),
     date_to: date = Query(..., alias="to"),
+    limit: int = Query(100, ge=1, le=500),
 ) -> list[dict[str, Any]]:
+    """Spend grouped by ItemCategory name."""
     del _m
     amt = _trade_line_amount_expr()
     bf = _trade_purchase_date_filter(business_id, date_from, date_to)
@@ -1067,7 +1122,7 @@ async def trade_categories_breakdown(
         .order_by(func.coalesce(func.sum(amt), 0).desc())
     )
     rows = (await db.execute(q)).mappings().all()
-    return [
+    out = [
         {
             "category_name": str(r["category_name"] or "Uncategorized"),
             "category": str(r["category_name"] or "Uncategorized"),
@@ -1080,6 +1135,7 @@ async def trade_categories_breakdown(
         }
         for r in rows
     ]
+    return out[:limit]
 
 
 @router.get("/trade-types")
@@ -1089,10 +1145,12 @@ async def trade_types_breakdown(
     db: Annotated[AsyncSession, Depends(get_db)],
     date_from: date = Query(..., alias="from"),
     date_to: date = Query(..., alias="to"),
+    limit: int = Query(100, ge=1, le=500),
 ) -> list[dict[str, Any]]:
     """Category → subcategory: spend grouped by CategoryType (catalog `type_id`) with parent category name."""
     del _m
-    return await _fetch_trade_types_breakdown_rows(db, business_id, date_from, date_to)
+    rows = await _fetch_trade_types_breakdown_rows(db, business_id, date_from, date_to)
+    return rows[:limit]
 
 
 async def _purchase_totals_for_range(

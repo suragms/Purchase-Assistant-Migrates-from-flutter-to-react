@@ -270,6 +270,10 @@ class HomeStockInHandSummary {
   }
 }
 
+/// Lazy-fetch gates for Home satellite providers (reduce cold-load GET count).
+final homeLowStockDetailFetchEnabledProvider = StateProvider<bool>((ref) => false);
+final homeStockMovementSectionVisibleProvider = StateProvider<bool>((ref) => false);
+
 /// True when Home tab can use bundled operational counts from [homeDashboardDataProvider].
 bool homeTabHasOperationalBundle(Ref ref) {
   if (!shellBranchIsVisible(ref, ShellBranch.home)) return false;
@@ -663,6 +667,7 @@ String _dashMemKey(String bid, String from, String to) => '$bid|$from|$to';
 
 final Map<String, Map<String, dynamic>> _homeOverviewSnapMemory = {};
 final Map<String, DateTime> _homeOverviewFetchedAt = {};
+final Map<String, String> _homeOverviewEtagMemory = {};
 
 /// Clears in-flight fetches and RAM snapshots for [reportsHomeOverview] home aggregates.
 /// Call before invalidating [homeDashboardDataProvider] after purchase mutations so a
@@ -672,6 +677,7 @@ void bustHomeDashboardVolatileCaches() {
   _dashInflight.clear();
   _homeOverviewSnapMemory.clear();
   _homeOverviewFetchedAt.clear();
+  _homeOverviewEtagMemory.clear();
 }
 
 /// Thrown when [bustHomeDashboardVolatileCaches] ran while a fetch was in flight;
@@ -829,11 +835,24 @@ Future<HomeDashboardPayload> _homeDashboardPullFresh({
           compact: true,
           shellBundle: true,
           tzOffsetMinutes: localTzOffsetMinutes,
+          ifNoneMatch: _homeOverviewEtagMemory[dedupeKey],
         )
         .timeout(
           const Duration(seconds: 12),
           onTimeout: () => throw TimeoutException('reportsHomeOverview'),
         );
+    if (snap['_not_modified'] == true) {
+      final cached = _homeOverviewSnapMemory[dedupeKey];
+      if (cached != null) {
+        final fromSnapshot = homeDashboardDataFromApiSnapshot(period, cached);
+        return ok(fromSnapshot);
+      }
+    }
+    final etag = snap['_etag']?.toString();
+    if (etag != null && etag.isNotEmpty) {
+      _homeOverviewEtagMemory[dedupeKey] = etag;
+      snap.remove('_etag');
+    }
     if (kDebugMode) {
       debugPrint(
         'homeDashboard: reportsHomeOverview ${overviewSw.elapsedMilliseconds}ms '
@@ -1054,7 +1073,7 @@ class HomeDashboardDataNotifier extends AutoDisposeNotifier<HomeDashboardDashSta
     final fetchedAt = _homeOverviewFetchedAt[dedupeKey];
     final cacheFresh = hasRenderableCache &&
         fetchedAt != null &&
-        DateTime.now().difference(fetchedAt) < const Duration(seconds: 60);
+        DateTime.now().difference(fetchedAt) < const Duration(seconds: 45);
     if (cacheFresh) {
       return HomeDashboardDashState(
         snapshot: seed,

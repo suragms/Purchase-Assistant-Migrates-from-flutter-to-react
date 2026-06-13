@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/design_system/hexa_responsive.dart';
+import '../../../../core/providers/home_dashboard_provider.dart'
+    show homeStockMovementSectionVisibleProvider;
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
 import '../../../../core/theme/hexa_colors.dart';
 import '../../../stock/presentation/widgets/stock_today_feed.dart';
@@ -62,6 +64,7 @@ class DailyStockReportSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.read(homeStockMovementSectionVisibleProvider.notifier).state = true;
     final now = DateTime.now();
     final dateLabel = DateFormat('d MMM yyyy').format(now);
     final purchases = ref.watch(homeRecentPurchasesCompactProvider);

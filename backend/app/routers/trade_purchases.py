@@ -7,7 +7,7 @@ import uuid
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -366,9 +366,23 @@ async def create_trade_purchase(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
     _m: Annotated[Membership, Depends(require_permission("purchase_create"))],
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
 ):
+    normalized_key = (idempotency_key or "").strip()
+    if normalized_key:
+        existing_id = tps.lookup_idempotency_purchase_id(business_id, normalized_key)
+        if existing_id is not None:
+            existing = await tps.get_trade_purchase(db, business_id, existing_id)
+            if existing is not None:
+                return existing
     try:
         out = await tps.create_trade_purchase(db, business_id, user.id, body)
+        if normalized_key:
+            tps.remember_idempotency_purchase_id(
+                business_id,
+                normalized_key,
+                out.id,
+            )
         _publish_purchase_changed(
             business_id,
             out,

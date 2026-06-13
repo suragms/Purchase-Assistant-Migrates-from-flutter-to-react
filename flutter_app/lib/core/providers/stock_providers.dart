@@ -10,6 +10,7 @@ import '../auth/session_notifier.dart';
 import '../errors/user_facing_errors.dart';
 import '../json_coerce.dart';
 import '../navigation/surface_refresh_policy.dart' show kStockListCacheTtl;
+import '../../features/shell/shell_branch_provider.dart';
 import 'api_read_snapshots.dart';
 import '../../features/stock/stock_list_row_patch.dart'
     show
@@ -624,6 +625,8 @@ final stockItemAuditProvider =
 /// Status bucket counts for stock filter chips (authoritative server summary).
 final stockStatusCountsProvider =
     FutureProvider.autoDispose<Map<String, int>>((ref) async {
+  final bundled = homeBundledStockStatusCounts(ref);
+  if (bundled != null) return bundled;
   final keepAlive = ref.keepAlive();
   final timer = Timer(const Duration(minutes: 2), keepAlive.close);
   ref.onDispose(timer.cancel);
@@ -783,6 +786,10 @@ Future<List<Map<String, dynamic>>> _fetchStockListAllPages({
 
 final lowStockByCategoryProvider =
     FutureProvider.autoDispose<LowStockByCategoryMap>((ref) async {
+  if (shellBranchIsVisible(ref, ShellBranch.home) &&
+      !ref.watch(homeLowStockDetailFetchEnabledProvider)) {
+    return {};
+  }
   _providerKeepAlive(ref, const Duration(minutes: 2));
   final session = ref.watch(sessionProvider);
   if (session == null) return {};

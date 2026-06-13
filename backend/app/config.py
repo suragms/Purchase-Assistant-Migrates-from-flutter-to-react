@@ -98,7 +98,7 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("DATABASE_CONNECT_TIMEOUT", "DB_CONNECT_TIMEOUT"),
     )
     # Emit WARNING when a SQL round-trip exceeds this many ms on sync mirror engine. 0 disables.
-    database_slow_query_log_ms: int = 200
+    database_slow_query_log_ms: int = 100
     # GET-only degradation: SQLAlchemy may use default empty JSON for catastrophic reads (middleware).
     database_get_read_failsafe: bool = True
     # asyncio wait_for cap for curated heavy GET aggregates (snapshot, home-overview, month dashboard).
@@ -129,6 +129,10 @@ class Settings(BaseSettings):
 
     superadmin_bootstrap_phone: str | None = None  # legacy; prefer SUPERADMIN_BOOTSTRAP_EMAIL
     superadmin_bootstrap_email: str | None = None
+    allow_public_registration: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("ALLOW_PUBLIC_REGISTRATION"),
+    )
 
     # Comma-separated OAuth 2.0 client IDs whose ID tokens we accept (usually one Web client used as serverClientId in Flutter).
     google_oauth_client_ids: str = ""

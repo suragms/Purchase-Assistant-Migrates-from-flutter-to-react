@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../../core/design_system/hexa_responsive.dart';
 import '../../../../core/router/navigation_ext.dart';
-import '../../../../core/providers/home_dashboard_provider.dart';
+import '../../../../core/providers/home_dashboard_provider.dart'
+    show homeDashboardDataProvider, homeLowStockDetailFetchEnabledProvider;
 import '../../../../core/providers/home_owner_dashboard_providers.dart'
     show
         homeLowStockAttentionCountProvider,
@@ -62,6 +63,7 @@ class HomeLiveStatusBar extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: () {
+          ref.read(homeLowStockDetailFetchEnabledProvider.notifier).state = true;
           ref.invalidate(homeDashboardDataProvider);
           ref.invalidate(notificationCenterCoordinatorProvider);
           _showHealthCenter(context);
@@ -148,6 +150,7 @@ class _HomeStockStatusSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.read(homeLowStockDetailFetchEnabledProvider.notifier).state = true;
     final attention = ref.watch(homeLowStockAttentionCountProvider);
     final pendingDel = ref.watch(homePendingDeliveryCountProvider);
     final reorderN = ref.watch(homeStaffReorderRequestCountProvider);
