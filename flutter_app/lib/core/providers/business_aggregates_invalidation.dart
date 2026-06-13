@@ -425,7 +425,6 @@ void invalidateStockRowSaveSurfaces(
     ref.invalidate(homeStockAttentionCountProvider);
     ref.invalidate(staffLowStockAlertsProvider);
     ref.invalidate(warehouseAlertsProvider);
-    invalidateBusinessAggregates(ref);
   }
 }
 

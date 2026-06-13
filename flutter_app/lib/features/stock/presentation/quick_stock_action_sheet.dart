@@ -383,7 +383,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
         reasonType: reasonType,
         note: note,
         stockVersion: stockVersion,
-      );
+      ).timeout(const Duration(seconds: 45));
       if (kDebugMode) {
         debugPrint(
           '[STOCK_SAVE_SUCCESS] status=${saved?['current_stock'] ?? saved?['physical_stock_qty']}',
@@ -416,6 +416,16 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
         itemId: itemId,
         preSaveSnapshot: preSaveSnapshot,
       );
+      if (e is TimeoutException) {
+        messenger?.showSnackBar(
+          const SnackBar(
+            content: Text('Save timed out — check connection and try again'),
+            duration: Duration(seconds: 5),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
       if (e is StaleStockConflict) {
         try {
           final session = parentRef.read(sessionProvider);
@@ -505,7 +515,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
         '[STOCK_SAVE_START] itemId=$_itemId mode=$_mode qty=$parsed',
       );
     }
-    setState(() => _saving = true);
+    _saving = true;
     _preSaveItemSnapshot = Map<String, dynamic>.from(_item);
     final preSaveSnapshot = _preSaveItemSnapshot!;
     final captureItemRow = Map<String, dynamic>.from(_item);
@@ -521,10 +531,10 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
     final parentRef = widget.parentRef;
     final messenger = ScaffoldMessenger.maybeOf(context);
 
-    _applyOptimisticListPatch(null, parsed);
-    await HapticFeedback.mediumImpact();
+    _applyOptimisticListPatch(null, parsed, parentRef: parentRef);
+    // Close sheet immediately — optimistic patch updates the list; spinner must not stick.
     if (mounted) Navigator.of(context).pop(true);
-
+    unawaited(HapticFeedback.mediumImpact());
     unawaited(
       _completeStockSaveAfterPop(
         parentRef: parentRef,

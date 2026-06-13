@@ -25,7 +25,6 @@ from app.database import get_db
 from app.db_resilience import execute_with_retry
 from app.deps import get_current_user, require_membership, require_role
 from app.http_etag import json_bytes, json_response_with_etag, payload_etag
-from app.middleware.rate_limit import SlidingWindowLimiter
 from app.models import CatalogItem, CategoryType, ItemCategory, Membership, TradePurchase, TradePurchaseLine, User
 from app.models.stock_adjustment import StockAdjustmentLog
 from app.models.stock_physical_count import StockPhysicalCount
@@ -38,28 +37,9 @@ from app.services.stock_inventory import compute_inventory_summary
 
 logger = logging.getLogger(__name__)
 
-# SPA Home + Reports can legitimately fan out many GETs on tab open (parallel breakdown rows).
-_reports_read_limiter = SlidingWindowLimiter(max_requests=480, window_seconds=60.0)
-
-
-async def enforce_reports_read_rate_limit(request: Request) -> None:
-    if request.method not in {"GET", "HEAD"}:
-        return
-    client = request.client
-    ip = client.host if client else "unknown"
-    biz = str(request.path_params.get("business_id") or "anon")
-    if not _reports_read_limiter.allow(f"reports-read:{biz}:{ip}"):
-        raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="rate_limit_exceeded",
-            headers={"Retry-After": "5"},
-        )
-
-
 router = APIRouter(
     prefix="/v1/businesses/{business_id}/reports",
     tags=["reports-trade"],
-    dependencies=[Depends(enforce_reports_read_rate_limit)],
 )
 
 _trade_line_amount_expr = tq.trade_line_amount_expr
