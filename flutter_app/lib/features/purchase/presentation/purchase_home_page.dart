@@ -763,6 +763,8 @@ class _PurchaseHomePageState extends ConsumerState<PurchaseHomePage> {
       ref.read(purchaseHistorySecondaryFilterProvider.notifier).state = null;
       final primary = _routePrimaryPurchaseFilters.contains(f) ? f : 'all';
       ref.read(purchaseHistoryPrimaryFilterProvider.notifier).state = primary;
+      ref.read(purchaseHistoryUndeliveredSortProvider.notifier).state =
+          primary == 'pending_delivery' || primary == 'delivery_stuck';
     }
   }
 

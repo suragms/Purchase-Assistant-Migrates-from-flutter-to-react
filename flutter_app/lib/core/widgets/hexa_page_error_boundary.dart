@@ -63,6 +63,7 @@ bool hexaErrorLikelyNonFatal(FlutterErrorDetails details) {
       s.contains('setState() called after dispose()') ||
       s.contains('UnmountedRefException') ||
       s.contains('Bad state: Cannot use') ||
+      s.contains('Cannot call dispose after a provider was disposed') ||
       s.contains('TickerFuture') ||
       s.contains('AnimationController.dispose() called more than once') ||
       s.contains('DioException') ||

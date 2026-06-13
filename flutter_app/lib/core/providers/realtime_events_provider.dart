@@ -60,8 +60,7 @@ class RealtimeInvalidationSignal {
 /// Polls server events; does **not** invalidate providers itself (avoids double-refresh).
 final realtimeInvalidationProvider =
     StreamProvider<RealtimeInvalidationSignal>((ref) async* {
-  final link = ref.keepAlive();
-  ref.onDispose(() => link.close());
+  ref.keepAlive();
 
   if (providerSkipApi(ref)) return;
   final session = ref.watch(sessionProvider);

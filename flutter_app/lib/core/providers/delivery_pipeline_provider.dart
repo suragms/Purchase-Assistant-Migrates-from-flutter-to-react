@@ -19,7 +19,8 @@ final deliveryPipelineProvider =
     );
   }
   final link = ref.keepAlive();
-  ref.onDispose(() => link.close());
+  final timer = Timer(const Duration(minutes: 3), link.close);
+  ref.onDispose(timer.cancel);
 
   final session = ref.watch(activeSessionProvider);
   if (session == null) return {};

@@ -185,6 +185,31 @@ class TradePurchasesListView {
   final bool hasMore;
 }
 
+/// API inputs for history list — client-only chips (e.g. pending_delivery) must not refetch.
+@visibleForTesting
+String purchaseHistoryListFetchKey({
+  required String? apiStatus,
+  required String? purchaseFrom,
+  required String? purchaseTo,
+}) => '${apiStatus ?? ''}|${purchaseFrom ?? ''}|${purchaseTo ?? ''}';
+
+final purchaseHistoryListFetchKeyProvider = Provider.autoDispose<String>((ref) {
+  final primary = ref.watch(purchaseHistoryPrimaryFilterProvider);
+  final secondary = ref.watch(purchaseHistorySecondaryFilterProvider);
+  final apiStatus = _tradeListApiStatus(primary, secondary);
+  final analyticsRange = ref.watch(analyticsDateRangeProvider);
+  final advFrom = ref.watch(purchaseHistoryDateFromProvider);
+  final advTo = ref.watch(purchaseHistoryDateToProvider);
+  final fromDate = advFrom ?? analyticsRange.from;
+  final toDate = advTo ?? analyticsRange.to;
+  final apiRange = tradePurchaseDateApiRange(fromDate, toDate);
+  return purchaseHistoryListFetchKey(
+    apiStatus: apiStatus,
+    purchaseFrom: apiRange.from,
+    purchaseTo: apiRange.to,
+  );
+});
+
 class TradePurchasesListNotifier extends AutoDisposeAsyncNotifier<TradePurchasesListView> {
   bool _loadMoreBusy = false;
 
@@ -209,12 +234,13 @@ class TradePurchasesListNotifier extends AutoDisposeAsyncNotifier<TradePurchases
     if (session == null) {
       return const TradePurchasesListView(rows: [], hasMore: false);
     }
-    final primary = ref.watch(purchaseHistoryPrimaryFilterProvider);
-    final secondary = ref.watch(purchaseHistorySecondaryFilterProvider);
+    ref.watch(purchaseHistoryListFetchKeyProvider);
+    final primary = ref.read(purchaseHistoryPrimaryFilterProvider);
+    final secondary = ref.read(purchaseHistorySecondaryFilterProvider);
     final apiStatus = _tradeListApiStatus(primary, secondary);
-    final analyticsRange = ref.watch(analyticsDateRangeProvider);
-    final advFrom = ref.watch(purchaseHistoryDateFromProvider);
-    final advTo = ref.watch(purchaseHistoryDateToProvider);
+    final analyticsRange = ref.read(analyticsDateRangeProvider);
+    final advFrom = ref.read(purchaseHistoryDateFromProvider);
+    final advTo = ref.read(purchaseHistoryDateToProvider);
 
     final fromDate = advFrom ?? analyticsRange.from;
     final toDate = advTo ?? analyticsRange.to;
