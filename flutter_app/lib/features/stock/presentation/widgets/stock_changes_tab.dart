@@ -137,6 +137,7 @@ class StockChangesTab extends ConsumerWidget {
                               context: context,
                               ref: ref,
                               item: stock,
+                              skipInitialRefresh: true,
                             );
                           } else {
                             context.push('/catalog/item/$itemId');

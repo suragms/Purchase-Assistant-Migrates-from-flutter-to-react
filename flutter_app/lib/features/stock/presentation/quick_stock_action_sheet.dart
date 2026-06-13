@@ -18,7 +18,6 @@ import '../../../core/providers/stock_providers.dart'
     show
         applyStockListRowPatch,
         patchStockItemInCache,
-        stockListQueryProvider,
         stockStatusCountsProvider;
 import '../stock_list_row_patch.dart'
     show stockListPatchFromPhysicalCount, stockListPatchFromStockDetail;
@@ -82,7 +81,6 @@ class _QuickStockActionBody extends ConsumerStatefulWidget {
 
 class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
   bool _saving = false;
-  bool _patchApplied = false;
   Map<String, dynamic>? _preSaveItemSnapshot;
   late Map<String, dynamic> _item;
   late final TextEditingController _qtyCtrl;
@@ -230,43 +228,57 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
         '${diff.abs() > 0.001 ? ' ($sign${formatStockQtyForUnit(_unit, diff)} diff)' : ''}';
   }
 
-  Future<Map<String, dynamic>?> _persistStock(num parsed) async {
-    final session = ref.read(sessionProvider);
+  static Future<Map<String, dynamic>?> _persistStockWithRef({
+    required WidgetRef parentRef,
+    required String itemId,
+    required StockUpdateMode mode,
+    required num parsed,
+    required String reasonLabel,
+    required String? reasonType,
+    required String note,
+    required int? stockVersion,
+  }) async {
+    final session = parentRef.read(sessionProvider);
     if (session == null) return null;
-    final note = _notesCtrl.text.trim();
-    final reasonLabel = _reasonLabel;
-    final api = ref.read(hexaApiProvider);
+    final api = parentRef.read(hexaApiProvider);
     final bid = session.primaryBusiness.id;
-    if (_mode == StockUpdateMode.system) {
+    if (mode == StockUpdateMode.system) {
       final detail = await api.patchStockItemWithRetry(
         businessId: bid,
-        itemId: _itemId,
+        itemId: itemId,
         newQty: parsed,
-        adjustmentType: _reasonType ?? 'correction',
+        adjustmentType: reasonType ?? 'correction',
         reason: note.isNotEmpty ? '$reasonLabel — $note' : reasonLabel,
-        initialStockVersion: _stockVersion(),
+        initialStockVersion: stockVersion,
       );
-      if (!mounted) return null;
-      ref.invalidate(appNotificationsListProvider);
-      ref.invalidate(notificationCenterCoordinatorProvider);
+      parentRef.invalidate(appNotificationsListProvider);
+      parentRef.invalidate(notificationCenterCoordinatorProvider);
       return detail;
     }
-    final listQ = ref.read(stockListQueryProvider);
     return api.recordPhysicalStockCount(
       businessId: bid,
-      itemId: _itemId,
+      itemId: itemId,
       countedQty: parsed,
       notes: note.isNotEmpty ? '$reasonLabel — $note' : reasonLabel,
-      periodStart: listQ.periodStart,
-      periodEnd: listQ.periodEnd,
     );
   }
 
-  void _applyOptimisticListPatch(Map<String, dynamic>? saved, num parsed) {
-    if (_itemId.isEmpty) return;
-    final system = coerceToDouble(_item['current_stock']);
-    final reorder = _item['reorder_level'];
-    var patch = _mode == StockUpdateMode.physical
+  void _applyOptimisticListPatch(
+    Map<String, dynamic>? saved,
+    num parsed, {
+    WidgetRef? parentRef,
+    String? itemId,
+    StockUpdateMode? mode,
+    Map<String, dynamic>? itemRow,
+  }) {
+    final ref = parentRef ?? widget.parentRef;
+    final id = itemId ?? _itemId;
+    final updateMode = mode ?? _mode;
+    final row = itemRow ?? _item;
+    if (id.isEmpty) return;
+    final system = coerceToDouble(row['current_stock']);
+    final reorder = row['reorder_level'];
+    var patch = updateMode == StockUpdateMode.physical
         ? stockListPatchFromPhysicalCount(
             {
               ...?saved,
@@ -282,7 +294,7 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
             },
             fallbackQty: parsed,
           );
-    if (patch.isEmpty && _mode == StockUpdateMode.physical) {
+    if (patch.isEmpty && updateMode == StockUpdateMode.physical) {
       final now = DateTime.now().toUtc().toIso8601String();
       patch = {
         'physical_stock_qty': parsed,
@@ -291,53 +303,180 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
       };
     }
     if (patch.isEmpty) return;
-    _patchApplied = true;
     if (kDebugMode) {
       debugPrint('[STOCK_CACHE_REFRESH] patchKeys=${patch.keys.toList()}');
     }
-    applyStockListRowPatch(widget.parentRef, itemId: _itemId, patch: patch);
+    applyStockListRowPatch(ref, itemId: id, patch: patch);
   }
 
-  void _invalidateCountChipsImmediately() {
-    widget.parentRef.invalidate(stockStatusCountsProvider);
-  }
-
-  void _rollbackOptimisticPatch() {
-    if (!_patchApplied || _preSaveItemSnapshot == null || _itemId.isEmpty) {
-      return;
-    }
-    final snap = _preSaveItemSnapshot!;
-    final system = coerceToDouble(snap['current_stock']);
-    final phys = coerceToDoubleNullable(snap['physical_stock_qty']);
+  static void _rollbackOptimisticPatchWithRef({
+    required WidgetRef parentRef,
+    required String itemId,
+    required Map<String, dynamic> preSaveSnapshot,
+  }) {
+    if (itemId.isEmpty) return;
+    final system = coerceToDouble(preSaveSnapshot['current_stock']);
+    final phys = coerceToDoubleNullable(preSaveSnapshot['physical_stock_qty']);
     final patch = <String, dynamic>{
       'current_stock': system,
       if (phys != null) 'physical_stock_qty': phys,
       if (phys != null) 'physical_stock_difference_qty': phys - system,
     };
-    applyStockListRowPatch(widget.parentRef, itemId: _itemId, patch: patch);
-    _patchApplied = false;
+    applyStockListRowPatch(parentRef, itemId: itemId, patch: patch);
   }
 
-  Future<void> _afterSaveBackground(num parsed) async {
-    final reorder = coerceToDouble(_item['reorder_level']);
+  static Future<void> _afterSaveBackgroundWithRef({
+    required WidgetRef parentRef,
+    required String itemId,
+    required num parsed,
+    required Map<String, dynamic> itemRow,
+    required String itemName,
+    required String unit,
+    required bool refreshItemDetail,
+  }) async {
+    final reorder = coerceToDouble(itemRow['reorder_level']);
     final crossedReorder = reorder > 0 && parsed <= reorder;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       invalidateStockRowSaveSurfaces(
-        widget.parentRef,
-        itemId: _itemId,
-        immediateListReconcile: true,
+        parentRef,
+        itemId: itemId,
+        immediateListReconcile: false,
         reorderAlert: crossedReorder,
-        refreshItemDetail: widget.refreshItemDetail,
+        refreshItemDetail: refreshItemDetail,
       );
     });
     if (crossedReorder) {
-      final unitLabel = _unit.isNotEmpty ? _unit.toUpperCase() : '';
+      final unitLabel = unit.isNotEmpty ? unit.toUpperCase() : '';
       await LocalNotificationsService.instance.showLowStockItem(
-        itemName: _name,
+        itemName: itemName,
         detail:
-            '${formatStockQtyForUnit(_unit, parsed.toDouble())} $unitLabel (reorder ${formatStockQtyForUnit(_unit, reorder)})',
+            '${formatStockQtyForUnit(unit, parsed.toDouble())} $unitLabel (reorder ${formatStockQtyForUnit(unit, reorder)})',
       );
     }
+  }
+
+  static Future<void> _completeStockSaveAfterPop({
+    required WidgetRef parentRef,
+    required String itemId,
+    required StockUpdateMode mode,
+    required num parsed,
+    required Map<String, dynamic> itemRow,
+    required Map<String, dynamic> preSaveSnapshot,
+    required String reasonLabel,
+    required String? reasonType,
+    required String note,
+    required int? stockVersion,
+    required String itemName,
+    required String unit,
+    required bool refreshItemDetail,
+    ScaffoldMessengerState? messenger,
+  }) async {
+    try {
+      final saved = await _persistStockWithRef(
+        parentRef: parentRef,
+        itemId: itemId,
+        mode: mode,
+        parsed: parsed,
+        reasonLabel: reasonLabel,
+        reasonType: reasonType,
+        note: note,
+        stockVersion: stockVersion,
+      );
+      if (kDebugMode) {
+        debugPrint(
+          '[STOCK_SAVE_SUCCESS] status=${saved?['current_stock'] ?? saved?['physical_stock_qty']}',
+        );
+      }
+      _QuickStockActionBodyState._applyOptimisticListPatchStatic(
+        parentRef: parentRef,
+        itemId: itemId,
+        mode: mode,
+        itemRow: itemRow,
+        saved: saved,
+        parsed: parsed,
+      );
+      parentRef.invalidate(stockStatusCountsProvider);
+      if (mode == StockUpdateMode.system && itemId.isNotEmpty) {
+        unawaited(patchStockItemInCache(parentRef, itemId: itemId));
+      }
+      await _afterSaveBackgroundWithRef(
+        parentRef: parentRef,
+        itemId: itemId,
+        parsed: parsed,
+        itemRow: itemRow,
+        itemName: itemName,
+        unit: unit,
+        refreshItemDetail: refreshItemDetail,
+      );
+    } catch (e) {
+      _rollbackOptimisticPatchWithRef(
+        parentRef: parentRef,
+        itemId: itemId,
+        preSaveSnapshot: preSaveSnapshot,
+      );
+      if (e is StaleStockConflict) {
+        try {
+          final session = parentRef.read(sessionProvider);
+          if (session != null) {
+            await parentRef.read(hexaApiProvider).getStockItem(
+                  businessId: session.primaryBusiness.id,
+                  itemId: itemId,
+                );
+          }
+        } catch (_) {}
+      }
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            e is StaleStockConflict
+                ? StaleStockConflict.userMessage
+                : e is DioException
+                    ? friendlyApiError(e)
+                    : userFacingError(e),
+          ),
+          duration: const Duration(seconds: 5),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  static void _applyOptimisticListPatchStatic({
+    required WidgetRef parentRef,
+    required String itemId,
+    required StockUpdateMode mode,
+    required Map<String, dynamic> itemRow,
+    required Map<String, dynamic>? saved,
+    required num parsed,
+  }) {
+    final system = coerceToDouble(itemRow['current_stock']);
+    final reorder = itemRow['reorder_level'];
+    var patch = mode == StockUpdateMode.physical
+        ? stockListPatchFromPhysicalCount(
+            {
+              ...?saved,
+              if (reorder != null) 'reorder_level': reorder,
+            },
+            fallbackCountedQty: parsed,
+            fallbackSystemQty: system,
+          )
+        : stockListPatchFromStockDetail(
+            {
+              ...?saved,
+              if (reorder != null) 'reorder_level': reorder,
+            },
+            fallbackQty: parsed,
+          );
+    if (patch.isEmpty && mode == StockUpdateMode.physical) {
+      final now = DateTime.now().toUtc().toIso8601String();
+      patch = {
+        'physical_stock_qty': parsed,
+        'physical_stock_difference_qty': parsed - system,
+        'physical_stock_counted_at': now,
+      };
+    }
+    if (patch.isEmpty) return;
+    applyStockListRowPatch(parentRef, itemId: itemId, patch: patch);
   }
 
   Future<void> _save() async {
@@ -363,56 +502,44 @@ class _QuickStockActionBodyState extends ConsumerState<_QuickStockActionBody> {
         '[STOCK_SAVE_START] itemId=$_itemId mode=$_mode qty=$parsed',
       );
     }
+    setState(() => _saving = true);
     _preSaveItemSnapshot = Map<String, dynamic>.from(_item);
-    setState(() {
-      _saving = true;
-      _patchApplied = false;
-    });
+    final preSaveSnapshot = _preSaveItemSnapshot!;
+    final captureItemRow = Map<String, dynamic>.from(_item);
+    final captureItemId = _itemId;
+    final captureMode = _mode;
+    final captureReasonLabel = _reasonLabel;
+    final captureReasonType = _reasonType;
+    final captureNote = _notesCtrl.text.trim();
+    final captureStockVersion = _stockVersion();
+    final captureName = _name;
+    final captureUnit = _unit;
+    final captureRefreshDetail = widget.refreshItemDetail;
+    final parentRef = widget.parentRef;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+
     _applyOptimisticListPatch(null, parsed);
-    try {
-      final saved = await _persistStock(parsed);
-      if (!mounted) return;
-      if (kDebugMode) {
-        debugPrint(
-          '[STOCK_SAVE_SUCCESS] status=${saved?['current_stock'] ?? saved?['physical_stock_qty']}',
-        );
-      }
-      _applyOptimisticListPatch(saved, parsed);
-      _invalidateCountChipsImmediately();
-      if (_mode == StockUpdateMode.system && _itemId.isNotEmpty) {
-        unawaited(patchStockItemInCache(widget.parentRef, itemId: _itemId));
-      }
-      if (!context.mounted) return;
-      await HapticFeedback.mediumImpact();
-      if (!context.mounted) return;
-      Navigator.of(context).pop(true);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        unawaited(_afterSaveBackground(parsed));
-      });
-    } catch (e) {
-      _rollbackOptimisticPatch();
-      if (e is StaleStockConflict) {
-        if (!mounted) return;
-        await _refreshItemFromServer();
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              e is StaleStockConflict
-                  ? StaleStockConflict.userMessage
-                  : e is DioException
-                      ? friendlyApiError(e)
-                      : userFacingError(e),
-            ),
-            duration: const Duration(seconds: 5),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
+    await HapticFeedback.mediumImpact();
+    if (mounted) Navigator.of(context).pop(true);
+
+    unawaited(
+      _completeStockSaveAfterPop(
+        parentRef: parentRef,
+        itemId: captureItemId,
+        mode: captureMode,
+        parsed: parsed,
+        itemRow: captureItemRow,
+        preSaveSnapshot: preSaveSnapshot,
+        reasonLabel: captureReasonLabel,
+        reasonType: captureReasonType,
+        note: captureNote,
+        stockVersion: captureStockVersion,
+        itemName: captureName,
+        unit: captureUnit,
+        refreshItemDetail: captureRefreshDetail,
+        messenger: messenger,
+      ),
+    );
   }
 
   @override
