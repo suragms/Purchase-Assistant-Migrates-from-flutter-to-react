@@ -75,15 +75,15 @@ class Settings(BaseSettings):
     database_ssl_skip_verify: bool = False
     # Async SQLAlchemy QueuePool knobs (PostgreSQL only; SQLite ignores).
     database_pool_size: int = Field(
-        default=5,
+        default=10,
         validation_alias=AliasChoices("DATABASE_POOL_SIZE", "DB_POOL_SIZE"),
     )
     database_pool_max_overflow: int = Field(
-        default=7,
+        default=15,
         validation_alias=AliasChoices("DATABASE_MAX_OVERFLOW", "DB_MAX_OVERFLOW"),
     )
     database_pool_timeout_seconds: int = Field(
-        default=8,
+        default=15,
         validation_alias=AliasChoices("DATABASE_POOL_TIMEOUT", "DB_POOL_TIMEOUT"),
     )
     database_pool_recycle_seconds: int = 300
