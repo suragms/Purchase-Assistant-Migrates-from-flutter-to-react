@@ -575,81 +575,77 @@ final warehouseAlertNotificationItemsProvider =
 /// PUR bills that need attention (unpaid with due date approaching or past).
 final purchaseDueAlertItemsProvider =
     Provider<List<NotificationItem>>((ref) {
-  final async = ref.watch(tradePurchasesForAlertsProvider);
-  return async.maybeWhen(
-    data: (rows) {
-      final list = <TradePurchase>[];
-      for (final row in rows) {
-        try {
-          list.add(TradePurchase.fromJson(Map<String, dynamic>.from(row)));
-        } catch (_) {}
+  final rows = ref.watch(tradePurchasesForAlertsProvider);
+  if (rows == null) return [];
+  final list = <TradePurchase>[];
+  for (final row in rows) {
+    try {
+      list.add(TradePurchase.fromJson(Map<String, dynamic>.from(row)));
+    } catch (_) {}
+  }
+  final out = <NotificationItem>[];
+  final today0 = _day0(DateTime.now());
+  for (final p in list) {
+    if (!_needsPayment(p)) continue;
+    final st = p.statusEnum;
+    final eff = _effectiveDue(p);
+    if (eff != null) {
+      if (eff.isBefore(today0)) {
+        out.add(NotificationItem(
+          id: 'pur_overdue_${p.id}',
+          type: NotificationType.purchaseOverdue,
+          title: 'Overdue: ${p.humanId}',
+          subtitle:
+              '${p.supplierName ?? "—"} · remaining ${_fmtMoney(p.remaining)} (due ${eff.year}-${eff.month.toString().padLeft(2, "0")}-${eff.day.toString().padLeft(2, "0")})',
+          createdAt: p.dueDate ?? p.purchaseDate,
+          isRead: false,
+          actionRoute: '/purchase/detail/${p.id}',
+        ));
+        continue;
       }
-      final out = <NotificationItem>[];
-      final today0 = _day0(DateTime.now());
-      for (final p in list) {
-        if (!_needsPayment(p)) continue;
-        final st = p.statusEnum;
-        final eff = _effectiveDue(p);
-        if (eff != null) {
-          if (eff.isBefore(today0)) {
-            out.add(NotificationItem(
-              id: 'pur_overdue_${p.id}',
-              type: NotificationType.purchaseOverdue,
-              title: 'Overdue: ${p.humanId}',
-              subtitle:
-                  '${p.supplierName ?? "—"} · remaining ${_fmtMoney(p.remaining)} (due ${eff.year}-${eff.month.toString().padLeft(2, "0")}-${eff.day.toString().padLeft(2, "0")})',
-              createdAt: p.dueDate ?? p.purchaseDate,
-              isRead: false,
-              actionRoute: '/purchase/detail/${p.id}',
-            ));
-            continue;
-          }
-          final days = eff.difference(today0).inDays;
-          if (days >= 0 && days <= 5) {
-            out.add(NotificationItem(
-              id: 'pur_due_${p.id}',
-              type: NotificationType.purchaseDue,
-              title: 'Payment due: ${p.humanId}',
-              subtitle:
-                  'Due ${eff.year}-${eff.month.toString().padLeft(2, "0")}-${eff.day.toString().padLeft(2, "0")} · ${_fmtMoney(p.remaining)} left',
-              createdAt: eff,
-              isRead: false,
-              actionRoute: '/purchase/detail/${p.id}',
-            ));
-            continue;
-          }
-        }
-        if (st == PurchaseStatus.overdue) {
-          out.add(NotificationItem(
-            id: 'pur_overdue_${p.id}',
-            type: NotificationType.purchaseOverdue,
-            title: 'Overdue: ${p.humanId}',
-            subtitle:
-                '${p.supplierName ?? "—"} · remaining ${_fmtMoney(p.remaining)}',
-            createdAt: p.dueDate ?? p.purchaseDate,
-            isRead: false,
-            actionRoute: '/purchase/detail/${p.id}',
-          ));
-        } else if (st == PurchaseStatus.dueSoon) {
-          final due = p.dueDate;
-          out.add(NotificationItem(
-            id: 'pur_due_${p.id}',
-            type: NotificationType.purchaseDue,
-            title: 'Payment due: ${p.humanId}',
-            subtitle: due != null
-                ? 'Due ${due.year}-${due.month.toString().padLeft(2, "0")}-${due.day.toString().padLeft(2, "0")} · ${_fmtMoney(p.remaining)} left'
-                : 'Remaining ${_fmtMoney(p.remaining)}',
-            createdAt: due ?? p.purchaseDate,
-            isRead: false,
-            actionRoute: '/purchase/detail/${p.id}',
-          ));
-        }
+      final days = eff.difference(today0).inDays;
+      if (days >= 0 && days <= 5) {
+        out.add(NotificationItem(
+          id: 'pur_due_${p.id}',
+          type: NotificationType.purchaseDue,
+          title: 'Payment due: ${p.humanId}',
+          subtitle:
+              'Due ${eff.year}-${eff.month.toString().padLeft(2, "0")}-${eff.day.toString().padLeft(2, "0")} · ${_fmtMoney(p.remaining)} left',
+          createdAt: eff,
+          isRead: false,
+          actionRoute: '/purchase/detail/${p.id}',
+        ));
+        continue;
       }
-      out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return out;
-    },
-    orElse: () => const [],
-  );
+    }
+    if (st == PurchaseStatus.overdue) {
+      out.add(NotificationItem(
+        id: 'pur_overdue_${p.id}',
+        type: NotificationType.purchaseOverdue,
+        title: 'Overdue: ${p.humanId}',
+        subtitle:
+            '${p.supplierName ?? "—"} · remaining ${_fmtMoney(p.remaining)}',
+        createdAt: p.dueDate ?? p.purchaseDate,
+        isRead: false,
+        actionRoute: '/purchase/detail/${p.id}',
+      ));
+    } else if (st == PurchaseStatus.dueSoon) {
+      final due = p.dueDate;
+      out.add(NotificationItem(
+        id: 'pur_due_${p.id}',
+        type: NotificationType.purchaseDue,
+        title: 'Payment due: ${p.humanId}',
+        subtitle: due != null
+            ? 'Due ${due.year}-${due.month.toString().padLeft(2, "0")}-${due.day.toString().padLeft(2, "0")} · ${_fmtMoney(p.remaining)} left'
+            : 'Remaining ${_fmtMoney(p.remaining)}',
+        createdAt: due ?? p.purchaseDate,
+        isRead: false,
+        actionRoute: '/purchase/detail/${p.id}',
+      ));
+    }
+  }
+  out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  return out;
 });
 
 String _fmtMoney(double n) {

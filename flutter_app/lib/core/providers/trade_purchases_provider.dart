@@ -129,13 +129,13 @@ final purchaseHistoryDateToProvider =
 
 /// Unfiltered list for due/overdue alert derivation (ignores history tab filters).
 final tradePurchasesForAlertsProvider =
-    Provider.autoDispose<AsyncValue<List<Map<String, dynamic>>>>((ref) {
-  if (providerSkipApi(ref)) return const AsyncValue.data([]);
+    Provider.autoDispose<List<Map<String, dynamic>>?>((ref) {
+  if (providerSkipApi(ref)) return const [];
   final branch = ref.watch(shellCurrentBranchProvider);
   if (branch != ShellBranch.home && branch != ShellBranch.history) {
-    return const AsyncValue.data([]);
+    return const [];
   }
-  return ref.watch(tradePurchasesRecentSnapshotProvider);
+  return ref.watch(tradePurchasesRecentSnapshotProvider).valueOrNull;
 });
 
 /// Staff home + deliveries — shares [tradePurchasesRecentSnapshotProvider] SSOT.
@@ -161,12 +161,12 @@ final staffTradePurchasesForAlertsParsedProvider =
 });
 
 final tradePurchasesForAlertsParsedProvider =
-    Provider.autoDispose<AsyncValue<List<TradePurchase>>>((ref) {
-  return ref.watch(tradePurchasesForAlertsProvider).whenData(
-        (maps) => maps
-            .map((e) => TradePurchase.fromJson(Map<String, dynamic>.from(e)))
-            .toList(),
-      );
+    Provider.autoDispose<List<TradePurchase>?>((ref) {
+  final maps = ref.watch(tradePurchasesForAlertsProvider);
+  if (maps == null) return null;
+  return maps
+      .map((e) => TradePurchase.fromJson(Map<String, dynamic>.from(e)))
+      .toList();
 });
 
 /// Paged trade rows for Purchase History (offset grows via [TradePurchasesListNotifier.loadMore]).
@@ -445,18 +445,18 @@ final tradePurchasesForItemParsedProvider =
 
 /// Trade list for catalog item intel — shares [tradePurchasesRecentSnapshotProvider].
 final tradePurchasesCatalogIntelProvider =
-    Provider.autoDispose<AsyncValue<List<Map<String, dynamic>>>>((ref) {
-  if (providerSkipApi(ref)) return const AsyncValue.data([]);
+    Provider.autoDispose<List<Map<String, dynamic>>?>((ref) {
+  if (providerSkipApi(ref)) return const [];
   final session = ref.watch(activeSessionProvider);
-  if (session == null) return const AsyncValue.data([]);
-  return ref.watch(tradePurchasesRecentSnapshotProvider);
+  if (session == null) return const [];
+  return ref.watch(tradePurchasesRecentSnapshotProvider).valueOrNull;
 });
 
 final tradePurchasesCatalogIntelParsedProvider =
-    Provider.autoDispose<AsyncValue<List<TradePurchase>>>((ref) {
-  return ref.watch(tradePurchasesCatalogIntelProvider).whenData(
-        (maps) => maps
-            .map((e) => TradePurchase.fromJson(Map<String, dynamic>.from(e)))
-            .toList(),
-      );
+    Provider.autoDispose<List<TradePurchase>?>((ref) {
+  final maps = ref.watch(tradePurchasesCatalogIntelProvider);
+  if (maps == null) return null;
+  return maps
+      .map((e) => TradePurchase.fromJson(Map<String, dynamic>.from(e)))
+      .toList();
 });

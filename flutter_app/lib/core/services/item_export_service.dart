@@ -33,8 +33,8 @@ Future<PdfActionResult> exportShareItemStatementPdf({
   DateTime? toDate,
 }) async {
   final business = ref.read(invoiceBusinessProfileProvider);
-  final asyncPurchases = ref.read(tradePurchasesCatalogIntelParsedProvider);
-  final purchasesAll = asyncPurchases.valueOrNull ?? const <TradePurchase>[];
+  final purchasesAll =
+      ref.read(tradePurchasesCatalogIntelParsedProvider) ?? const <TradePurchase>[];
   final filtered = purchasesAll.where((p) {
     return p.lines.any(
       (ln) => itemLineBelongsToCatalog(

@@ -1194,12 +1194,10 @@ async def stock_totals(
     )
 
 
-@router.get("/list", response_model=StockListOut)
-async def list_stock(
-    request: Request,
+async def _list_stock_page(
+    *,
     business_id: uuid.UUID,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    _m: Annotated[Membership, Depends(require_membership)],
+    db: AsyncSession,
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=2000),
     q: str = Query(""),
@@ -1370,7 +1368,56 @@ async def list_stock(
                 last_movement_at=movement_at_map.get(item.id),
             )
         )
-    out = StockListOut(items=items, total=total, page=page, per_page=per_page)
+    return StockListOut(items=items, total=total, page=page, per_page=per_page)
+
+
+@router.get("/list", response_model=StockListOut)
+async def list_stock(
+    request: Request,
+    business_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _m: Annotated[Membership, Depends(require_membership)],
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=2000),
+    q: str = Query(""),
+    category: str = Query(""),
+    subcategory: str = Query(""),
+    status: StatusFilter = Query("all"),
+    sort: SortBy = Query("name"),
+    include_period: bool = Query(False),
+    period_start: str | None = Query(None),
+    period_end: str | None = Query(None),
+    date_from: str | None = Query(None, description="Alias for period_start (YYYY-MM-DD)"),
+    date_to: str | None = Query(None, description="Alias for period_end (YYYY-MM-DD)"),
+    include_today: bool = Query(True),
+    purchased_in_period: bool = Query(False),
+    missing_barcode: bool = Query(False),
+    missing_item_code: bool = Query(False),
+    reorder_only: bool = Query(False),
+    unit: str = Query(""),
+):
+    out = await _list_stock_page(
+        business_id=business_id,
+        db=db,
+        page=page,
+        per_page=per_page,
+        q=q,
+        category=category,
+        subcategory=subcategory,
+        status=status,
+        sort=sort,
+        include_period=include_period,
+        period_start=period_start,
+        period_end=period_end,
+        date_from=date_from,
+        date_to=date_to,
+        include_today=include_today,
+        purchased_in_period=purchased_in_period,
+        missing_barcode=missing_barcode,
+        missing_item_code=missing_item_code,
+        reorder_only=reorder_only,
+        unit=unit,
+    )
     payload = out.model_dump(mode="json")
     body = json.dumps(payload, sort_keys=True, default=str).encode()
     etag = '"' + hashlib.md5(body).hexdigest()[:16] + '"'
@@ -1489,10 +1536,9 @@ async def list_stock_compact(
     purchased_in_period: bool = Query(False),
 ):
     """Slim stock list payload for mobile table views."""
-    full = await list_stock(
-        business_id,
-        db,
-        _m,
+    full = await _list_stock_page(
+        business_id=business_id,
+        db=db,
         page=page,
         per_page=per_page,
         q=q,
@@ -1527,10 +1573,9 @@ async def search_stock(
     status: StatusFilter = Query("all"),
     sort: SortBy = Query("name"),
 ):
-    return await list_stock(
-        business_id,
-        db,
-        _m,
+    return await _list_stock_page(
+        business_id=business_id,
+        db=db,
         page=page,
         per_page=per_page,
         q=q,
@@ -1588,10 +1633,9 @@ async def critical_stock(
     page: int = Query(1, ge=1),
     per_page: int = Query(50, ge=1, le=2000),
 ):
-    return await list_stock(
-        business_id,
-        db,
-        _m,
+    return await _list_stock_page(
+        business_id=business_id,
+        db=db,
         page=page,
         per_page=per_page,
         status="critical",
@@ -1876,10 +1920,9 @@ async def _fetch_low_stock_candidates(
     merged: dict[uuid.UUID, StockListItemOut] = {}
     total_seen = 0
     for page in range(1, max_pages + 1):
-        out = await list_stock(
+        out = await _list_stock_page(
             business_id=business_id,
             db=db,
-            _m=membership,
             page=page,
             per_page=fetch_per_page,
             q=q,
