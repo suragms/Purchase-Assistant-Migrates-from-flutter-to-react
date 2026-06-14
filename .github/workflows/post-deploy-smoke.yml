@@ -1,0 +1,39 @@
+# Runs after each main push — waits for Vercel, then checks production + key Flutter tests.
+name: Post-deploy smoke
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'flutter_app/**'
+      - 'backend/**'
+      - 'scripts/production-smoke.sh'
+      - 'vercel.json'
+      - '.github/workflows/post-deploy-smoke.yml'
+
+concurrency:
+  group: post-deploy-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  wait-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for Vercel Flutter build (~8 min)
+        run: sleep 480
+
+      - name: Production smoke (web + API + DB schema)
+        run: bash scripts/production-smoke.sh
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter commit-stock regression
+        working-directory: flutter_app
+        run: |
+          flutter pub get
+          flutter test test/purchase_stock_commit_preflight_test.dart
