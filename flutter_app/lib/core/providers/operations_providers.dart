@@ -22,6 +22,7 @@ bool _checklistSessionActive(Ref ref) {
 
 final checklistTodayProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final disposed = registerProviderDisposeGuard(ref);
   if (!_checklistSessionActive(ref)) return {};
   if (shellBranchIsVisible(ref, ShellBranch.home) &&
       !ref.watch(homeChecklistFetchEnabledProvider)) {
@@ -29,9 +30,11 @@ final checklistTodayProvider =
   }
   final session = ref.read(sessionProvider)!;
   try {
-    return await ref.read(hexaApiProvider).getChecklistToday(
+    final result = await ref.read(hexaApiProvider).getChecklistToday(
           businessId: session.primaryBusiness.id,
         );
+    if (providerWasDisposed(disposed)) return {};
+    return result;
   } catch (e) {
     if (_isAuthFailure(e)) rethrow;
     rethrow;

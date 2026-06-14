@@ -121,18 +121,23 @@ const kHomeOutOfStockListQuery = StockListQuery(
 
 final homeOutOfStockListProvider =
     FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final disposed = registerProviderDisposeGuard(ref);
   _providerKeepAlive(ref, const Duration(minutes: 2));
   final session = ref.watch(sessionProvider);
   if (session == null) {
     return {'items': <Map<String, dynamic>>[], 'total': 0};
   }
-  return ref.read(hexaApiProvider).listStock(
+  final result = await ref.read(hexaApiProvider).listStock(
         businessId: session.primaryBusiness.id,
         page: kHomeOutOfStockListQuery.page,
         perPage: kHomeOutOfStockListQuery.perPage,
         status: kHomeOutOfStockListQuery.status,
         sort: kHomeOutOfStockListQuery.sort,
       );
+  if (providerWasDisposed(disposed)) {
+    return {'items': <Map<String, dynamic>>[], 'total': 0};
+  }
+  return result;
 });
 
 /// Item drill-down: period purchases, variance, recent lines.
@@ -696,6 +701,7 @@ Map<String, int> _stockStatusCountsFromAlertsSummary(
 /// Status bucket counts for stock filter chips (authoritative server summary).
 final stockStatusCountsProvider =
     FutureProvider.autoDispose<Map<String, int>>((ref) async {
+  final disposed = registerProviderDisposeGuard(ref);
   final bundled = homeBundledStockStatusCounts(ref);
   if (bundled != null) return bundled;
   _providerKeepAlive(ref, const Duration(minutes: 2));
@@ -705,6 +711,7 @@ final stockStatusCountsProvider =
   final bid = session.primaryBusiness.id;
 
   final summary = await ref.watch(stockAlertsSummaryProvider.future);
+  if (providerWasDisposed(disposed)) return {};
   final allTotal = (summary['total_items'] as num?)?.toInt();
   if (allTotal != null && allTotal > 0) {
     return _stockStatusCountsFromAlertsSummary(summary, allTotal: allTotal);
@@ -717,6 +724,7 @@ final stockStatusCountsProvider =
     status: 'all',
     sort: 'recent',
   );
+  if (providerWasDisposed(disposed)) return {};
   return _stockStatusCountsFromAlertsSummary(
     summary,
     allTotal: (res['total'] as num?)?.toInt() ?? 0,

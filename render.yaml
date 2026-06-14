@@ -29,5 +29,12 @@ services:
       # Heavy repair script; run manually after deploy if needed (see scripts/README).
       - key: AUTO_STOCK_BACKFILL_ON_START
         value: "false"
+      # Concurrent home/stock fetches — match backend/app/config.py defaults.
+      - key: DATABASE_POOL_SIZE
+        value: "10"
+      - key: DATABASE_MAX_OVERFLOW
+        value: "15"
+      - key: DATABASE_POOL_TIMEOUT
+        value: "15"
       # Set in dashboard (never commit secrets):
       # DATABASE_URL, JWT_SECRET, CORS_ORIGINS, OPENAI_API_KEY, SENTRY_DSN

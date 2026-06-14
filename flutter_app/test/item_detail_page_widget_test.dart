@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 
 import 'package:harisree_warehouse/core/auth/session_notifier.dart';
 import 'package:harisree_warehouse/core/models/session.dart';
@@ -87,6 +88,68 @@ void main() {
     expect(find.text('SUGAR 50 KG'), findsOneWidget);
     expect(find.textContaining('could not load', findRichText: true), findsNothing);
     expect(find.text('Stock summary'), findsOneWidget);
+  });
+
+  testWidgets('ItemDetailPage pop during fetch does not throw uncaught errors',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+
+    final catalogPending = Completer<Map<String, dynamic>>();
+    final stockPending = Completer<Map<String, dynamic>>();
+
+    late GoRouter router;
+    router = GoRouter(
+      initialLocation: '/',
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const Scaffold(
+            body: Center(child: Text('Home')),
+          ),
+        ),
+        GoRoute(
+          path: '/item/:id',
+          builder: (context, state) =>
+              ItemDetailPage(itemId: state.pathParameters['id']!),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          sessionProvider.overrideWith(() => _FakeSessionNotifier()),
+          catalogItemDetailProvider(_itemId).overrideWith(
+            (ref) => catalogPending.future,
+          ),
+          stockItemDetailProvider(_itemId).overrideWith(
+            (ref) => stockPending.future,
+          ),
+          stockItemIntelligenceProvider(_itemId).overrideWith((ref) async => {}),
+          stockItemAuditProvider(_itemId).overrideWith((ref) async => []),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    router.push('/item/$_itemId');
+    await tester.pump();
+
+    router.pop();
+    await tester.pump();
+
+    catalogPending.complete(_bundle.catalogItem);
+    stockPending.complete(_bundle.stockDetail);
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(tester.takeException(), isNull);
   });
 }
 

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../features/shell/shell_branch_provider.dart';
+import '../auth/provider_api_guard.dart';
 import '../auth/session_notifier.dart';
 import '../json_coerce.dart';
 import '../utils/report_date_params.dart';
@@ -69,6 +70,7 @@ AnalyticsKpi _analyticsKpiFromSummaryMap(Map<String, dynamic> m) {
 
 final analyticsKpiProvider =
     FutureProvider.autoDispose<AnalyticsKpi>((ref) async {
+  final disposed = registerProviderDisposeGuard(ref);
   final link = ref.keepAlive();
   final t = Timer(const Duration(minutes: 3), link.close);
   ref.onDispose(t.cancel);
@@ -105,6 +107,14 @@ final analyticsKpiProvider =
     to: toStr,
     tzOffsetMinutes: localTzOffsetMinutes,
   );
+  if (providerWasDisposed(disposed)) {
+    return const AnalyticsKpi(
+      totalPurchase: 0,
+      totalQtyBase: 0,
+      totalProfit: 0,
+      purchaseCount: 0,
+    );
+  }
   final kpi = _analyticsKpiFromSummaryMap(m);
   _tradeSummaryFetchedAt[cacheKey] = DateTime.now();
   _tradeSummaryCache[cacheKey] = kpi;
