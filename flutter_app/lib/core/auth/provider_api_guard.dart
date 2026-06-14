@@ -57,12 +57,25 @@ void registerProviderKeepAliveTimer(dynamic ref, Duration ttl) {
 
 /// Skip network fetches when logged out or after terminal 401 (stops request storms).
 /// Accepts provider [Ref] and widget [WidgetRef] (different types in Riverpod 2.6).
+/// Resume-gate / refresh-in-flight pauses are handled by [awaitProviderApiReady], not here.
 bool providerSkipApi(dynamic ref) {
-  if (ref.read(authBlockApiRequestsProvider)) return true;
-  if (ref.read(auth401CircuitOpenProvider)) return true;
+  if (ref.read(authHardBlockApiProvider)) return true;
   if (!ref.read(appForegroundProvider)) return true;
   if (ref.read(activeSessionProvider) == null) return true;
   return false;
+}
+
+bool providerAuthSoftPaused(dynamic ref) => ref.read(authSoftPauseApiProvider);
+
+/// Clear resume/refresh gates stuck after IndexedStack tab switches (web shell).
+void clearStuckAuthGates(dynamic ref) {
+  try {
+    ref.read(authResumeGateProvider.notifier).state = false;
+    ref.read(authRefreshInFlightProvider.notifier).state = false;
+    if (!ref.read(auth401CircuitOpenProvider)) {
+      ref.read(authApiGateProvider.notifier).clearSuspend();
+    }
+  } catch (_) {}
 }
 
 /// Wait for resume JWT / 401 gate to clear before item-detail fetches (avoids false "load failed").
@@ -70,9 +83,9 @@ Future<void> awaitProviderApiReady(
   dynamic ref, {
   Duration maxWait = const Duration(seconds: 8),
 }) async {
-  if (!providerSkipApi(ref)) return;
+  if (!providerSkipApi(ref) && !providerAuthSoftPaused(ref)) return;
   final deadline = DateTime.now().add(maxWait);
-  while (providerSkipApi(ref)) {
+  while (providerSkipApi(ref) || providerAuthSoftPaused(ref)) {
     if (DateTime.now().isAfter(deadline)) return;
     await Future<void>.delayed(const Duration(milliseconds: 80));
   }

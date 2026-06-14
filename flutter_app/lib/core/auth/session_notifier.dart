@@ -214,7 +214,8 @@ final hexaApiProvider = Provider<HexaApi>((ref) {
     blockBusinessApi: () {
       if (disposed) return true;
       try {
-        return ref.read(authBlockApiRequestsProvider);
+        // Only terminal auth failure — resume/refresh gates must not reject XHRs (web shell tabs).
+        return ref.read(authHardBlockApiProvider);
       } catch (_) {
         return true;
       }

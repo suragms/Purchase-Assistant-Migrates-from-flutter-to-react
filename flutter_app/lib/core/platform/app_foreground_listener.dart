@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -71,8 +72,10 @@ class _AppForegroundListenerState extends ConsumerState<AppForegroundListener>
         ref.read(appForegroundProvider.notifier).state = false;
         return;
       }
-      // Hold API until JWT refresh completes — prevents 401 storms on web tab resume.
-      ref.read(authResumeGateProvider.notifier).state = true;
+      // Web IndexedStack keeps tabs mounted — resume gate caused auth_blocked on all pages.
+      if (!kIsWeb) {
+        ref.read(authResumeGateProvider.notifier).state = true;
+      }
       ref.read(appForegroundProvider.notifier).state = true;
       ref.read(appLastForegroundAtProvider.notifier).state = DateTime.now();
       _resumeDebounce?.cancel();

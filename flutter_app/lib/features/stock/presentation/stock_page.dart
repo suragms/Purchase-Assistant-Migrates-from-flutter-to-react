@@ -147,11 +147,7 @@ class _StockPageState extends ConsumerState<StockPage>
     }
 
     // Shell IndexedStack + tab resume gates can block stock/list while other XHRs succeed.
-    ref.read(authResumeGateProvider.notifier).state = false;
-    ref.read(authRefreshInFlightProvider.notifier).state = false;
-    if (!ref.read(auth401CircuitOpenProvider)) {
-      ref.read(authApiGateProvider.notifier).clearSuspend();
-    }
+    clearStuckAuthGates(ref);
 
     _deliveryCountsPoll = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted) return;
@@ -953,7 +949,7 @@ class _StockPageState extends ConsumerState<StockPage>
           onRetry: () {
             _transientListRetryCount = 0;
             ref.read(authApiGateProvider.notifier).reset();
-            ref.read(authResumeGateProvider.notifier).state = false;
+            clearStuckAuthGates(ref);
             clearStockListEtagCache(ref);
             _resetMerged();
             ref.invalidate(stockListProvider);

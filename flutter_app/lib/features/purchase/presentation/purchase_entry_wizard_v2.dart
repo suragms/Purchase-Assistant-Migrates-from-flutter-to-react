@@ -13,7 +13,7 @@ import '../../../core/router/navigation_ext.dart';
 import '../../../core/api/fastapi_error.dart';
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/errors/user_facing_errors.dart';
-import '../../../core/auth/auth_failure_policy.dart';
+import '../../../core/auth/provider_api_guard.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/json_coerce.dart' show coerceToDoubleNullable;
@@ -186,11 +186,7 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
     bindFocusNodeScrollIntoView(_termsHeaderDiscFocus);
     bindFocusNodeScrollIntoView(_termsNarrationFocus);
     // Shell IndexedStack + tab resume gates can block supplier/broker list XHRs.
-    ref.read(authResumeGateProvider.notifier).state = false;
-    ref.read(authRefreshInFlightProvider.notifier).state = false;
-    if (!ref.read(auth401CircuitOpenProvider)) {
-      ref.read(authApiGateProvider.notifier).clearSuspend();
-    }
+    clearStuckAuthGates(ref);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.invalidate(suppliersListProvider);

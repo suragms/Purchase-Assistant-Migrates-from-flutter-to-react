@@ -35,12 +35,24 @@ final authRefreshInFlightProvider = StateProvider<bool>((ref) => false);
 /// Blocks business API until [SessionNotifier.refreshOnResume] finishes after tab/app resume.
 final authResumeGateProvider = StateProvider<bool>((ref) => false);
 
-/// Single check for providers — session expired, 401 suspend, resume refresh, or Dio refresh.
-final authBlockApiRequestsProvider = Provider<bool>((ref) {
+/// Terminal auth failure — Dio rejects and providers skip until sign-in again.
+final authHardBlockApiProvider = Provider<bool>((ref) {
   if (ref.watch(authSessionExpiredProvider)) return true;
+  return ref.watch(authApiGateProvider).circuitOpen;
+});
+
+/// Soft pause during tab resume / token refresh / 401 suspend (not terminal).
+/// Providers may wait via [awaitProviderApiReady]; Dio must still send requests.
+final authSoftPauseApiProvider = Provider<bool>((ref) {
   if (ref.watch(authResumeGateProvider)) return true;
   if (ref.watch(authRefreshInFlightProvider)) return true;
-  return ref.watch(authApiGateProvider).blockApi;
+  return ref.watch(authApiGateProvider.select((g) => g.suspended));
+});
+
+/// Combined pause — used where callers need any auth hold (not Dio layer).
+final authBlockApiRequestsProvider = Provider<bool>((ref) {
+  if (ref.watch(authHardBlockApiProvider)) return true;
+  return ref.watch(authSoftPauseApiProvider);
 });
 
 class AuthApiGateNotifier extends Notifier<AuthApiGateState> {

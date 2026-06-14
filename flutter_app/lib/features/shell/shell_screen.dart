@@ -41,6 +41,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      clearStuckAuthGates(ref);
       _syncShellBranch(widget.navigationShell.currentIndex);
     });
   }
@@ -57,6 +58,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   void _syncShellBranch(int idx) {
     if (!mounted) return;
     if (ref.read(shellCurrentBranchProvider) == idx) return;
+    clearStuckAuthGates(ref);
     // Only sync branch index — do NOT invalidate providers here (caused
     // hundreds of parallel refetches + StaleHomeDashboardFetch loops on web).
     ref.read(shellCurrentBranchProvider.notifier).state = idx;
