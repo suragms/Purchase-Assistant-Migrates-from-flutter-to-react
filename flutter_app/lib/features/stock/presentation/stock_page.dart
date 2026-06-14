@@ -149,6 +149,15 @@ class _StockPageState extends ConsumerState<StockPage>
     // Shell IndexedStack + tab resume gates can block stock/list while other XHRs succeed.
     clearStuckAuthGates(ref);
 
+    final cached = stockListCachedDataForCurrentQuery(ref);
+    if (cached != null) {
+      _mergedData = mergeStockListPage(
+        previous: null,
+        incoming: cached,
+        page: 1,
+      );
+    }
+
     _deliveryCountsPoll = Timer.periodic(const Duration(seconds: 30), (_) {
       if (!mounted) return;
       if (providerSkipApi(ref)) return;
@@ -884,7 +893,8 @@ class _StockPageState extends ConsumerState<StockPage>
     final listQ = ref.watch(stockListQueryProvider);
     final op = ref.watch(stockOperationalFiltersProvider);
     final filterCount = countWarehouseActiveFilters(listQ, op);
-    final data = _mergedData ?? listAsync.valueOrNull;
+    final ramCache = stockListCachedDataForCurrentQuery(ref);
+    final data = _mergedData ?? listAsync.valueOrNull ?? ramCache;
     final isReloading = listAsync.isLoading && data != null;
     final showDebounceProgress = _debounce?.isActive ?? false;
 
