@@ -888,7 +888,15 @@ class _StockPageState extends ConsumerState<StockPage>
     final listQ = ref.watch(stockListQueryProvider);
     final op = ref.watch(stockOperationalFiltersProvider);
     final filterCount = countWarehouseActiveFilters(listQ, op);
-    if (_mergedData == null && listAsync.hasValue && listAsync.value != null) {
+    final data = _mergedData ?? listAsync.valueOrNull;
+    final isReloading = listAsync.isLoading && data != null;
+    final showDebounceProgress = _debounce?.isActive ?? false;
+
+    // First paint: don't wait for _mergedData post-frame when page-1 data is ready.
+    if (data != null &&
+        _mergedData == null &&
+        listAsync.hasValue &&
+        ref.read(stockListQueryProvider).page == 1) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || _mergedData != null) return;
         final snap = ref.read(stockListProvider).valueOrNull;
@@ -897,14 +905,11 @@ class _StockPageState extends ConsumerState<StockPage>
           _mergedData = mergeStockListPage(
             previous: null,
             incoming: snap,
-            page: ref.read(stockListQueryProvider).page,
+            page: 1,
           );
         });
       });
     }
-    final data = _mergedData ?? listAsync.valueOrNull;
-    final isReloading = listAsync.isLoading && data != null;
-    final showDebounceProgress = _debounce?.isActive ?? false;
 
     final authExpired = ref.watch(authSessionExpiredProvider);
     final authCircuit = ref.watch(auth401CircuitOpenProvider);

@@ -401,10 +401,33 @@ final stockChangesFeedProvider =
   return out;
 });
 
-void _stockListAbortIfDisposed(ProviderDisposeGuard disposed) {
-  if (providerWasDisposed(disposed)) {
-    throw const ProviderFetchAborted();
+Map<String, dynamic> _stockListFinalizePayload(
+  Map<String, dynamic> res,
+  dynamic ref, {
+  required StockListQuery query,
+  required String queryKey,
+  required ProviderDisposeGuard disposed,
+}) {
+  final next = Map<String, dynamic>.from(res)..remove('_etag');
+  final newEtag = res['_etag']?.toString();
+  if (!providerWasDisposed(disposed)) {
+    try {
+      if (query.page == 1 &&
+          newEtag != null &&
+          newEtag.isNotEmpty &&
+          stockListCacheBodyIsUsable(next)) {
+        ref.read(stockListEtagProvider.notifier).state = newEtag;
+        ref.read(stockListCachedBodyProvider.notifier).state = next;
+        ref.read(stockListCacheQueryKeyProvider.notifier).state = queryKey;
+        ref.read(stockListLastFetchedAtProvider.notifier).state = DateTime.now();
+      } else if (query.page == 1 && res['_not_modified'] != true) {
+        ref.read(stockListLastFetchedAtProvider.notifier).state = DateTime.now();
+      }
+    } catch (_) {
+      // Provider disposed while writing ETag cache — return payload only.
+    }
   }
+  return next;
 }
 
 final stockListProvider = FutureProvider.autoDispose((ref) async {
@@ -476,8 +499,6 @@ final stockListProvider = FutureProvider.autoDispose((ref) async {
     rethrow;
   }
 
-  _stockListAbortIfDisposed(disposed);
-
   if (res['_not_modified'] == true) {
     if (stockListCacheBodyIsUsable(cachedBody)) {
       return Map<String, dynamic>.from(cachedBody!);
@@ -498,33 +519,21 @@ final stockListProvider = FutureProvider.autoDispose((ref) async {
       periodEnd: query.periodEnd,
       purchasedInPeriod: purchasedInPeriod,
     );
-    _stockListAbortIfDisposed(disposed);
     if (res['_not_modified'] == true) {
       clearStockListEtagCache(ref);
       throw const StockListFetchBlockedException('etag_stale');
     }
   }
 
-  final next = Map<String, dynamic>.from(res)..remove('_etag');
-  final newEtag = res['_etag']?.toString();
-  if (!providerWasDisposed(disposed)) {
-    try {
-      if (query.page == 1 &&
-          newEtag != null &&
-          newEtag.isNotEmpty &&
-          stockListCacheBodyIsUsable(next)) {
-        ref.read(stockListEtagProvider.notifier).state = newEtag;
-        ref.read(stockListCachedBodyProvider.notifier).state = next;
-        ref.read(stockListCacheQueryKeyProvider.notifier).state = queryKey;
-        ref.read(stockListLastFetchedAtProvider.notifier).state = DateTime.now();
-      } else if (query.page == 1 && res['_not_modified'] != true) {
-        ref.read(stockListLastFetchedAtProvider.notifier).state = DateTime.now();
-      }
-    } catch (_) {
-      // Provider disposed while writing ETag cache — return payload only.
-    }
-  }
-  return next;
+  // Web IndexedStack + autoDispose: fetch often completes after dispose guard trips.
+  // Returning the payload prevents "Network 200 + skeleton forever" when XHR succeeded.
+  return _stockListFinalizePayload(
+    res,
+    ref,
+    query: query,
+    queryKey: queryKey,
+    disposed: disposed,
+  );
 });
 
 /// Loads **all** stock rows matching [stockListQueryProvider] filters (paged API calls).
