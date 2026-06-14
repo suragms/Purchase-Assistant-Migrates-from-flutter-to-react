@@ -27,5 +27,5 @@ int? staffShellBranchIndexForPath(String path) {
 }
 
 /// Whether [branch] is the active staff IndexedStack tab.
-bool staffShellBranchIsVisible(Ref ref, int branch) =>
+bool staffShellBranchIsVisible(dynamic ref, int branch) =>
     ref.watch(staffShellCurrentBranchProvider) == branch;

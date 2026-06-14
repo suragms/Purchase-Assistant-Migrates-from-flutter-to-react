@@ -22,5 +22,8 @@ final shellCurrentBranchProvider = StateProvider<int>(
 final shellReturnBranchProvider = StateProvider<int?>((ref) => null);
 
 /// Whether [branch] is the active IndexedStack tab (off-screen branches stay mounted).
-bool shellBranchIsVisible(Ref ref, int branch) =>
+///
+/// Accepts provider [Ref] and widget [WidgetRef] — they are unrelated types in
+/// Riverpod 2.x, so do not type this parameter as [Ref] only.
+bool shellBranchIsVisible(dynamic ref, int branch) =>
     ref.watch(shellCurrentBranchProvider) == branch;
