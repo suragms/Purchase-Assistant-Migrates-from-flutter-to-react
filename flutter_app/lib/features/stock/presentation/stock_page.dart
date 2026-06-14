@@ -130,13 +130,35 @@ class _StockPageState extends ConsumerState<StockPage>
     });
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scroll.hasClients) return;
+      if (!mounted) return;
+      _syncRouteQueryToStockList();
+      if (!_scroll.hasClients) return;
       final saved = ref.read(stockListScrollOffsetProvider);
       if (saved > 0) {
         final max = _scroll.position.maxScrollExtent;
         _scroll.jumpTo(saved.clamp(0.0, max));
       }
     });
+  }
+
+  void _syncRouteQueryToStockList() {
+    final uri = GoRouterState.of(context).uri;
+    final status = uri.queryParameters['status']?.trim().toLowerCase();
+    if (status == null || status.isEmpty) return;
+    final mapped = switch (status) {
+      'out' => 'out',
+      'low' || 'shortage' => 'low',
+      'all' => 'all',
+      _ => null,
+    };
+    if (mapped == null) return;
+    final q = ref.read(stockListQueryProvider);
+    if (q.status == mapped) return;
+    ref.read(stockListQueryProvider.notifier).state =
+        q.copyWith(status: mapped, page: 1);
+    _resetMerged();
+    clearStockListEtagCache(ref);
+    ref.invalidate(stockListProvider);
   }
 
   @override
@@ -586,6 +608,7 @@ class _StockPageState extends ConsumerState<StockPage>
             icon: Icons.inventory_2_outlined,
             title: chipAll > 0 &&
                     items.isEmpty &&
+                    total == 0 &&
                     filterCount == 0 &&
                     listQ.q.isEmpty &&
                     deliveryFilter == StockDeliveryFilter.all
@@ -597,6 +620,7 @@ class _StockPageState extends ConsumerState<StockPage>
                     : 'No stock items yet',
             subtitle: chipAll > 0 &&
                     items.isEmpty &&
+                    total == 0 &&
                     filterCount == 0 &&
                     listQ.q.isEmpty
                 ? 'Counts show $chipAll items but the list request failed. Tap Refresh or sign in again.'
@@ -607,6 +631,7 @@ class _StockPageState extends ConsumerState<StockPage>
                     : 'Add catalog items to start tracking warehouse stock.',
             primaryActionLabel: chipAll > 0 &&
                     items.isEmpty &&
+                    total == 0 &&
                     filterCount == 0
                 ? 'Retry load'
                 : filterCount > 0
@@ -614,9 +639,11 @@ class _StockPageState extends ConsumerState<StockPage>
                     : 'Refresh',
             onPrimaryAction: chipAll > 0 &&
                     items.isEmpty &&
+                    total == 0 &&
                     filterCount == 0
                 ? () {
                     ref.read(authApiGateProvider.notifier).reset();
+                    clearStockListEtagCache(ref);
                     _resetMerged();
                     ref.invalidate(stockListProvider);
                     ref.invalidate(stockStatusCountsProvider);
@@ -648,6 +675,7 @@ class _StockPageState extends ConsumerState<StockPage>
     final scroll = RefreshIndicator(
       onRefresh: () async {
         _resetMerged();
+        clearStockListEtagCache(ref);
         ref.invalidate(stockListProvider);
         await ref.read(stockListProvider.future);
       },
@@ -732,23 +760,28 @@ class _StockPageState extends ConsumerState<StockPage>
       if (next is! AsyncData<Map<String, dynamic>>) return;
       final q = ref.read(stockListQueryProvider);
       final restoreOffset = _pendingScrollOffset;
+      final incoming = next.value;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         try {
-          final incoming = next.value;
           final rows = [
             for (final e in (incoming['items'] as List? ?? []))
               if (e is Map) Map<String, dynamic>.from(e),
           ];
           reconcileStockListRowPatches(ref, rows);
-          setState(() {
-            _loadingMore = false;
-            _mergedData = mergeStockListPage(
-              previous: q.page > 1 ? _mergedData : null,
-              incoming: incoming,
-              page: q.page,
-            );
-          });
+          final merged = mergeStockListPage(
+            previous: q.page > 1 ? _mergedData : null,
+            incoming: incoming,
+            page: q.page,
+          );
+          if (_mergedData == merged) {
+            if (_loadingMore) setState(() => _loadingMore = false);
+          } else {
+            setState(() {
+              _loadingMore = false;
+              _mergedData = merged;
+            });
+          }
         } catch (_) {
           if (!mounted) return;
           setState(() => _loadingMore = false);
@@ -815,6 +848,9 @@ class _StockPageState extends ConsumerState<StockPage>
       body = const ListSkeleton(rowCount: 12);
     } else if (listAsync.hasError && data == null) {
       final err = listAsync.error;
+      if (err is ProviderFetchAborted) {
+        body = const ListSkeleton(rowCount: 12);
+      } else {
       final blocked = err is StockListFetchBlockedException
           ? err.reason
           : null;
@@ -826,22 +862,29 @@ class _StockPageState extends ConsumerState<StockPage>
             ? 'Warehouse list needs a valid session. Sign in and try again.'
             : blocked == 'tab_not_visible'
                 ? 'Stock list paused while another tab is open. Switch back to Stock and tap Retry.'
-                : null,
+                : isStockListTransientBlock(err)
+                    ? 'Session is refreshing. Wait a moment, then tap Retry.'
+                    : blocked == 'etag_stale'
+                        ? 'Cached stock list was stale. Tap Retry to reload.'
+                        : null,
         onRetry: () {
           if (isAuth) {
             ref.read(authApiGateProvider.notifier).reset();
           }
+          clearStockListEtagCache(ref);
           _resetMerged();
           ref.invalidate(stockListProvider);
           ref.invalidate(stockStatusCountsProvider);
         },
       );
+      }
     } else if (data != null) {
       body = _buildListBody(data: data, isReloading: isReloading);
     } else if (listAsync.hasError) {
       body = FriendlyLoadError(
         message: 'Unable to load stock',
         onRetry: () {
+          clearStockListEtagCache(ref);
           _resetMerged();
           ref.invalidate(stockListProvider);
           ref.invalidate(stockStatusCountsProvider);

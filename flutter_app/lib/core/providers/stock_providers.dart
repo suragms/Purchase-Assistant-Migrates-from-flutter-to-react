@@ -21,6 +21,7 @@ import '../../features/stock/stock_list_row_patch.dart'
 import 'app_period_provider.dart';
 import 'deferred_invalidation.dart';
 import 'home_dashboard_provider.dart';
+import 'stock_list_exceptions.dart';
 
 /// Public alias for providers outside this file (e.g. warehouse alerts).
 void providerKeepAlive(Ref ref, Duration ttl) =>
@@ -368,34 +369,33 @@ final stockChangesFeedProvider =
   return out;
 });
 
+void _stockListAbortIfDisposed(ProviderDisposeGuard disposed) {
+  if (providerWasDisposed(disposed)) {
+    throw const ProviderFetchAborted();
+  }
+}
+
 final stockListProvider = FutureProvider.autoDispose((ref) async {
   final disposed = registerProviderDisposeGuard(ref);
   registerProviderKeepAliveTimer(ref, kStockListCacheTtl);
   final session = ref.watch(sessionProvider);
   final query = ref.watch(stockListQueryProvider);
   if (session == null) {
-    return <String, dynamic>{
-      'items': <dynamic>[],
-      'total': 0,
-      'page': 1,
-      'per_page': query.perPage,
-    };
+    throw const StockListFetchBlockedException('no_session');
   }
+  await awaitProviderApiReady(ref);
   if (providerSkipApi(ref)) {
     final cachedBody = ref.read(stockListCachedBodyProvider);
     if (cachedBody != null) return cachedBody;
-    return <String, dynamic>{
-      'items': <dynamic>[],
-      'total': 0,
-      'page': query.page,
-      'per_page': query.perPage,
-    };
+    throw const StockListFetchBlockedException('api_gate');
   }
   final queryKey = query.toCacheKey();
   final cachedKey = ref.read(stockListCacheQueryKeyProvider);
   final cachedBody = ref.read(stockListCachedBodyProvider);
   final etag = ref.read(stockListEtagProvider);
-  final useEtag = query.page == 1 && cachedKey == queryKey && etag != null;
+  // Web service workers + IndexedStack dispose races make 304+ETag unreliable.
+  final useEtag =
+      !kIsWeb && query.page == 1 && cachedKey == queryKey && etag != null;
   final bid = session.primaryBusiness.id;
   final purchasedInPeriod = query.purchasedInPeriod ||
       ref.read(stockOperationalFiltersProvider).purchasedInPeriodOnly;
@@ -427,26 +427,13 @@ final stockListProvider = FutureProvider.autoDispose((ref) async {
     );
   } on DioException {
     if (providerWasDisposed(disposed)) {
-      return cachedBody ??
-          <String, dynamic>{
-            'items': <dynamic>[],
-            'total': 0,
-            'page': query.page,
-            'per_page': query.perPage,
-          };
+      if (cachedBody != null) return cachedBody;
+      throw const ProviderFetchAborted();
     }
     rethrow;
   }
 
-  if (providerWasDisposed(disposed)) {
-    return cachedBody ??
-        <String, dynamic>{
-          'items': <dynamic>[],
-          'total': 0,
-          'page': query.page,
-          'per_page': query.perPage,
-        };
-  }
+  _stockListAbortIfDisposed(disposed);
 
   if (res['_not_modified'] == true) {
     if (cachedBody != null) return cachedBody;
@@ -466,14 +453,10 @@ final stockListProvider = FutureProvider.autoDispose((ref) async {
       periodEnd: query.periodEnd,
       purchasedInPeriod: purchasedInPeriod,
     );
-    if (providerWasDisposed(disposed)) {
-      return cachedBody ??
-          <String, dynamic>{
-            'items': <dynamic>[],
-            'total': 0,
-            'page': query.page,
-            'per_page': query.perPage,
-          };
+    _stockListAbortIfDisposed(disposed);
+    if (res['_not_modified'] == true) {
+      clearStockListEtagCache(ref);
+      throw const StockListFetchBlockedException('etag_stale');
     }
   }
 
