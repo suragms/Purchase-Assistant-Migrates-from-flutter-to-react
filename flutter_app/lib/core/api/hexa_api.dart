@@ -12,6 +12,7 @@ import 'dio_auto_retry_interceptor.dart';
 import 'hexa_connection_timeout_retry_interceptor.dart';
 import '../auth/auth_error_messages.dart' show dioIsAutoRetryableTransport;
 import '../config/app_config.dart';
+import '../debug/agent_debug_log.dart';
 import '../json_coerce.dart';
 import '../models/session.dart';
 import '../stock/stock_version_retry.dart';
@@ -179,6 +180,18 @@ class HexaApi {
             return handler.next(options);
           }
           if (_blockBusinessApi?.call() == true) {
+            // #region agent log
+            if (path.contains('/stock/list') ||
+                path.contains('/suppliers') ||
+                path.contains('/brokers')) {
+              agentDebugLog(
+                hypothesisId: 'H3',
+                location: 'hexa_api.dart:onRequest',
+                message: 'dio auth_blocked reject',
+                data: {'path': path},
+              );
+            }
+            // #endregion
             return handler.reject(
               DioException(
                 requestOptions: options,

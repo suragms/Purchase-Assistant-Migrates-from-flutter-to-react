@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/auth/auth_failure_policy.dart';
 import '../../../core/auth/provider_api_guard.dart';
+import '../../../core/debug/agent_debug_log.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/providers/api_degraded_provider.dart';
 import '../../../core/models/session.dart';
@@ -961,6 +962,23 @@ class _StockPageState extends ConsumerState<StockPage>
       );
     } else if (showInitialSkeleton &&
         (listAsync.isLoading || listAsync.isRefreshing)) {
+      // #region agent log
+      agentDebugLog(
+        hypothesisId: 'H1',
+        location: 'stock_page.dart:build',
+        message: 'stock skeleton branch',
+        data: {
+          'loading': listAsync.isLoading,
+          'refreshing': listAsync.isRefreshing,
+          'hasValue': listAsync.hasValue,
+          'hasError': listAsync.hasError,
+          'err': listAsync.error?.runtimeType.toString(),
+          'ramCache': ramCache != null,
+          'queryKey': listQ.toCacheKey(),
+          'cacheKey': ref.read(stockListCacheQueryKeyProvider),
+        },
+      );
+      // #endregion
       body = const ListSkeleton(rowCount: 12);
     } else if (listAsync.hasError && data == null) {
       final err = listAsync.error;

@@ -14,6 +14,7 @@ import '../../../core/api/fastapi_error.dart';
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/auth/provider_api_guard.dart';
+import '../../../core/debug/agent_debug_log.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/json_coerce.dart' show coerceToDoubleNullable;
@@ -189,8 +190,14 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
     clearStuckAuthGates(ref);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.invalidate(suppliersListProvider);
-      ref.invalidate(brokersListProvider);
+      final sup = ref.read(suppliersListProvider);
+      final bro = ref.read(brokersListProvider);
+      if (!sup.hasValue && !sup.isLoading) {
+        ref.invalidate(suppliersListProvider);
+      }
+      if (!bro.hasValue && !bro.isLoading) {
+        ref.invalidate(brokersListProvider);
+      }
       _bootstrap();
     });
   }
@@ -2648,9 +2655,34 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
     );
     ref.listen(suppliersListProvider, (prev, next) {
       next.whenData((d) => _lastGoodSuppliers = d);
+      if (next.hasError) {
+        // #region agent log
+        agentDebugLog(
+          hypothesisId: 'H4',
+          location: 'purchase_entry_wizard_v2.dart:suppliers',
+          message: 'suppliers provider error',
+          data: {
+            'error': next.error?.runtimeType.toString(),
+            'detail': next.error.toString().length > 100
+                ? next.error.toString().substring(0, 100)
+                : next.error.toString(),
+          },
+        );
+        // #endregion
+      }
     });
     ref.listen(brokersListProvider, (prev, next) {
       next.whenData((d) => _lastGoodBrokers = d);
+      if (next.hasError) {
+        // #region agent log
+        agentDebugLog(
+          hypothesisId: 'H4',
+          location: 'purchase_entry_wizard_v2.dart:brokers',
+          message: 'brokers provider error',
+          data: {'error': next.error?.runtimeType.toString()},
+        );
+        // #endregion
+      }
     });
     ref.listen(
       purchaseDraftProvider.select((d) => d.supplierId),

@@ -12,6 +12,7 @@ import '../auth/session_notifier.dart';
 import '../errors/user_facing_errors.dart';
 import '../json_coerce.dart';
 import '../navigation/surface_refresh_policy.dart' show kStockListCacheTtl;
+import '../debug/agent_debug_log.dart';
 import '../../features/shell/shell_branch_provider.dart';
 import 'api_read_snapshots.dart';
 import '../../features/stock/stock_list_row_patch.dart'
@@ -274,22 +275,37 @@ void _writeStockListRamCache(
   required String queryKey,
   required Map<String, dynamic> res,
 }) {
-  try {
-    final newEtag = res['_etag']?.toString();
-    if (query.page == 1 && stockListCacheBodyIsUsable(next)) {
-      if (newEtag != null && newEtag.isNotEmpty) {
-        ref.read(stockListEtagProvider.notifier).state = newEtag;
+  // Riverpod forbids mutating other providers during FutureProvider completion.
+  Future.microtask(() {
+    try {
+      final newEtag = res['_etag']?.toString();
+      if (query.page == 1 && stockListCacheBodyIsUsable(next)) {
+        if (newEtag != null && newEtag.isNotEmpty) {
+          ref.read(stockListEtagProvider.notifier).state = newEtag;
+        }
+        ref.read(stockListCachedBodyProvider.notifier).state = next;
+        ref.read(stockListCacheQueryKeyProvider.notifier).state = queryKey;
+        ref.read(stockListLastFetchedAtProvider.notifier).state = DateTime.now();
+        ref.read(stockListLiveSnapshotProvider.notifier).state = next;
+        // #region agent log
+        agentDebugLog(
+          hypothesisId: 'H2',
+          location: 'stock_providers.dart:_writeStockListRamCache',
+          message: 'stock RAM cache written',
+          data: {
+            'queryKey': queryKey,
+            'total': coerceToInt(next['total']),
+            'items': (next['items'] as List?)?.length ?? 0,
+          },
+        );
+        // #endregion
+      } else if (query.page == 1 && res['_not_modified'] != true) {
+        ref.read(stockListLastFetchedAtProvider.notifier).state = DateTime.now();
       }
-      ref.read(stockListCachedBodyProvider.notifier).state = next;
-      ref.read(stockListCacheQueryKeyProvider.notifier).state = queryKey;
-      ref.read(stockListLastFetchedAtProvider.notifier).state = DateTime.now();
-      ref.read(stockListLiveSnapshotProvider.notifier).state = next;
-    } else if (query.page == 1 && res['_not_modified'] != true) {
-      ref.read(stockListLastFetchedAtProvider.notifier).state = DateTime.now();
+    } catch (_) {
+      // Provider/container disposed — cache write is best-effort for the next mount.
     }
-  } catch (_) {
-    // Provider/container disposed — cache write is best-effort for the next mount.
-  }
+  });
 }
 
 int _warehouseChipFilterCount(StockListQuery q, StockOperationalFilters op) {
@@ -528,7 +544,19 @@ final stockListProvider = FutureProvider<Map<String, dynamic>>((ref) async {
           )
           .whenComplete(() => _stockListInflight.remove(inflightKey)),
     );
-  } on DioException {
+  } on DioException catch (e) {
+    // #region agent log
+    agentDebugLog(
+      hypothesisId: 'H1',
+      location: 'stock_providers.dart:stockListProvider:dio',
+      message: 'stock list dio error',
+      data: {
+        'status': e.response?.statusCode,
+        'msg': e.message,
+        'disposed': providerWasDisposed(disposed),
+      },
+    );
+    // #endregion
     if (providerWasDisposed(disposed)) {
       if (stockListCacheBodyIsUsable(cachedBody)) {
         return Map<String, dynamic>.from(cachedBody!);
@@ -566,13 +594,27 @@ final stockListProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 
   // Web IndexedStack + autoDispose: fetch often completes after dispose guard trips.
   // Returning the payload prevents "Network 200 + skeleton forever" when XHR succeeded.
-  return _stockListFinalizePayload(
+  final finalized = _stockListFinalizePayload(
     res,
     ref,
     query: query,
     queryKey: queryKey,
     disposed: disposed,
   );
+  // #region agent log
+  agentDebugLog(
+    hypothesisId: 'H1',
+    location: 'stock_providers.dart:stockListProvider:done',
+    message: 'stock list provider done',
+    data: {
+      'queryKey': queryKey,
+      'total': coerceToInt(finalized['total']),
+      'items': (finalized['items'] as List?)?.length ?? 0,
+      'disposed': providerWasDisposed(disposed),
+    },
+  );
+  // #endregion
+  return finalized;
 });
 
 /// Loads **all** stock rows matching [stockListQueryProvider] filters (paged API calls).
