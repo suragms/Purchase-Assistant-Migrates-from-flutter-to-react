@@ -1,0 +1,15 @@
+# Manual / scheduled production health check (web + API + DB schema).
+name: Production smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * *" # 04:00 UTC daily
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Production smoke
+        run: bash scripts/production-smoke.sh
