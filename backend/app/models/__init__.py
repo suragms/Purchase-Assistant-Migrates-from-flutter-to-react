@@ -13,7 +13,6 @@ from app.models.unit_intelligence import (
 )
 from app.models.supplier_item_default import SupplierItemDefault
 from app.models.contacts import Broker, Supplier
-from app.models.entry import Entry, EntryLineItem
 from app.models.trade_purchase import BrokerSupplierLink, TradePurchase, TradePurchaseDraft, TradePurchaseLine
 from app.models.purchase_damage_report import PurchaseDamageReport
 from app.models.business_goal import BusinessGoal
@@ -50,8 +49,6 @@ __all__ = [
     "Membership",
     "Broker",
     "Supplier",
-    "Entry",
-    "EntryLineItem",
     "ItemCategory",
     "CategoryType",
     "CatalogItem",

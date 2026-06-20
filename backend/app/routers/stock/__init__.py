@@ -19,8 +19,10 @@ router = APIRouter(prefix="/v1/businesses/{business_id}/stock", tags=["stock"])
 router.include_router(stock_list.router)
 router.include_router(stock_barcode.router)
 router.include_router(stock_audit.router)
-router.include_router(stock_detail.router)
+# Static paths (inventory-summary, totals, opening/*) must register before
+# stock_detail `/{item_id}` or FastAPI treats the segment as a UUID → 422.
 router.include_router(stock_ops.router)
+router.include_router(stock_detail.router)
 
 __all__ = [
     "router",

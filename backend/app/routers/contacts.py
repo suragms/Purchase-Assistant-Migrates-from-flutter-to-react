@@ -14,6 +14,7 @@ from sqlalchemy.orm import load_only
 
 from app.database import get_db
 from app.services.trade_query import trade_purchase_status_in_reports
+from app.services import trade_query as tq
 from app.db_resilience import execute_with_retry
 from app.deps import require_membership, require_owner_membership
 from app.models import (
@@ -21,8 +22,6 @@ from app.models import (
     BrokerSupplierLink,
     CatalogItem,
     CategoryType,
-    Entry,
-    EntryLineItem,
     ItemCategory,
     Membership,
     Supplier,
@@ -593,9 +592,10 @@ async def delete_supplier(
     if s is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
     ec = await db.execute(
-        select(func.count(Entry.id)).where(
-            Entry.business_id == business_id,
-            Entry.supplier_id == supplier_id,
+        select(func.count(TradePurchase.id)).where(
+            TradePurchase.business_id == business_id,
+            TradePurchase.supplier_id == supplier_id,
+            TradePurchase.status.notin_(("deleted", "cancelled")),
         )
     )
     if int(ec.scalar() or 0) > 0:
@@ -877,9 +877,10 @@ async def delete_broker(
     if b is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Broker not found")
     ec = await db.execute(
-        select(func.count(Entry.id)).where(
-            Entry.business_id == business_id,
-            Entry.broker_id == broker_id,
+        select(func.count(TradePurchase.id)).where(
+            TradePurchase.business_id == business_id,
+            TradePurchase.broker_id == broker_id,
+            TradePurchase.status.notin_(("deleted", "cancelled")),
         )
     )
     if int(ec.scalar() or 0) > 0:
@@ -975,14 +976,6 @@ async def get_supplier(
     return await _supplier_out(db, s)
 
 
-def _date_filter(business_id: uuid.UUID, from_date: date, to_date: date):
-    return (
-        Entry.business_id == business_id,
-        Entry.entry_date >= from_date,
-        Entry.entry_date <= to_date,
-    )
-
-
 def _trade_purchase_date_filter(business_id: uuid.UUID, from_date: date, to_date: date):
     return (
         TradePurchase.business_id == business_id,
@@ -1016,18 +1009,20 @@ async def supplier_metrics(
     )
     if r.scalar_one_or_none() is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
-    bf = _date_filter(business_id, from_date, to_date)
+    bf = _trade_purchase_date_filter(business_id, from_date, to_date)
+    amt = tq.trade_line_amount_expr()
+    profit = tq.trade_line_profit_expr()
     q = (
         select(
-            func.count(Entry.id.distinct()).label("deals"),
-            func.coalesce(func.sum(EntryLineItem.qty), 0).label("tq"),
-            func.coalesce(func.avg(EntryLineItem.landing_cost), 0).label("al"),
-            func.coalesce(func.sum(EntryLineItem.profit), 0).label("tp"),
-            func.coalesce(func.sum(EntryLineItem.qty * EntryLineItem.buy_price), 0).label("pam"),
+            func.count(func.distinct(TradePurchase.id)).label("deals"),
+            func.coalesce(func.sum(TradePurchaseLine.qty), 0).label("tq"),
+            func.coalesce(func.avg(TradePurchaseLine.landing_cost), 0).label("al"),
+            func.coalesce(func.sum(profit), 0).label("tp"),
+            func.coalesce(func.sum(amt), 0).label("pam"),
         )
-        .select_from(Entry)
-        .join(EntryLineItem, EntryLineItem.entry_id == Entry.id)
-        .where(*bf, Entry.supplier_id == supplier_id)
+        .select_from(TradePurchaseLine)
+        .join(TradePurchase, TradePurchase.id == TradePurchaseLine.trade_purchase_id)
+        .where(*bf, TradePurchase.supplier_id == supplier_id)
     )
     row = (await db.execute(q)).one()
     deals = int(row[0] or 0)
@@ -1067,22 +1062,46 @@ async def broker_metrics(
     )
     if r.scalar_one_or_none() is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Broker not found")
-    bf = _date_filter(business_id, from_date, to_date)
-    q = (
-        select(
-            func.count(Entry.id.distinct()).label("deals"),
-            func.coalesce(func.sum(Entry.commission_amount), 0).label("tc"),
-            func.coalesce(func.sum(EntryLineItem.profit), 0).label("tp"),
-        )
-        .select_from(Entry)
-        .join(EntryLineItem, EntryLineItem.entry_id == Entry.id)
-        .where(*bf, Entry.broker_id == broker_id)
+    bf = _trade_purchase_date_filter(business_id, from_date, to_date)
+    profit = tq.trade_line_profit_expr()
+    deals = int(
+        (
+            await db.execute(
+                select(func.count(func.distinct(TradePurchase.id)))
+                .select_from(TradePurchase)
+                .where(*bf, TradePurchase.broker_id == broker_id)
+            )
+        ).scalar()
+        or 0
     )
-    row = (await db.execute(q)).one()
+    tc = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(TradePurchase.commission_money), 0))
+                .select_from(TradePurchase)
+                .where(*bf, TradePurchase.broker_id == broker_id)
+            )
+        ).scalar()
+        or 0
+    )
+    tp = float(
+        (
+            await db.execute(
+                select(func.coalesce(func.sum(profit), 0))
+                .select_from(TradePurchaseLine)
+                .join(
+                    TradePurchase,
+                    TradePurchase.id == TradePurchaseLine.trade_purchase_id,
+                )
+                .where(*bf, TradePurchase.broker_id == broker_id)
+            )
+        ).scalar()
+        or 0
+    )
     return BrokerMetricsOut(
-        deals=int(row[0] or 0),
-        total_commission=float(row[1] or 0),
-        total_profit=float(row[2] or 0),
+        deals=deals,
+        total_commission=tc,
+        total_profit=tp,
     )
 
 
@@ -1188,13 +1207,14 @@ async def contacts_search(
     item_hits: list[ItemSearchHitOut] = []
     if bucket("items"):
         ri = await db.execute(
-            select(EntryLineItem.item_name)
+            select(TradePurchaseLine.item_name)
             .distinct()
-            .select_from(EntryLineItem)
-            .join(Entry, Entry.id == EntryLineItem.entry_id)
+            .select_from(TradePurchaseLine)
+            .join(TradePurchase, TradePurchase.id == TradePurchaseLine.trade_purchase_id)
             .where(
-                Entry.business_id == business_id,
-                func.lower(EntryLineItem.item_name).like(like_contains),
+                TradePurchase.business_id == business_id,
+                trade_purchase_status_in_reports(),
+                func.lower(TradePurchaseLine.item_name).like(like_contains),
             )
             .limit(limit * 2)
         )
@@ -1276,20 +1296,6 @@ async def contacts_search(
 
     categories: list[str] = []
     if bucket("categories"):
-        rc = await db.execute(
-            select(func.coalesce(EntryLineItem.category, "Uncategorized"))
-            .distinct()
-            .select_from(EntryLineItem)
-            .join(Entry, Entry.id == EntryLineItem.entry_id)
-            .where(
-                Entry.business_id == business_id,
-                func.lower(func.coalesce(EntryLineItem.category, "Uncategorized")).like(
-                    like_contains
-                ),
-            )
-            .limit(limit * 2)
-        )
-        cat_set = {str(row[0]).strip() for row in rc.all() if row[0] and str(row[0]).strip()}
         ricc = await db.execute(
             select(ItemCategory.name)
             .where(
@@ -1299,6 +1305,7 @@ async def contacts_search(
             .distinct()
             .limit(limit * 2)
         )
+        cat_set: set[str] = set()
         for row in ricc.all():
             if row[0] and str(row[0]).strip():
                 cat_set.add(str(row[0]).strip())

@@ -416,6 +416,43 @@ final stockTotalsProvider =
   },
 );
 
+/// True when the Stock **Activity** tab is visible (lazy-load audit feed).
+final stockChangesTabActiveProvider = StateProvider<bool>((ref) => false);
+
+/// Bundled Stock tab cold load — replaces parallel list/summary/delivery GETs on page 1.
+final stockShellBundleProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final disposed = registerProviderDisposeGuard(ref);
+  registerProviderKeepAliveTimer(ref, const Duration(seconds: 30));
+  final session = ref.watch(sessionProvider);
+  if (session == null || providerSkipApi(ref)) return const {};
+  final query = ref.watch(stockListQueryProvider);
+  if (query.page != 1) return const {};
+  final op = ref.watch(stockOperationalFiltersProvider);
+  final purchasedInPeriod = query.purchasedInPeriod || op.purchasedInPeriodOnly;
+  final api = ref.read(hexaApiProvider);
+  final bundle = await api.fetchStockShellBundle(
+    businessId: session.primaryBusiness.id,
+    page: query.page,
+    perPage: query.perPage,
+    q: query.q,
+    category: query.category,
+    subcategory: query.subcategory,
+    status: query.status,
+    sort: query.sort,
+    includePeriod: query.includePeriod,
+    periodStart: query.periodStart,
+    periodEnd: query.periodEnd,
+    purchasedInPeriod: purchasedInPeriod,
+    missingBarcode: op.missingBarcodeOnly,
+    missingItemCode: op.missingItemCodeOnly,
+    reorderOnly: op.reorderOnly,
+    unit: op.unit,
+  );
+  if (providerWasDisposed(disposed)) return const {};
+  return bundle;
+});
+
 /// Stock audit events for the stock page **Changes** tab (newest first).
 /// Reads [stockAuditRecentSnapshotProvider] — no extra HTTP when home already loaded audit.
 final stockChangesFeedProvider =
@@ -425,6 +462,9 @@ final stockChangesFeedProvider =
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   ref.watch(stockPagePeriodProvider);
+  if (!ref.watch(stockChangesTabActiveProvider)) {
+    return const [];
+  }
   final rows = await ref.watch(stockAuditRecentSnapshotProvider.future);
   if (providerWasDisposed(disposed)) return [];
   final period = ref.read(stockPagePeriodProvider);
@@ -515,6 +555,25 @@ final stockListProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final bid = session.primaryBusiness.id;
   final purchasedInPeriod = query.purchasedInPeriod ||
       ref.read(stockOperationalFiltersProvider).purchasedInPeriodOnly;
+
+  if (query.page == 1) {
+    final bundle = ref.watch(stockShellBundleProvider);
+    if (bundle.hasValue) {
+      final list = bundle.value?['list'];
+      if (list is Map) {
+        final res = Map<String, dynamic>.from(list);
+        _writeStockListRamCache(
+          ref,
+          next: res,
+          query: query,
+          queryKey: queryKey,
+          res: res,
+        );
+        return res;
+      }
+    }
+  }
+
   final inflightKey =
       '$bid|$queryKey|${useEtag ? etag : ''}|$purchasedInPeriod';
   final api = ref.read(hexaApiProvider);
@@ -886,6 +945,16 @@ final stockAlertsSummaryProvider =
   registerProviderKeepAliveTimer(ref, const Duration(seconds: 30));
   final session = ref.watch(sessionProvider);
   if (session == null || providerSkipApi(ref)) return const {};
+  final query = ref.watch(stockListQueryProvider);
+  if (query.page == 1) {
+    final bundle = ref.watch(stockShellBundleProvider);
+    if (bundle.hasValue) {
+      final counts = bundle.value?['status_counts'];
+      if (counts is Map) {
+        return Map<String, dynamic>.from(counts);
+      }
+    }
+  }
   final bid = session.primaryBusiness.id;
   final summary = await _stockAlertsSummaryInflight.putIfAbsent(
     bid,
@@ -960,6 +1029,18 @@ final stockDeliveryIndicatorCountsProvider = FutureProvider.autoDispose<
     return (pending: 0, delivered: 0);
   }
   final query = ref.watch(stockListQueryProvider);
+  if (query.page == 1) {
+    final bundle = ref.watch(stockShellBundleProvider);
+    if (bundle.hasValue) {
+      final raw = bundle.value?['delivery_counts'];
+      if (raw is Map) {
+        return (
+          pending: (raw['pending'] as num?)?.toInt() ?? 0,
+          delivered: (raw['delivered'] as num?)?.toInt() ?? 0,
+        );
+      }
+    }
+  }
   final op = ref.watch(stockOperationalFiltersProvider);
   final bid = session.primaryBusiness.id;
   final inflightKey =

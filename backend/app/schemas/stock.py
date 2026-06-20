@@ -313,6 +313,15 @@ class StockAdjustmentOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class StockShellBundleOut(BaseModel):
+    """Single payload for Stock tab cold load (list + KPI chips + activity preview)."""
+
+    list: StockListOut
+    status_counts: StockAlertsSummaryOut
+    delivery_counts: StockDeliveryIndicatorCountsOut
+    audit_recent: list[StockAdjustmentOut] = []
+
+
 class PhysicalStockCountIn(BaseModel):
     counted_qty: Decimal = Field(ge=0, max_digits=12, decimal_places=3)
     period_start: str | None = None

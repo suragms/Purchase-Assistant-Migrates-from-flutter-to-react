@@ -1,4 +1,4 @@
-"""Unified search: catalog items, suppliers, entries (substring + fuzzy fallback)."""
+"""Unified search: catalog items, suppliers, trade purchases (substring + fuzzy fallback)."""
 
 from __future__ import annotations
 
@@ -10,10 +10,9 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from rapidfuzz import fuzz
-from sqlalchemy import and_, exists, func, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.db_schema_compat import catalog_items_has_type_id_column
 from app.database import get_db
@@ -23,15 +22,12 @@ from app.models import (
     Broker,
     CatalogItem,
     CategoryType,
-    Entry,
-    EntryLineItem,
     ItemCategory,
     Membership,
     Supplier,
     TradePurchase,
     TradePurchaseLine,
 )
-from app.schemas.entries import EntryLineOut, EntryOut
 from app.services import trade_purchase_service as tps
 from app.services.staff_view import (
     redact_catalog_items,
@@ -65,44 +61,6 @@ def _search_terms(q: str) -> list[str]:
     if alias and alias not in terms:
         terms.append(alias)
     return terms
-
-
-def _line_to_out(line: EntryLineItem) -> EntryLineOut:
-    return EntryLineOut(
-        id=line.id,
-        catalog_item_id=line.catalog_item_id,
-        catalog_variant_id=line.catalog_variant_id,
-        item_name=line.item_name,
-        category=line.category,
-        qty=float(line.qty),
-        unit=line.unit,
-        bags=float(line.bags) if line.bags is not None else None,
-        kg_per_bag=float(line.kg_per_bag) if line.kg_per_bag is not None else None,
-        qty_kg=float(line.qty_kg) if line.qty_kg is not None else None,
-        buy_price=float(line.buy_price),
-        landing_cost=float(line.landing_cost),
-        selling_price=float(line.selling_price) if line.selling_price is not None else None,
-        profit=float(line.profit) if line.profit is not None else None,
-        stock_note=line.stock_note.strip() if line.stock_note else None,
-    )
-
-
-def _entry_to_out(entry: Entry) -> EntryOut:
-    tc = float(entry.transport_cost) if entry.transport_cost is not None else None
-    ca = float(entry.commission_amount) if entry.commission_amount is not None else None
-    pl = entry.place.strip() if entry.place else None
-    return EntryOut(
-        id=entry.id,
-        business_id=entry.business_id,
-        entry_date=entry.entry_date,
-        supplier_id=entry.supplier_id,
-        broker_id=entry.broker_id,
-        invoice_no=entry.invoice_no,
-        place=pl,
-        transport_cost=tc,
-        commission_amount=ca,
-        lines=[_line_to_out(li) for li in entry.lines],
-    )
 
 
 class UnifiedSearchOut(BaseModel):
@@ -731,22 +689,7 @@ async def unified_search(
                 bro_rows = [by_id_b[i] for i in ids_b if i in by_id_b]
         brokers = [{"id": str(row[0]), "name": row[1]} for row in bro_rows]
 
-        line_match = exists(
-            select(EntryLineItem.id).where(
-                EntryLineItem.entry_id == Entry.id,
-                func.lower(EntryLineItem.item_name).contains(needle),
-            )
-        )
-        sq_ent = (
-            select(Entry)
-            .where(Entry.business_id == business_id, line_match)
-            .options(selectinload(Entry.lines))
-            .order_by(Entry.entry_date.desc(), Entry.created_at.desc())
-            .limit(12)
-        )
-        er = await execute_with_retry(lambda: db.execute(sq_ent))
-        entries = [e for e in er.scalars().unique().all()]
-        entries_out = [_entry_to_out(e).model_dump(mode="json") for e in entries]
+        entries_out: list[dict[str, Any]] = []
 
         catalog_subcategories_out: list[dict[str, Any]] = []
         if has_type:

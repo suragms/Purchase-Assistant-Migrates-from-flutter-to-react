@@ -179,6 +179,30 @@ async def _adjustments_to_out(
             )
         )
     return out
+
+
+async def fetch_recent_adjustments(
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    *,
+    limit: int = 12,
+    on: date | None = None,
+) -> list[StockAdjustmentOut]:
+    """Recent stock adjustments for shell bundle / activity tab."""
+    stmt = select(StockAdjustmentLog).where(
+        StockAdjustmentLog.business_id == business_id,
+    )
+    if on is not None:
+        start = datetime.combine(on, time.min, tzinfo=timezone.utc)
+        end = datetime.combine(on, time.max, tzinfo=timezone.utc)
+        stmt = stmt.where(
+            StockAdjustmentLog.updated_at >= start,
+            StockAdjustmentLog.updated_at <= end,
+        )
+    r = await db.execute(stmt.order_by(desc(StockAdjustmentLog.updated_at)).limit(limit))
+    return await _adjustments_to_out(db, business_id, list(r.scalars().all()))
+
+
 @router.get("/audit/feed", response_model=list[StockAdjustmentOut])
 async def audit_feed(
     business_id: uuid.UUID,
@@ -197,18 +221,7 @@ async def recent_adjustments_all(
     limit: int = Query(5, ge=1, le=250),
     on: date | None = Query(None, description="Filter to calendar day (UTC) YYYY-MM-DD"),
 ):
-    stmt = select(StockAdjustmentLog).where(
-        StockAdjustmentLog.business_id == business_id,
-    )
-    if on is not None:
-        start = datetime.combine(on, time.min, tzinfo=timezone.utc)
-        end = datetime.combine(on, time.max, tzinfo=timezone.utc)
-        stmt = stmt.where(
-            StockAdjustmentLog.updated_at >= start,
-            StockAdjustmentLog.updated_at <= end,
-        )
-    r = await db.execute(stmt.order_by(desc(StockAdjustmentLog.updated_at)).limit(limit))
-    return await _adjustments_to_out(db, business_id, list(r.scalars().all()))
+    return await fetch_recent_adjustments(db, business_id, limit=limit, on=on)
 @router.get("/variances/today", response_model=list[StockVarianceOut])
 async def variances_today(
     business_id: uuid.UUID,

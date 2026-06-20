@@ -50,6 +50,10 @@ from app.services.user_username import allocate_username
 router = APIRouter(prefix="/v1/businesses/{business_id}/users", tags=["users"])
 
 
+def _revoke_user_tokens(user: User) -> None:
+    user.token_version = int(getattr(user, "token_version", 0) or 0) + 1
+
+
 def _phone_digits(phone: str) -> str:
     return re.sub(r"\D", "", phone)
 
@@ -386,6 +390,7 @@ async def bulk_users(
             user.is_active = False
         elif body.action == "block":
             user.is_blocked = True
+            _revoke_user_tokens(user)
             await log_user_lifecycle(
                 db,
                 business_id=business_id,
@@ -398,6 +403,7 @@ async def bulk_users(
         elif body.action == "delete":
             user.is_active = False
             user.deleted_at = datetime.now(timezone.utc)
+            _revoke_user_tokens(user)
             await log_user_lifecycle(
                 db,
                 business_id=business_id,
@@ -479,6 +485,7 @@ async def patch_user(
     if body.is_blocked is not None:
         user.is_blocked = body.is_blocked
         if body.is_blocked:
+            _revoke_user_tokens(user)
             await log_user_lifecycle(
                 db,
                 business_id=business_id,
@@ -510,6 +517,7 @@ async def delete_user(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Cannot delete your own account")
     user.is_active = False
     user.deleted_at = datetime.now(timezone.utc)
+    _revoke_user_tokens(user)
     await log_user_lifecycle(
         db,
         business_id=business_id,

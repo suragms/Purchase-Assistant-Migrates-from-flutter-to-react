@@ -25,4 +25,3 @@ class Business(Base):
     )
 
     memberships = relationship("Membership", back_populates="business")
-    entries = relationship("Entry", back_populates="business")

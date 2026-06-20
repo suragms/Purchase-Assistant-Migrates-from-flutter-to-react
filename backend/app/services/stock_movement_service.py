@@ -332,6 +332,9 @@ async def apply_stock_movement(
             },
         )
 
+    from app.read_cache_generation import bump_trade_read_caches_for_business
+
+    bump_trade_read_caches_for_business(business_id)
     return StockMovementResult(movement, item)
 
 

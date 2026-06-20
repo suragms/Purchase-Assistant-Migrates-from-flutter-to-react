@@ -82,6 +82,7 @@ from app.schemas.stock import (
     LowStockOpsSummaryOut,
     LowStockOpsItemOut,
     LowStockOpsOut,
+    StockShellBundleOut,
     StaffPurchaseLogIn,
     StaffPurchaseLogOut,
     QuickPurchaseIn,
@@ -121,6 +122,16 @@ from app.services.unit_normalization import (
 )
 from app.services import stock_helpers as sh
 from app.services.stock_helpers import OpeningSetupStatus, SortBy, StatusFilter
+from app.read_cache_generation import trade_read_cache_generation
+from app.services.app_cache import (
+    STOCK_LIST_TTL_S,
+    STOCK_SHELL_BUNDLE_TTL_S,
+    get_cached,
+    set_cached,
+    stock_list_cache_key,
+    stock_shell_bundle_cache_key,
+)
+from app.routers.stock.stock_audit import fetch_recent_adjustments
 
 logger = logging.getLogger(__name__)
 
@@ -326,6 +337,40 @@ async def list_stock(
     reorder_only: bool = Query(False),
     unit: str = Query(""),
 ):
+    gen = trade_read_cache_generation(business_id)
+    cache_query = {
+        "gen": gen,
+        "page": page,
+        "per_page": per_page,
+        "q": q,
+        "category": category,
+        "subcategory": subcategory,
+        "status": status,
+        "sort": sort,
+        "include_period": include_period,
+        "period_start": period_start,
+        "period_end": period_end,
+        "date_from": date_from,
+        "date_to": date_to,
+        "include_today": include_today,
+        "purchased_in_period": purchased_in_period,
+        "missing_barcode": missing_barcode,
+        "missing_item_code": missing_item_code,
+        "reorder_only": reorder_only,
+        "unit": unit,
+    }
+    cache_key = stock_list_cache_key(business_id, cache_query)
+    cached_payload = get_cached(cache_key, STOCK_LIST_TTL_S)
+    if cached_payload is not None:
+        body = json.dumps(cached_payload, sort_keys=True, default=str).encode()
+        etag = '"' + hashlib.md5(body).hexdigest()[:16] + '"'
+        if request.headers.get("if-none-match") == etag:
+            return Response(status_code=304, headers={"ETag": etag})
+        return JSONResponse(
+            content=cached_payload,
+            headers={"ETag": etag, "Cache-Control": "private, max-age=0"},
+        )
+
     out = await _list_stock_page(
         business_id=business_id,
         db=db,
@@ -349,6 +394,7 @@ async def list_stock(
         unit=unit,
     )
     payload = out.model_dump(mode="json")
+    set_cached(cache_key, payload, STOCK_LIST_TTL_S)
     body = json.dumps(payload, sort_keys=True, default=str).encode()
     etag = '"' + hashlib.md5(body).hexdigest()[:16] + '"'
     if request.headers.get("if-none-match") == etag:
@@ -357,11 +403,15 @@ async def list_stock(
         content=payload,
         headers={"ETag": etag, "Cache-Control": "private, max-age=0"},
     )
-@router.get("/delivery-indicator-counts", response_model=StockDeliveryIndicatorCountsOut)
-async def delivery_indicator_counts(
+
+
+@router.get("/shell-bundle", response_model=StockShellBundleOut)
+async def stock_shell_bundle(
     business_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
     _m: Annotated[Membership, Depends(require_membership)],
+    page: int = Query(1, ge=1),
+    per_page: int = Query(50, ge=1, le=200),
     q: str = Query(""),
     category: str = Query(""),
     subcategory: str = Query(""),
@@ -372,16 +422,119 @@ async def delivery_indicator_counts(
     period_end: str | None = Query(None),
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
+    include_today: bool = Query(True),
+    purchased_in_period: bool = Query(False),
     missing_barcode: bool = Query(False),
     missing_item_code: bool = Query(False),
     reorder_only: bool = Query(False),
     unit: str = Query(""),
+    audit_limit: int = Query(12, ge=1, le=50),
 ):
-    """Global pending/delivered truck counts for stock list filters (not page-limited)."""
+    """Bundled Stock tab payload — list, KPI chips, delivery counts, recent activity."""
+    gen = trade_read_cache_generation(business_id)
+    cache_query = {
+        "gen": gen,
+        "page": page,
+        "per_page": per_page,
+        "q": q,
+        "category": category,
+        "subcategory": subcategory,
+        "status": status,
+        "sort": sort,
+        "include_period": include_period,
+        "period_start": period_start,
+        "period_end": period_end,
+        "date_from": date_from,
+        "date_to": date_to,
+        "include_today": include_today,
+        "purchased_in_period": purchased_in_period,
+        "missing_barcode": missing_barcode,
+        "missing_item_code": missing_item_code,
+        "reorder_only": reorder_only,
+        "unit": unit,
+        "audit_limit": audit_limit,
+    }
+    cache_key = stock_shell_bundle_cache_key(business_id, cache_query)
+    cached = get_cached(cache_key, STOCK_SHELL_BUNDLE_TTL_S)
+    if cached is not None:
+        return StockShellBundleOut(**cached)
+
+    list_out, status_counts, delivery_counts, audit_recent = await asyncio.gather(
+        _list_stock_page(
+            business_id=business_id,
+            db=db,
+            page=page,
+            per_page=per_page,
+            q=q,
+            category=category,
+            subcategory=subcategory,
+            status=status,
+            sort=sort,
+            include_period=include_period,
+            period_start=period_start,
+            period_end=period_end,
+            date_from=date_from,
+            date_to=date_to,
+            include_today=include_today,
+            purchased_in_period=purchased_in_period,
+            missing_barcode=missing_barcode,
+            missing_item_code=missing_item_code,
+            reorder_only=reorder_only,
+            unit=unit,
+        ),
+        compute_stock_alerts_summary(db, business_id),
+        _compute_delivery_indicator_counts(
+            db=db,
+            business_id=business_id,
+            q=q,
+            category=category,
+            subcategory=subcategory,
+            status=status,
+            sort=sort,
+            period_start=period_start,
+            period_end=period_end,
+            date_from=date_from,
+            date_to=date_to,
+            missing_barcode=missing_barcode,
+            missing_item_code=missing_item_code,
+            reorder_only=reorder_only,
+            unit=unit,
+        ),
+        fetch_recent_adjustments(db, business_id, limit=audit_limit),
+    )
+    payload = StockShellBundleOut(
+        list=list_out,
+        status_counts=status_counts,
+        delivery_counts=delivery_counts,
+        audit_recent=audit_recent,
+    ).model_dump(mode="json")
+    set_cached(cache_key, payload, STOCK_SHELL_BUNDLE_TTL_S)
+    return StockShellBundleOut.model_validate(payload)
+
+
+async def _compute_delivery_indicator_counts(
+    *,
+    db: AsyncSession,
+    business_id: uuid.UUID,
+    q: str,
+    category: str,
+    subcategory: str,
+    status: StatusFilter,
+    sort: SortBy,
+    period_start: str | None,
+    period_end: str | None,
+    date_from: str | None,
+    date_to: str | None,
+    missing_barcode: bool,
+    missing_item_code: bool,
+    reorder_only: bool,
+    unit: str,
+) -> StockDeliveryIndicatorCountsOut:
     ps_raw, pe_raw = sh._resolve_period_query(
         period_start, period_end, date_from, date_to
     )
     ps, pe = sh._parse_period_dates(ps_raw, pe_raw)
+    del ps, pe
     op_kwargs = {
         "missing_barcode": missing_barcode,
         "missing_item_code": missing_item_code,
@@ -390,7 +543,7 @@ async def delivery_indicator_counts(
     }
     pending_n = 0
     delivered_n = 0
-    page = 1
+    page_num = 1
     batch_size = 500
     while True:
         total, rows = await sh._query_items(
@@ -401,7 +554,7 @@ async def delivery_indicator_counts(
             subcategory=subcategory,
             status_val=status,
             sort=sort,
-            page=page,
+            page=page_num,
             per_page=batch_size,
             **op_kwargs,
         )
@@ -428,10 +581,52 @@ async def delivery_indicator_counts(
                 pending_n += 1
             elif kind == "delivered":
                 delivered_n += 1
-        if page * batch_size >= total:
+        if page_num * batch_size >= total:
             break
-        page += 1
+        page_num += 1
     return StockDeliveryIndicatorCountsOut(pending=pending_n, delivered=delivered_n)
+
+
+@router.get("/delivery-indicator-counts", response_model=StockDeliveryIndicatorCountsOut)
+async def delivery_indicator_counts(
+    business_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    _m: Annotated[Membership, Depends(require_membership)],
+    q: str = Query(""),
+    category: str = Query(""),
+    subcategory: str = Query(""),
+    status: StatusFilter = Query("all"),
+    sort: SortBy = Query("name"),
+    include_period: bool = Query(False),
+    period_start: str | None = Query(None),
+    period_end: str | None = Query(None),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
+    missing_barcode: bool = Query(False),
+    missing_item_code: bool = Query(False),
+    reorder_only: bool = Query(False),
+    unit: str = Query(""),
+):
+    """Global pending/delivered truck counts for stock list filters (not page-limited)."""
+    return await _compute_delivery_indicator_counts(
+        db=db,
+        business_id=business_id,
+        q=q,
+        category=category,
+        subcategory=subcategory,
+        status=status,
+        sort=sort,
+        period_start=period_start,
+        period_end=period_end,
+        date_from=date_from,
+        date_to=date_to,
+        missing_barcode=missing_barcode,
+        missing_item_code=missing_item_code,
+        reorder_only=reorder_only,
+        unit=unit,
+    )
+
+
 def _stock_row_to_minimal(row: StockListItemOut) -> StockListItemMinimalOut:
     return StockListItemMinimalOut(
         id=row.id,
@@ -841,8 +1036,8 @@ async def low_stock_operations(
     ps, pe = sh._parse_period_dates(period_start, period_end)
     period_days = _days_between(ps, pe)
 
-    fetch_per_page = min(200, per_page * 4)
-    max_pages = 20
+    fetch_per_page = min(200, max(per_page, 50))
+    max_pages = min(5, max(2, (page * per_page + fetch_per_page - 1) // fetch_per_page))
     _, merged = await _fetch_low_stock_candidates(
         business_id=business_id,
         db=db,
@@ -937,31 +1132,48 @@ async def low_stock_operations(
 
         passing.append(it)
 
-    filtered = await _enrich_low_stock_ops_rows(db, business_id, passing)
-
-    # Sort & paginate
     if sort == "stock_asc":
-        filtered.sort(key=lambda x: float(x.current_stock))
+        passing.sort(key=lambda x: float(x.current_stock))
     elif sort == "name":
-        filtered.sort(key=lambda x: (x.name or "").lower())
+        passing.sort(key=lambda x: (x.name or "").lower())
     else:
-        filtered.sort(key=lambda x: x.priority_score, reverse=True)
+        passing.sort(
+            key=lambda x: compute_low_stock_priority(x).score,
+            reverse=True,
+        )
 
-    total = len(filtered)
+    total = len(passing)
     start = (page - 1) * per_page
-    page_items = filtered[start : start + per_page]
+    page_stock_items = passing[start : start + per_page]
+    page_items = await _enrich_low_stock_ops_rows(db, business_id, page_stock_items)
 
-    # Summary slice for current query (counts include filter selections).
-    # Header UI uses global summary; for now keep slice-aligned.
-    pending_verification_cnt = sum(1 for it in filtered if it.needs_verification)
-    out_cnt = sum(1 for it in filtered if it.stock_status.lower() == "out" or float(it.current_stock) <= 0)
-    pending_cnt = sum(1 for it in filtered if it.has_pending_order)
-    delayed_cnt = sum(1 for it in filtered if it.is_delayed_supplier)
-    mismatch_cnt = sum(1 for it in filtered if it.has_mismatch)
-    disputed_cnt = sum(1 for it in filtered if it.has_open_dispute)
+    pending_verification_cnt = sum(
+        1 for it in passing if compute_low_stock_priority(it).needs_verification
+    )
+    out_cnt = sum(
+        1
+        for it in passing
+        if it.stock_status.lower() == "out" or float(it.current_stock) <= 0
+    )
+    pending_cnt = sum(1 for it in passing if it.has_pending_order)
+    delayed_cnt = sum(
+        1 for it in passing if compute_low_stock_priority(it).delayed_flag
+    )
+    mismatch_cnt = sum(
+        1 for it in passing if compute_low_stock_priority(it).mismatch_flag
+    )
+    disputed_cnt = sum(
+        1
+        for it in passing
+        if item_is_disputed(
+            it,
+            open_disputes=dispute_ids,
+            rejected_audits=rejected_ids,
+        )
+    )
     total_attention = total
     usage_sum: Decimal = Decimal(0)
-    for it in filtered:
+    for it in passing:
         if it.period_usage_qty is not None:
             usage_sum += it.period_usage_qty
     impact = float(usage_sum / Decimal(period_days)) if period_days > 0 else 0.0

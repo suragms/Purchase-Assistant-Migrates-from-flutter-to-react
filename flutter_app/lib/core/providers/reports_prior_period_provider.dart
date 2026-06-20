@@ -37,7 +37,7 @@ double? _pctDelta(double cur, double prev) {
   return (cur - prev) / prev.abs() * 100.0;
 }
 
-/// Fetches [analyticsSummary] for the current range and the prior equal-length range.
+/// Fetches trade-summary + daily profit for current and prior equal-length ranges.
 final reportsPriorPeriodDeltaProvider =
     FutureProvider.autoDispose<ReportsPriorPeriodDelta>((ref) async {
   if (!ref.watch(homePriorPeriodFetchEnabledProvider)) {
@@ -69,22 +69,39 @@ final reportsPriorPeriodDeltaProvider =
 
   final fmt = DateFormat('yyyy-MM-dd');
   final api = ref.read(hexaApiProvider);
-  final cur = await api.analyticsSummary(
-    businessId: session.primaryBusiness.id,
-    from: fmt.format(from),
-    to: fmt.format(to),
-  );
-  final prev = await api.analyticsSummary(
-    businessId: session.primaryBusiness.id,
-    from: fmt.format(priorFrom),
-    to: fmt.format(priorTo),
-  );
+  final bid = session.primaryBusiness.id;
+  final curFrom = fmt.format(from);
+  final curTo = fmt.format(to);
+  final prevFrom = fmt.format(priorFrom);
+  final prevTo = fmt.format(priorTo);
+
+  Future<double> sumProfit(String f, String t) async {
+    final rows = await api.tradeReportDailyProfit(
+      businessId: bid,
+      from: f,
+      to: t,
+    );
+    var sum = 0.0;
+    for (final row in rows) {
+      sum += (row['profit'] as num?)?.toDouble() ?? 0;
+    }
+    return sum;
+  }
+
+  final results = await Future.wait([
+    api.tradePurchaseSummary(businessId: bid, from: curFrom, to: curTo),
+    api.tradePurchaseSummary(businessId: bid, from: prevFrom, to: prevTo),
+    sumProfit(curFrom, curTo),
+    sumProfit(prevFrom, prevTo),
+  ]);
+  final cur = results[0] as Map<String, dynamic>;
+  final prev = results[1] as Map<String, dynamic>;
 
   return ReportsPriorPeriodDelta(
     priorFrom: priorFrom,
     priorTo: priorTo,
-    currentProfit: (cur['total_profit'] as num?)?.toDouble() ?? 0,
-    priorProfit: (prev['total_profit'] as num?)?.toDouble() ?? 0,
+    currentProfit: results[2] as double,
+    priorProfit: results[3] as double,
     currentPurchase: (cur['total_purchase'] as num?)?.toDouble() ?? 0,
     priorPurchase: (prev['total_purchase'] as num?)?.toDouble() ?? 0,
   );

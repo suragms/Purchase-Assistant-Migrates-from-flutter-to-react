@@ -42,7 +42,6 @@ dependencies:
   flutter_svg: ^2.0.17
   local_auth: ^2.3.0
   path_provider: ^2.1.5
-  js: ^0.6.7
 
 dev_dependencies:
   flutter_test:

@@ -946,30 +946,6 @@ class HexaApi {
     return res.data ?? {};
   }
 
-  Future<Map<String, dynamic>> analyticsSummary(
-      {required String businessId,
-      required String from,
-      required String to}) async {
-    final res = await _dio.get<Map<String, dynamic>>(
-      '/v1/businesses/$businessId/analytics/summary',
-      queryParameters: {'from': from, 'to': to},
-    );
-    return res.data ?? {};
-  }
-
-  /// Calendar-month composite dashboard (`month` = `YYYY-MM`). Full month window on server.
-  Future<Map<String, dynamic>> getDashboard({
-    required String businessId,
-    required String month,
-  }) async {
-    final res = await _dio.get<Map<String, dynamic>>(
-      '/v1/businesses/$businessId/dashboard',
-      queryParameters: {'month': month},
-    );
-    return res.data ?? {};
-  }
-
-  /// Trade-purchase window insights (best/worst item by spend, supplier cost spread).
   Future<Map<String, dynamic>> analyticsInsights({
     required String businessId,
     required String from,
@@ -1653,25 +1629,6 @@ class HexaApi {
       queryParameters: {'from': from, 'to': to},
     );
     return _parseJsonMapList(res.data);
-  }
-
-  /// Single call: same definitions as trade reports + nested category line items + mapping recs.
-  Future<Map<String, dynamic>> tradeDashboardSnapshot({
-    required String businessId,
-    required String from,
-    required String to,
-    int? tzOffsetMinutes,
-  }) async {
-    final res = await _dio.get<Map<String, dynamic>>(
-      '/v1/businesses/$businessId/reports/trade-dashboard-snapshot',
-      queryParameters: {
-        'from': from,
-        'to': to,
-        if (tzOffsetMinutes != null)
-          'tz_offset_minutes': tzOffsetMinutes.toString(),
-      },
-    );
-    return Map<String, dynamic>.from(res.data ?? {});
   }
 
   /// Bundled dashboard snapshot for home (`compact` omits heavy keys server-side).
@@ -2372,15 +2329,6 @@ class HexaApi {
     return res.data ?? {};
   }
 
-  Future<Map<String, dynamic>> getAiUsage({
-    required String businessId,
-  }) async {
-    final res = await _dio.get<Map<String, dynamic>>(
-      '/v1/businesses/$businessId/ai/usage',
-    );
-    return res.data ?? {};
-  }
-
   Future<Map<String, dynamic>> getStockTotals({
     required String businessId,
     String? periodStart,
@@ -2519,6 +2467,58 @@ class HexaApi {
     return data;
   }
 
+  /// Bundled Stock tab payload (list + KPI chips + delivery counts + audit preview).
+  Future<Map<String, dynamic>> fetchStockShellBundle({
+    required String businessId,
+    int page = 1,
+    int perPage = 50,
+    String q = '',
+    String category = '',
+    String subcategory = '',
+    String status = 'all',
+    String sort = 'name',
+    bool includePeriod = false,
+    String? periodStart,
+    String? periodEnd,
+    bool includeToday = true,
+    bool purchasedInPeriod = false,
+    bool missingBarcode = false,
+    bool missingItemCode = false,
+    bool reorderOnly = false,
+    String unit = '',
+    int auditLimit = 12,
+  }) async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/businesses/$businessId/stock/shell-bundle',
+      queryParameters: {
+        'page': page,
+        'per_page': perPage,
+        'q': q,
+        'category': category,
+        'subcategory': subcategory,
+        'status': status,
+        'sort': sort,
+        if (includePeriod) 'include_period': true,
+        if (includeToday) 'include_today': true,
+        if (purchasedInPeriod) 'purchased_in_period': true,
+        if (missingBarcode) 'missing_barcode': true,
+        if (missingItemCode) 'missing_item_code': true,
+        if (reorderOnly) 'reorder_only': true,
+        if (unit.trim().isNotEmpty) 'unit': unit.trim(),
+        if (periodStart != null && periodStart.isNotEmpty) ...{
+          'period_start': periodStart,
+          'date_from': periodStart,
+        },
+        if (periodEnd != null && periodEnd.isNotEmpty) ...{
+          'period_end': periodEnd,
+          'date_to': periodEnd,
+        },
+        'audit_limit': auditLimit,
+      },
+    );
+    return res.data ?? {};
+  }
+
   /// Pending/delivered truck counts for stock list filters (full catalog slice).
   Future<Map<String, dynamic>> stockDeliveryIndicatorCounts({
     required String businessId,
@@ -2615,11 +2615,12 @@ class HexaApi {
     String? periodStart,
     String? periodEnd,
   }) async {
+    final cappedPerPage = perPage.clamp(1, HexaApi.lowStockOperationsMaxPerPage);
     final res = await _dio.get<Map<String, dynamic>>(
       '/v1/businesses/$businessId/stock/low-stock/operations',
       queryParameters: {
         'page': page,
-        'per_page': perPage,
+        'per_page': cappedPerPage,
         if (q.isNotEmpty) 'q': q,
         'filter': filter,
         if (category.isNotEmpty) 'category': category,
@@ -2635,6 +2636,9 @@ class HexaApi {
 
   /// Max rows for [listStockAuditRecent] (must match backend `le` on `/audit/recent`).
   static const int stockAuditRecentMaxLimit = 250;
+
+  /// Max page size for [listLowStockOperations] (must match backend `le=200`).
+  static const int lowStockOperationsMaxPerPage = 200;
 
   Future<List<Map<String, dynamic>>> listStockAuditRecent({
     required String businessId,
@@ -3516,19 +3520,6 @@ class HexaApi {
     return res.data ?? {};
   }
 
-  Future<Map<String, dynamic>> supplierMetrics({
-    required String businessId,
-    required String supplierId,
-    required String from,
-    required String to,
-  }) async {
-    final res = await _dio.get<Map<String, dynamic>>(
-      '/v1/businesses/$businessId/suppliers/$supplierId/metrics',
-      queryParameters: {'from': from, 'to': to},
-    );
-    return res.data ?? {};
-  }
-
   Future<Map<String, dynamic>> brokerMetrics({
     required String businessId,
     required String brokerId,
@@ -3651,23 +3642,6 @@ class HexaApi {
       if (e.response?.statusCode == 404) return const {};
       rethrow;
     }
-  }
-
-  /// OCR preview stub — requires `ENABLE_OCR` on server; never auto-saves.
-  Future<Map<String, dynamic>> mediaOcrPreview({
-    required String businessId,
-    String imageBase64 = '',
-    String? pasteText,
-  }) async {
-    final res = await _dio.post<Map<String, dynamic>>(
-      '/v1/businesses/$businessId/media/ocr',
-      data: {
-        'image_base64': imageBase64,
-        if (pasteText != null && pasteText.trim().isNotEmpty)
-          'paste_text': pasteText.trim(),
-      },
-    );
-    return res.data ?? {};
   }
 
   Future<Map<String, dynamic>> getChecklistToday({

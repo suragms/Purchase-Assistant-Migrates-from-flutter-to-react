@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/api/hexa_api.dart';
 import '../../../core/design_system/hexa_ds_tokens.dart';
 import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/providers/notification_center_provider.dart';
@@ -73,7 +74,7 @@ class _LowStockDashboardPageState extends ConsumerState<LowStockDashboardPage>
     ref.read(homeLowStockDetailFetchEnabledProvider.notifier).state = true;
     ref.read(lowStockDashboardMountedProvider.notifier).update((n) => n + 1);
     ref.read(lowStockOperationsQueryProvider.notifier).update(
-          (q) => q.copyWith(perPage: 500),
+          (q) => q.copyWith(perPage: HexaApi.lowStockOperationsMaxPerPage),
         );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {

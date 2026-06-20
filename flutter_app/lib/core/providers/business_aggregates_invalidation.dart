@@ -407,13 +407,16 @@ void applyStockListRowPatchAndEmit(
     affectedItemIds: {itemId},
   );
   invalidateWarehouseItemSurfacesLight(ref, itemId: itemId);
+  ref.invalidate(stockStatusCountsProvider);
+  ref.invalidate(stockShellBundleProvider);
 }
 
 /// Background/realtime/home poll: refresh stock + alerts only (no KPI storm).
-void invalidateWarehouseSurfacesLight(dynamic ref, {String? itemId}) {
+void invalidateWarehouseSurfacesLight(dynamic ref, {String? itemId, bool skipLowStockOps = false}) {
   markWarehouseGlobalInvalidated(ref);
   // Keep [stockListCacheProvider] entries alive so Stock tab does not flash
   // empty on every write/realtime tick — list re-reads cache when query matches.
+  ref.invalidate(stockShellBundleProvider);
   ref.invalidate(stockListProvider);
   ref.invalidate(stockDeliveryIndicatorCountsProvider);
   ref.invalidate(bulkStockListProvider);
@@ -428,9 +431,11 @@ void invalidateWarehouseSurfacesLight(dynamic ref, {String? itemId}) {
   ref.invalidate(stockVariancesTodayProvider);
   _invalidateStockAuditFeeds(ref);
   ref.invalidate(homeInventorySummaryProvider);
-  ref.invalidate(lowStockOperationsSummaryProvider);
-  ref.invalidate(lowStockOperationsPageProvider);
-  ref.invalidate(lowStockOperationsGroupedProvider);
+  if (!skipLowStockOps) {
+    ref.invalidate(lowStockOperationsSummaryProvider);
+    ref.invalidate(lowStockOperationsPageProvider);
+    ref.invalidate(lowStockOperationsGroupedProvider);
+  }
   if (itemId != null && itemId.isNotEmpty) {
     invalidateWarehouseItemSurfacesLight(ref, itemId: itemId);
   }
@@ -572,8 +577,8 @@ void invalidateAfterDeliveryVerify(
     invalidateWarehouseItemSurfacesLight(ref, itemId: id);
   }
   ref.invalidate(homeRecentActivityFeedProvider);
-  ref.invalidate(homeInventorySummaryProvider);
   ref.invalidate(deliveryPipelineProvider);
+  forceRefreshOwnerHomeDashboard(ref);
   bumpBusinessDataWriteRevision(ref);
 }
 

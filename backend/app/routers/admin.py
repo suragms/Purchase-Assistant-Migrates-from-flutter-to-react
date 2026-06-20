@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import Settings, get_settings
 from app.database import get_db
 from app.deps import AdminCaller, require_admin_caller, require_super_admin
-from app.models import AdminAuditLog, ApiUsageLog, Business, Entry, User
+from app.models import AdminAuditLog, ApiUsageLog, Business, TradePurchase, User
 from app.services.low_stock_notifications import run_low_stock_notification_scan
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
@@ -144,13 +144,15 @@ async def admin_stats(
     today = date.today()
     users_n = await db.scalar(select(func.count(User.id)))
     businesses_n = await db.scalar(select(func.count(Business.id)))
-    entries_today = await db.scalar(select(func.count(Entry.id)).where(Entry.entry_date == today))
-    entries_total = await db.scalar(select(func.count(Entry.id)))
+    purchases_today = await db.scalar(
+        select(func.count(TradePurchase.id)).where(TradePurchase.purchase_date == today)
+    )
+    purchases_total = await db.scalar(select(func.count(TradePurchase.id)))
     return {
         "users": int(users_n or 0),
         "businesses": int(businesses_n or 0),
-        "entries_today": int(entries_today or 0),
-        "entries_total": int(entries_total or 0),
+        "entries_today": int(purchases_today or 0),
+        "entries_total": int(purchases_total or 0),
         "as_of": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -180,9 +182,9 @@ async def admin_users(
     counts: dict = {}
     if ids:
         cr = await db.execute(
-            select(Entry.user_id, func.count(Entry.id))
-            .where(Entry.user_id.in_(ids))
-            .group_by(Entry.user_id)
+            select(TradePurchase.user_id, func.count(TradePurchase.id))
+            .where(TradePurchase.user_id.in_(ids))
+            .group_by(TradePurchase.user_id)
         )
         counts = {uid: int(c or 0) for uid, c in cr.all()}
     return {
@@ -244,7 +246,9 @@ async def admin_api_usage_summary(
     settings: Annotated[Settings, Depends(get_settings)],
 ):
     del _caller
-    ec = await db.execute(select(Entry.user_id, func.count(Entry.id)).group_by(Entry.user_id))
+    ec = await db.execute(
+        select(TradePurchase.user_id, func.count(TradePurchase.id)).group_by(TradePurchase.user_id)
+    )
     entry_counts = {row[0]: int(row[1] or 0) for row in ec.all()}
     ur = await db.execute(select(User).order_by(User.created_at.desc()).limit(300))
     per_user = [

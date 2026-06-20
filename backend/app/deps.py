@@ -45,13 +45,16 @@ async def get_current_user(
 ) -> User:
     if not creds or creds.scheme.lower() != "bearer":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
-    uid = decode_access_token(creds.credentials, settings)
-    if not uid:
+    claims = decode_access_token(creds.credentials, settings)
+    if not claims:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token")
-    result = await db.execute(select(User).where(User.id == uid))
+    result = await db.execute(select(User).where(User.id == claims.user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found")
+    expected_tv = int(getattr(user, "token_version", 0) or 0)
+    if claims.token_version != expected_tv:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Token revoked")
     if getattr(user, "deleted_at", None) is not None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Account is inactive")
     if getattr(user, "is_blocked", False):
@@ -155,13 +158,16 @@ async def require_admin_caller(
             return AdminCaller(machine=True, user=None)
     if not creds or creds.scheme.lower() != "bearer":
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    uid = decode_access_token(creds.credentials, settings)
-    if not uid:
+    claims = decode_access_token(creds.credentials, settings)
+    if not claims:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-    result = await db.execute(select(User).where(User.id == uid))
+    result = await db.execute(select(User).where(User.id == claims.user_id))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    expected_tv = int(getattr(user, "token_version", 0) or 0)
+    if claims.token_version != expected_tv:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="Token revoked")
     if not user.is_super_admin:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="Super admin only")
     return AdminCaller(machine=False, user=user)

@@ -100,7 +100,11 @@ async def register(
     await db.commit()
     await db.refresh(user)
 
-    access = create_access_token(user.id, settings)
+    access = create_access_token(
+        user.id,
+        settings,
+        token_version=int(getattr(user, "token_version", 0) or 0),
+    )
     refresh = create_refresh_token(user.id, settings)
     return TokenPair(
         access_token=access,
@@ -236,7 +240,11 @@ async def login(
         await db.flush()
 
         try:
-            access = create_access_token(user.id, settings)
+            access = create_access_token(
+        user.id,
+        settings,
+        token_version=int(getattr(user, "token_version", 0) or 0),
+    )
             refresh = create_refresh_token(user.id, settings)
         except Exception:
             logger.exception("auth.login token issue")
@@ -341,7 +349,11 @@ async def auth_google(
             await db.commit()
             await db.refresh(user)
 
-    access = create_access_token(user.id, settings)
+    access = create_access_token(
+        user.id,
+        settings,
+        token_version=int(getattr(user, "token_version", 0) or 0),
+    )
     refresh = create_refresh_token(user.id, settings)
     return TokenPair(
         access_token=access,
@@ -363,7 +375,11 @@ async def refresh_token(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="User not found")
-    access = create_access_token(user.id, settings)
+    access = create_access_token(
+        user.id,
+        settings,
+        token_version=int(getattr(user, "token_version", 0) or 0),
+    )
     refresh = create_refresh_token(user.id, settings)
     return TokenPair(
         access_token=access,

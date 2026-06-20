@@ -165,6 +165,10 @@ def _ensure_users_modern_columns(sync_conn):
         sync_conn.exec_driver_sql(
             "ALTER TABLE users ADD COLUMN is_blocked BOOLEAN NOT NULL DEFAULT 0"
         )
+    if "token_version" not in cols:
+        sync_conn.exec_driver_sql(
+            "ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"
+        )
     if "notes" not in cols:
         sync_conn.exec_driver_sql("ALTER TABLE users ADD COLUMN notes VARCHAR(2000) NULL")
     if "deleted_at" not in cols:

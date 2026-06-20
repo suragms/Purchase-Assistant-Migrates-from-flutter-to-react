@@ -21,7 +21,6 @@ from app.models import (
     CatalogItem,
     CatalogVariant,
     CategoryType,
-    EntryLineItem,
     ItemCategory,
     Membership,
     TradePurchase,
@@ -31,6 +30,10 @@ from app.models.catalog import CatalogItemDefaultBroker, CatalogItemDefaultSuppl
 from app.models.contacts import Broker, Supplier
 from app.models.supplier_item_default import SupplierItemDefault
 from app.services import trade_query as tq
+from app.services.legacy_archive import (
+    count_archived_entry_lines_for_variant,
+    count_archived_entry_lines_for_variants,
+)
 from app.services.fuzzy_catalog import rank_ids_by_token_sort
 from app.services.staff_view import (
     redact_catalog_item_out_model,
@@ -3139,10 +3142,8 @@ async def delete_catalog_item(
     vr = await db.execute(select(CatalogVariant.id).where(CatalogVariant.catalog_item_id == item_id))
     vids = [row[0] for row in vr.all()]
     if vids:
-        ec2 = await db.execute(
-            select(func.count(EntryLineItem.id)).where(EntryLineItem.catalog_variant_id.in_(vids))
-        )
-        if int(ec2.scalar() or 0) > 0:
+        archived_lines = await count_archived_entry_lines_for_variants(db, vids)
+        if archived_lines > 0:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST,
                 detail="Cannot delete a catalog item whose variants are linked to legacy purchase entry lines",
@@ -3267,10 +3268,7 @@ async def delete_catalog_variant(
     v = r.scalar_one_or_none()
     if v is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Variant not found")
-    ec = await db.execute(
-        select(func.count(EntryLineItem.id)).where(EntryLineItem.catalog_variant_id == variant_id)
-    )
-    if int(ec.scalar() or 0) > 0:
+    if await count_archived_entry_lines_for_variant(db, variant_id) > 0:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
             detail="Cannot delete a variant that is linked to purchase entry lines",

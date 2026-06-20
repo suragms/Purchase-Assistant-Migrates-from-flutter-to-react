@@ -118,6 +118,7 @@ class _StockPageState extends ConsumerState<StockPage>
       vsync: this,
       initialIndex: _tabIndex(widget.initialTab),
     );
+    _tabs.addListener(_onStockTabChanged);
     final initialQuery = ref.read(stockListQueryProvider);
     _searchCtrl.text = initialQuery.q.trim();
     _searchCtrl.addListener(_onSearchChanged);
@@ -137,6 +138,10 @@ class _StockPageState extends ConsumerState<StockPage>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _bootstrapStockListQueryOnce();
+      ref.read(stockChangesTabActiveProvider.notifier).state = _tabs.index == 1;
+      if (_tabs.index == 0) {
+        ref.invalidate(stockShellBundleProvider);
+      }
       if (!_scroll.hasClients) return;
       final saved = ref.read(stockListScrollOffsetProvider);
       if (saved > 0) {
@@ -248,8 +253,18 @@ class _StockPageState extends ConsumerState<StockPage>
     super.deactivate();
   }
 
+  void _onStockTabChanged() {
+    if (_tabs.indexIsChanging || !mounted) return;
+    final active = _tabs.index == 1;
+    ref.read(stockChangesTabActiveProvider.notifier).state = active;
+    if (active) {
+      ref.invalidate(stockChangesFeedProvider);
+    }
+  }
+
   @override
   void dispose() {
+    _tabs.removeListener(_onStockTabChanged);
     _tabs.dispose();
     _debounce?.cancel();
     _deliveryCountsPoll?.cancel();
@@ -898,11 +913,13 @@ class _StockPageState extends ConsumerState<StockPage>
     });
 
     final listAsync = ref.watch(stockListProvider);
-    // Repaint when RAM/live snapshot updates even if FutureProvider misses the completion.
-    ref.watch(stockListCachedBodyProvider);
-    ref.watch(stockListCacheQueryKeyProvider);
-    ref.watch(stockListLiveSnapshotProvider);
     final listQ = ref.watch(stockListQueryProvider);
+    if (listQ.page == 1) {
+      ref.watch(stockShellBundleProvider);
+    }
+    // Rebuild when RAM/live snapshot updates even if FutureProvider misses completion.
+    ref.watch(stockListCachedBodyProvider);
+    ref.watch(stockListLiveSnapshotProvider);
     final op = ref.watch(stockOperationalFiltersProvider);
     final filterCount = countWarehouseActiveFilters(listQ, op);
     final ramCache = stockListCachedDataForCurrentQuery(ref);

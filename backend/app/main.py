@@ -33,7 +33,6 @@ from app.routers import (
     auth,
     catalog,
     contacts,
-    dashboard,
     exports,
     health,
     me,
@@ -679,7 +678,6 @@ app.include_router(reports_trade.router)
 app.include_router(report_views.router)
 app.include_router(search.router)
 app.include_router(analytics.router)
-app.include_router(dashboard.router)
 # Trade SQL analytics — not gated on ENABLE_AI (assistant/chat only).
 app.include_router(price_intelligence.router)
 app.include_router(catalog.router)
