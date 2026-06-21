@@ -19,7 +19,6 @@ import '../../stock/presentation/widgets/stock_update_mode_toggle.dart';
 import 'widgets/item_detail_header.dart';
 import 'widgets/item_quick_actions_bar.dart';
 import 'widgets/item_analytics_section.dart';
-import 'widgets/item_price_intelligence_section.dart';
 import 'widgets/item_ledger_section.dart';
 import 'widgets/item_physical_verification_card.dart';
 import 'widgets/item_purchase_history_section.dart';
@@ -420,10 +419,7 @@ class _DesktopItemLayout extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      if (name.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        ItemPriceIntelligenceSection(itemName: name),
-                      ],
+                      if (name.isNotEmpty) const SizedBox.shrink(),
                     ],
                   ),
                 ),
@@ -592,10 +588,6 @@ class _ItemDetailMobileScrollState extends ConsumerState<_ItemDetailMobileScroll
             itemName: widget.name,
           ),
         ),
-        if (widget.name.isNotEmpty)
-          _paddedSection(
-            ItemPriceIntelligenceSection(itemName: widget.name),
-          ),
       ],
       ),
     );

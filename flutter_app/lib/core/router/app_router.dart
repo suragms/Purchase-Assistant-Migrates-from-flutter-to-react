@@ -52,7 +52,6 @@ import '../../features/purchase/domain/purchase_draft.dart';
 import '../../features/purchase/presentation/purchase_detail_page.dart';
 import '../../features/purchase/presentation/purchase_home_page.dart';
 import '../../features/purchase/presentation/purchase_entry_wizard_v2.dart';
-import '../../features/reports/presentation/sales_comparison_page.dart';
 import '../../features/reports/presentation/reports_category_drill_page.dart';
 import '../../features/reports/presentation/reports_subcategory_drill_page.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
@@ -68,7 +67,6 @@ import '../../features/barcode/presentation/barcode_print_page.dart';
 import '../../features/barcode/presentation/bulk_barcode_print_page.dart';
 import '../../features/barcode/presentation/barcode_scan_page.dart';
 import '../../features/barcode/presentation/barcode_scan_history_page.dart';
-import '../../features/barcode/presentation/public_barcode_lookup_page.dart';
 import '../../features/barcode/presentation/public_item_scan_page.dart';
 import '../../features/barcode/presentation/stock_audit_session_page.dart';
 import '../../features/barcode/presentation/stock_audit_summary_page.dart';
@@ -87,7 +85,6 @@ import '../../features/staff/presentation/staff_item_gallery_page.dart';
 import '../../features/staff/presentation/staff_receive_shipment_page.dart';
 import '../../features/shell/shell_screen.dart';
 import '../../features/splash/presentation/splash_page.dart';
-import '../../features/admin/presentation/super_admin_page.dart';
 import '../../features/operations/presentation/daily_usage_page.dart';
 import '../../features/operations/presentation/staff_checklist_page.dart';
 import '../../features/operations/presentation/owner_tasks_page.dart';
@@ -155,8 +152,7 @@ String _staffRedirectForBlockedRoute(String loc) {
       loc.startsWith('/supplier') ||
       loc.startsWith('/broker') ||
       loc == '/catalog' ||
-      loc.startsWith('/catalog/') && !_isStaffAllowedRoute(loc) ||
-      loc == '/admin') {
+      loc.startsWith('/catalog/') && !_isStaffAllowedRoute(loc)) {
     return '/staff/home';
   }
   return '/staff/home';
@@ -185,8 +181,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           loc == '/forgot-password' ||
           loc == '/reset-password' ||
           loc.startsWith('/scan/') ||
-          loc.startsWith('/item/') ||
-          loc == '/lookup';
+          loc.startsWith('/item/');
 
       ProviderContainer container;
       try {
@@ -221,9 +216,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return '/login?tab=signin&notice=owner_only';
       }
       if (loc == '/ai') return authenticatedHomePath(session);
-      if (loc == '/admin' && !session.isSuperAdmin) {
-        return '/settings';
-      }
       if (loc.startsWith('/settings/users') &&
           !sessionCanManageUsers(session)) {
         return '/settings';
@@ -328,16 +320,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
-        path: '/lookup',
-        pageBuilder: (context, state) => iosPushPage(
-          key: state.pageKey,
-          child: PublicBarcodeLookupPage(
-            barcode: state.uri.queryParameters['barcode'] ?? '',
-            businessSlug: state.uri.queryParameters['business'] ?? '',
-          ),
-        ),
-      ),
-      GoRoute(
         path: '/barcode/scan',
         name: 'barcode_scan',
         pageBuilder: (context, state) => iosPushPage(
@@ -392,16 +374,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           key: state.pageKey,
           child: const BulkBarcodePrintPage(),
         ),
-      ),
-      // Must be after static `/barcode/*` routes — otherwise `bulk-print`, `scan`, etc.
-      // are captured as :code and redirected to `/item/:code` (broken navigation).
-      GoRoute(
-        path: '/barcode/:code',
-        redirect: (context, state) {
-          final c = state.pathParameters['code'] ?? '';
-          if (c.isEmpty) return '/login';
-          return '/item/$c';
-        },
       ),
       GoRoute(
         path: '/catalog/missing-codes',
@@ -768,14 +740,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
       GoRoute(
-        path: '/admin',
-        name: 'super_admin',
-        pageBuilder: (context, state) => iosPushPage(
-          key: state.pageKey,
-          child: const SuperAdminPage(),
-        ),
-      ),
-      GoRoute(
         path: '/staff/receive',
         name: 'staff_receive_list',
         pageBuilder: (context, state) => iosPushPage(
@@ -1098,14 +1062,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           );
         },
       ),
-      GoRoute(
-        path: '/reports/sales-comparison',
-        pageBuilder: (context, state) => iosPushPage(
-          key: state.pageKey,
-          child: const SalesComparisonPage(),
-        ),
-      ),
-      // Main app tabs: keep navigation in this shell only; use `navigationShell.goBranch`
+      // Main app tabs: keep navigation in this shell only
       // or `context.go('/home'|'/reports'|...)` — avoid `push` onto the root stack for these paths
       // or the active tab and visible content can disagree.
       StatefulShellRoute.indexedStack(

@@ -5,7 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../auth/provider_api_guard.dart';
 import '../auth/session_notifier.dart' show activeSessionProvider, hexaApiProvider;
 import '../json_coerce.dart';
-import 'home_dashboard_provider.dart' show homeDashboardDataProvider, homeTabHasOperationalBundle;
+import 'home_dashboard_provider.dart'
+    show homeDashboardDataProvider, homeOverviewReadyForSatellites, homeTabHasOperationalBundle;
 
 final Map<String, Future<Map<String, dynamic>>> _warehouseAlertsInflight = {};
 
@@ -76,6 +77,9 @@ final warehouseAlertsProvider =
         .data
         .operational!
         .warehouseAlerts;
+  }
+  if (!homeOverviewReadyForSatellites(ref)) {
+    return const WarehouseAlerts();
   }
   final disposed = registerProviderDisposeGuard(ref);
   registerProviderKeepAliveTimer(ref, const Duration(seconds: 60));

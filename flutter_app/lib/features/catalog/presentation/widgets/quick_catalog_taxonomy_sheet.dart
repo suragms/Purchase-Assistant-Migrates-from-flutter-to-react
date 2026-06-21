@@ -153,7 +153,10 @@ class _QuickCatalogTaxonomySheetState
       String? typeName;
       if (subName.isNotEmpty) {
         final types =
-            await ref.read(categoryTypesListProvider(_categoryId!).future);
+            typesForCategory(
+              await ref.read(categoryTypesIndexProvider.future),
+              _categoryId!,
+            );
         final similar = catalogFuzzyRank(
           subName,
           types,

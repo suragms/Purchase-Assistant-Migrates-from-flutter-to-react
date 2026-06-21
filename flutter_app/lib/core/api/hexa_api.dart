@@ -9,7 +9,6 @@ import 'package:flutter/foundation.dart' show debugPrint, kDebugMode, kIsWeb;
 import 'package:http_parser/http_parser.dart';
 
 import 'dio_auto_retry_interceptor.dart';
-import 'hexa_connection_timeout_retry_interceptor.dart';
 import '../auth/auth_error_messages.dart' show dioIsAutoRetryableTransport;
 import '../config/app_config.dart';
 import '../json_coerce.dart';
@@ -94,7 +93,12 @@ class _BusinessConnectivityBannerInterceptor extends Interceptor {
       final sc = err.response?.statusCode;
       if (sc == 503) {
         final h = err.response?.headers.value('x-database-unavailable');
-        fn(true, h == '1' ? 'Database temporarily unavailable' : null);
+        fn(
+          true,
+          h == '1'
+              ? 'Database temporarily unavailable'
+              : 'Waking server (~30s) — retrying automatically',
+        );
       } else if (dioIsAutoRetryableTransport(err) ||
           (sc != null && sc >= 502 && sc <= 504)) {
         fn(true, null);
@@ -277,12 +281,6 @@ class HexaApi {
         },
       ),
     );
-    _dio.interceptors.add(
-      HexaConnectionTimeoutRetryInterceptor(_dio),
-    );
-    _plain.interceptors.add(
-      HexaConnectionTimeoutRetryInterceptor(_plain),
-    );
     _dio.interceptors.add(DioAutoRetryInterceptor(_dio, maxAttempts: 2));
     final banner = _onConnectivityBanner;
     if (banner != null) {
@@ -328,6 +326,7 @@ class HexaApi {
     final res = await _dio.get<dynamic>(
       '/v1/businesses/$businessId/realtime/recent',
       queryParameters: {'limit': limit},
+      options: Options(extra: const {'skipAutoRetry': true}),
     );
     return _parseJsonMapList(res.data);
   }

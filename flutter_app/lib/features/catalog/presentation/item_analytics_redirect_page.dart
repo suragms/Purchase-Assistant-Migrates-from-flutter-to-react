@@ -4,9 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/navigation/resolve_catalog_item_id.dart';
 import '../../../core/widgets/friendly_load_error.dart';
-import 'widgets/item_price_intelligence_section.dart';
 
-/// Resolves item name → catalog detail; fallback shows price intelligence only.
+/// Resolves item name → catalog detail.
 class ItemAnalyticsRedirectPage extends ConsumerStatefulWidget {
   const ItemAnalyticsRedirectPage({super.key, required this.itemName});
 
@@ -64,14 +63,12 @@ class _ItemAnalyticsRedirectPageState
         children: [
           FriendlyLoadError(
             message:
-                'This item is not linked to the catalog yet. Price intelligence is shown below.',
+                'This item is not linked to the catalog yet. Open Catalog to create or link it.',
             onRetry: () {
               _resolved = false;
               _redirect();
             },
           ),
-          const SizedBox(height: 12),
-          ItemPriceIntelligenceSection(itemName: widget.itemName),
         ],
       ),
     );

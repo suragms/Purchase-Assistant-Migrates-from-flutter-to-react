@@ -55,12 +55,8 @@ final contactsBrokersEnrichedProvider =
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
   final api = ref.read(hexaApiProvider);
-  final r = contactsDefaultRange();
   final listFuture = api.listBrokers(businessId: session.primaryBusiness.id);
-  final metricsFuture = api
-      .analyticsBrokers(
-          businessId: session.primaryBusiness.id, from: r.from, to: r.to)
-      .catchError((Object _, StackTrace __) => <Map<String, dynamic>>[]);
+  final metricsFuture = Future<List<Map<String, dynamic>>>.value(const []);
   final results = await Future.wait<Object?>([listFuture, metricsFuture]);
   final list = (results[0] as List)
       .map((e) => Map<String, dynamic>.from(e as Map))
@@ -103,6 +99,6 @@ final contactsItemsProvider =
   if (session == null) return [];
   final api = ref.read(hexaApiProvider);
   final r = contactsDefaultRange();
-  return api.analyticsItems(
+  return api.tradeReportItems(
       businessId: session.primaryBusiness.id, from: r.from, to: r.to);
 });

@@ -275,55 +275,6 @@ def test_month_dashboard_excludes_deleted_matches_trade_summary():
     assert s1 == 0.0
 
 
-def test_analytics_trade_insights_excludes_deleted():
-    """GET /analytics/insights/trade must not rank soft-deleted purchases."""
-    h, bid, iid, sid, _cid = _register_and_item_with_supplier()
-    today = date.today()
-    body = {
-        "purchase_date": today.isoformat(),
-        "supplier_id": sid,
-        "lines": [
-            {
-                "catalog_item_id": iid,
-                "item_name": "InsightDelSKU",
-                "qty": 1,
-                "unit": "bag",
-                "landing_cost": "8000",
-                "kg_per_unit": "50",
-                "landing_cost_per_kg": "160",
-                "selling_rate": "8100",
-            },
-        ],
-    }
-    pr = client.post(f"/v1/businesses/{bid}/trade-purchases", headers=h, json=body)
-    assert pr.status_code == 201, pr.text
-    pid = pr.json()["id"]
-    q = f"from={today.isoformat()}&to={today.isoformat()}"
-
-    ins0 = client.get(
-        f"/v1/businesses/{bid}/analytics/insights/trade?{q}",
-        headers=h,
-    )
-    assert ins0.status_code == 200, ins0.text
-    j0 = ins0.json()
-    assert j0.get("best_item") == "InsightDelSKU"
-
-    dr = client.delete(
-        f"/v1/businesses/{bid}/trade-purchases/{pid}",
-        headers=h,
-    )
-    assert dr.status_code == 204, dr.text
-
-    ins1 = client.get(
-        f"/v1/businesses/{bid}/analytics/insights/trade?{q}",
-        headers=h,
-    )
-    assert ins1.status_code == 200, ins1.text
-    j1 = ins1.json()
-    assert j1.get("best_item") is None
-    assert j1.get("worst_item") is None
-
-
 def test_trade_daily_profit_series_shape_and_422():
     h, bid, iid, sid, _cid = _register_and_item_with_supplier()
     today = date.today()

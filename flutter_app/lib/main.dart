@@ -299,7 +299,7 @@ class _HexaBootstrapState extends State<_HexaBootstrap> {
             onSlow: () {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 container.read(apiDegradedProvider.notifier).notifyDegraded(
-                      'Waking up server (can take up to a minute on first load)…',
+                      'Waking server (~30s) — first load may take a moment',
                     );
               });
             },
@@ -325,7 +325,7 @@ class _HexaBootstrapState extends State<_HexaBootstrap> {
             if (e.response?.statusCode == 503) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 container.read(apiDegradedProvider.notifier).notifyDegraded(
-                      'Database is still starting — we will retry reads automatically.',
+                      'Waking server (~30s) — database still starting',
                     );
               });
             }

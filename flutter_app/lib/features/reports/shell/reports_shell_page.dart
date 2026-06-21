@@ -24,7 +24,7 @@ import '../../../core/router/shell_navigation.dart';
 import '../../../core/services/reports_pdf.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/utils/unit_utils.dart';
-import '../../../features/analytics/presentation/analytics_report_helpers.dart';
+import '../presentation/analytics_report_helpers.dart';
 import '../../../shared/widgets/hexa_empty_state.dart';
 import '../filters/reports_filter_sheet.dart';
 import '../filters/reports_filter_state.dart';

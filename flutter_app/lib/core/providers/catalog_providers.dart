@@ -41,7 +41,7 @@ final catalogItemsListProvider =
       .listCatalogItems(businessId: session.primaryBusiness.id);
 });
 
-/// Per-category types (Category → Type → items).
+/// Per-category types (Category → Type → items) — derived from bulk index.
 final categoryTypesListProvider = FutureProvider.autoDispose
     .family<List<Map<String, dynamic>>, String>((ref, categoryId) async {
   final link = ref.keepAlive();
@@ -49,10 +49,10 @@ final categoryTypesListProvider = FutureProvider.autoDispose
   ref.onDispose(timer.cancel);
   final session = ref.watch(sessionProvider);
   if (session == null) return [];
-  return ref.read(hexaApiProvider).listCategoryTypes(
-        businessId: session.primaryBusiness.id,
-        categoryId: categoryId,
-      );
+  final index = await ref.watch(categoryTypesIndexProvider.future);
+  return index
+      .where((t) => t['category_id']?.toString() == categoryId)
+      .toList();
 });
 
 /// Flat index: every type with `category_id` + `category_name` (quick-add, search).

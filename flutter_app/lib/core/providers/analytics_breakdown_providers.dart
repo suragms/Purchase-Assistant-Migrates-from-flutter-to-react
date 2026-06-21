@@ -136,15 +136,9 @@ final analyticsSuppliersTableProvider =
 final analyticsBrokersTableProvider =
     FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
   _keepAnalyticsAlive(ref);
-  final session = ref.watch(activeSessionProvider);
-  final range = ref.watch(analyticsDateRangeProvider);
-  if (session == null) return [];
-  final fmt = DateFormat('yyyy-MM-dd');
-  return ref.read(hexaApiProvider).analyticsBrokers(
-        businessId: session.primaryBusiness.id,
-        from: fmt.format(range.from),
-        to: fmt.format(range.to),
-      );
+  if (providerSkipApi(ref)) return [];
+  if (!shellBranchIsVisible(ref, ShellBranch.reports)) return [];
+  return const [];
 });
 
 /// Heuristic insight: highest estimated purchase-volume item × supplier with lowest avg landing vs peer average.

@@ -19,6 +19,7 @@ import '../../../core/providers/suppliers_list_provider.dart';
 import '../../../core/providers/trade_purchases_provider.dart';
 import '../../../core/widgets/form_feedback.dart';
 import '../../../core/widgets/async_value_form.dart';
+import '../../catalog/catalog_taxonomy_utils.dart';
 import '../../../shared/widgets/keyboard_safe_form_viewport.dart';
 
 const _kDraftKey = 'supplier_create_wizard_draft_v1';
@@ -950,44 +951,56 @@ class _SupplierCreateWizardPageState
           const SizedBox(height: 16),
           const Text('Preferred subcategories (types)'),
           const SizedBox(height: 8),
-          ..._categoryIds.map((cid) {
-            final asyncTypes = ref.watch(categoryTypesListProvider(cid));
-            return asyncTypes.whenForm(
-              initialLoading: () => const Padding(
-                padding: EdgeInsets.all(8),
-                child: LinearProgressIndicator(),
-              ),
-              data: (types) {
-                if (types.isEmpty) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: types.map((t) {
-                      final tid = t['id']?.toString() ?? '';
-                      final name = t['name']?.toString() ?? '';
-                      final sel = _typeIds.contains(tid);
-                      return FilterChip(
-                        label: Text(name),
-                        selected: sel,
-                        onSelected: (v) {
-                          setState(() {
-                            if (v) {
-                              _typeIds.add(tid);
-                            } else {
-                              _typeIds.remove(tid);
-                            }
-                            _markDirty();
-                          });
+          Builder(
+            builder: (context) {
+              final typesIndexAsync = ref.watch(categoryTypesIndexProvider);
+              return typesIndexAsync.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: LinearProgressIndicator(),
+                ),
+                error: (_, __) => const SizedBox.shrink(),
+                data: (index) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final cid in _categoryIds)
+                      Builder(
+                        builder: (context) {
+                          final types = typesForCategory(index, cid);
+                          if (types.isEmpty) return const SizedBox.shrink();
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: types.map((t) {
+                                final tid = t['id']?.toString() ?? '';
+                                final name = t['name']?.toString() ?? '';
+                                final sel = _typeIds.contains(tid);
+                                return FilterChip(
+                                  label: Text(name),
+                                  selected: sel,
+                                  onSelected: (v) {
+                                    setState(() {
+                                      if (v) {
+                                        _typeIds.add(tid);
+                                      } else {
+                                        _typeIds.remove(tid);
+                                      }
+                                      _markDirty();
+                                    });
+                                  },
+                                );
+                              }).toList(),
+                            ),
+                          );
                         },
-                      );
-                    }).toList(),
-                  ),
-                );
-              },
-            );
-          }),
+                      ),
+                  ],
+                ),
+              );
+            },
+          ),
         ],
         const SizedBox(height: 16),
         const Text('Frequently supplied items'),

@@ -15,6 +15,7 @@ import 'home_dashboard_provider.dart'
     show
         homeActivityFeedFetchEnabledProvider,
         homeDashboardDataProvider,
+        homeOverviewReadyForSatellites,
         homeTabHasOperationalBundle,
         homePeriodProvider,
         homeCustomDateRangeProvider,
@@ -241,6 +242,9 @@ final stockLowTopHomeProvider =
     if (bundled != null && bundled.isNotEmpty) {
       return bundled;
     }
+  }
+  if (!homeOverviewReadyForSatellites(ref)) {
+    return [];
   }
   final disposed = registerProviderDisposeGuard(ref);
   registerProviderKeepAliveTimer(ref, const Duration(minutes: 2));

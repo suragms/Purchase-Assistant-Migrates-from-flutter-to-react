@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
 import '../../../core/router/navigation_ext.dart';
-import '../../../core/providers/catalog_providers.dart';
+import '../catalog_taxonomy_utils.dart';
 import '../../../core/search/catalog_fuzzy.dart';
 import '../../../core/search/search_highlight.dart';
 import '../../../core/design_system/hexa_responsive.dart';
@@ -258,10 +258,14 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                 final desktop = context.isDesktopLayout;
                 final gridCols = desktop ? 2 : 1;
 
+                final typesIndex = ref.watch(categoryTypesIndexProvider);
+                final typesIndexData = typesIndex.valueOrNull;
+
                 return RefreshIndicator(
                   onRefresh: () async {
                     ref.invalidate(itemCategoriesListProvider);
                     ref.invalidate(catalogItemsListProvider);
+                    ref.invalidate(categoryTypesIndexProvider);
                     await ref.read(itemCategoriesListProvider.future);
                     await ref.read(catalogItemsListProvider.future);
                   },
@@ -320,12 +324,9 @@ class _CatalogPageState extends ConsumerState<CatalogPage> {
                                         it['category_id']?.toString() == id,
                                   )
                                   .length;
-                              final subN = ref.watch(
-                                categoryTypesListProvider(id).select(
-                                  (a) => a.valueOrNull?.length ?? -1,
-                                ),
-                              );
-                              final subCount = subN < 0 ? 0 : subN;
+                              final subCount = typesIndexData == null
+                                  ? -1
+                                  : typeCountForCategory(typesIndexData, id);
                               return Card(
                                 margin: EdgeInsets.zero,
                                 elevation: 0,

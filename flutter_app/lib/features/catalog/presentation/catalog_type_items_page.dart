@@ -13,6 +13,7 @@ import '../../../core/router/navigation_ext.dart';
 import '../../../core/design_system/hexa_responsive.dart';
 import '../../../core/providers/business_aggregates_invalidation.dart';
 import '../../../core/providers/catalog_providers.dart';
+import '../catalog_taxonomy_utils.dart';
 import '../../../core/providers/stock_providers.dart';
 import '../../../core/widgets/business_write_surface_listener.dart';
 import '../../../core/search/catalog_fuzzy.dart';
@@ -81,7 +82,7 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
   }
 
   Future<void> _refresh() async {
-    ref.invalidate(categoryTypesListProvider(widget.categoryId));
+    ref.invalidate(categoryTypesIndexProvider);
     ref.invalidate(catalogItemsListProvider);
     ref.invalidate(categoryTradeSummaryProvider(widget.categoryId));
     await ref.read(catalogItemsListProvider.future);
@@ -289,8 +290,8 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
                                   ),
                                 );
                               }
-                              final typesAsync = ref.watch(categoryTypesListProvider(targetCat!));
-                              return typesAsync.when(
+                              final indexAsync = ref.watch(categoryTypesIndexProvider);
+                              return indexAsync.when(
                                 skipLoadingOnReload: true,
                                 loading: () => const OutlinedButton(
                                   onPressed: null,
@@ -306,7 +307,8 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
                                     child: Text('Could not load subcategories'),
                                   ),
                                 ),
-                                data: (typesRaw) {
+                                data: (index) {
+                                  final typesRaw = typesForCategory(index, targetCat!);
                                   final types = typesRaw
                                       .map((e) => Map<String, dynamic>.from(e as Map))
                                       .toList();
@@ -437,7 +439,7 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final typesAsync = ref.watch(categoryTypesListProvider(widget.categoryId));
+    final typesAsync = ref.watch(categoryTypesIndexProvider);
     final itemsAsync = ref.watch(catalogItemsListProvider);
     final tradeSumAsync =
         ref.watch(categoryTradeSummaryProvider(widget.categoryId));
@@ -458,7 +460,8 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
     );
 
     final typeName = typesAsync.maybeWhen(
-      data: (types) {
+      data: (index) {
+        final types = typesForCategory(index, widget.categoryId);
         for (final t in types) {
           if (t['id']?.toString() == widget.typeId) {
             return t['name']?.toString() ?? 'Subcategory';
@@ -486,7 +489,7 @@ class _CatalogTypeItemsPageState extends ConsumerState<CatalogTypeItemsPage> {
 
     return BusinessWriteSurfaceListener(
       onRefresh: (ref, _) {
-        ref.invalidate(categoryTypesListProvider(widget.categoryId));
+        ref.invalidate(categoryTypesIndexProvider);
         ref.invalidate(catalogItemsListProvider);
         ref.invalidate(categoryTradeSummaryProvider(widget.categoryId));
       },

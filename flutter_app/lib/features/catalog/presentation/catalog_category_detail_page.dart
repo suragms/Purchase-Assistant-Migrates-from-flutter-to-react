@@ -11,6 +11,7 @@ import '../../../core/search/catalog_fuzzy.dart';
 import '../../../core/search/search_highlight.dart';
 import '../../../core/theme/hexa_colors.dart';
 import '../../../core/widgets/friendly_load_error.dart';
+import '../catalog_taxonomy_utils.dart';
 import '../../../shared/widgets/trade_intel_cards.dart';
 import 'widgets/quick_catalog_taxonomy_sheet.dart';
 
@@ -53,7 +54,7 @@ class _CatalogCategoryDetailPageState
   }
 
   Future<void> _refresh() async {
-    ref.invalidate(categoryTypesListProvider(widget.categoryId));
+    ref.invalidate(categoryTypesIndexProvider);
     ref.invalidate(itemCategoriesListProvider);
     ref.invalidate(catalogItemsListProvider);
     ref.invalidate(categoryTradeSummaryProvider(widget.categoryId));
@@ -67,7 +68,7 @@ class _CatalogCategoryDetailPageState
       preselectedCategoryId: widget.categoryId,
     );
     if (r != null) {
-      ref.invalidate(categoryTypesListProvider(widget.categoryId));
+      ref.invalidate(categoryTypesIndexProvider);
     }
   }
 
@@ -78,14 +79,14 @@ class _CatalogCategoryDetailPageState
       if (!next.isGlobal && next.kind != 'purchase' && next.kind != 'aggregate') {
         return;
       }
-      ref.invalidate(categoryTypesListProvider(widget.categoryId));
+      ref.invalidate(categoryTypesIndexProvider);
       ref.invalidate(catalogItemsListProvider);
       ref.invalidate(categoryTradeSummaryProvider(widget.categoryId));
     });
 
     final catsAsync = ref.watch(itemCategoriesListProvider);
     final itemsAsync = ref.watch(catalogItemsListProvider);
-    final typesAsync = ref.watch(categoryTypesListProvider(widget.categoryId));
+    final typesAsync = ref.watch(categoryTypesIndexProvider);
     final tradeSummaryAsync =
         ref.watch(categoryTradeSummaryProvider(widget.categoryId));
 
@@ -323,11 +324,10 @@ class _CatalogCategoryDetailPageState
                 child: Center(child: CircularProgressIndicator()),
               ),
               error: (_, __) => FriendlyLoadError(
-                onRetry: () => ref.invalidate(
-                  categoryTypesListProvider(widget.categoryId),
-                ),
+                onRetry: () => ref.invalidate(categoryTypesIndexProvider),
               ),
-              data: (types) {
+              data: (index) {
+                final types = typesForCategory(index, widget.categoryId);
                 if (types.isEmpty) {
                   return Text(
                     'No subcategories yet — tap Add subcategory.',

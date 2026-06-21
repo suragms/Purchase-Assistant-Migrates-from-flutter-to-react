@@ -11,6 +11,7 @@ import '../../../core/errors/user_facing_errors.dart';
 import '../../../core/widgets/async_value_form.dart';
 import '../../../core/widgets/hexa_error_card.dart';
 import '../../../core/providers/catalog_providers.dart';
+import '../catalog_taxonomy_utils.dart';
 import '../../../core/router/navigation_ext.dart';
 import '../../../core/unit_engine/stock_tracking_profile.dart';
 import '../../../shared/widgets/packaging_type_selector.dart';
@@ -278,10 +279,15 @@ class _BatchItemCreatePageState extends ConsumerState<BatchItemCreatePage> {
                     const SizedBox(height: 8),
                     Consumer(
                       builder: (context, ref, _) {
+                        final indexAsync = ref.watch(categoryTypesIndexProvider);
                         final typesAsync = line.categoryId == null
                             ? const AsyncValue<List<Map<String, dynamic>>>.data([])
-                            : ref.watch(
-                                categoryTypesListProvider(line.categoryId!),
+                            : indexAsync.when(
+                                data: (index) => AsyncValue.data(
+                                  typesForCategory(index, line.categoryId!),
+                                ),
+                                loading: () => const AsyncValue.loading(),
+                                error: (e, st) => AsyncValue.error(e, st),
                               );
                         return typesAsync.whenForm(
                           initialLoading: () => line.categoryId == null
@@ -293,7 +299,7 @@ class _BatchItemCreatePageState extends ConsumerState<BatchItemCreatePage> {
                               title: 'Could not load subcategories',
                               error: e,
                               onRetry: () => ref.invalidate(
-                                categoryTypesListProvider(line.categoryId!),
+                                categoryTypesIndexProvider,
                               ),
                             );
                           },

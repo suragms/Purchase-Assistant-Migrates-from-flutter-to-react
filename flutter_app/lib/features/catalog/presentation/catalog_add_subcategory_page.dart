@@ -54,7 +54,8 @@ class _CatalogAddSubcategoryPageState
     final session = ref.read(sessionProvider);
     if (session == null) return;
     try {
-      final types = await ref.read(categoryTypesListProvider(widget.categoryId).future);
+      final index = await ref.read(categoryTypesIndexProvider.future);
+      final types = typesForCategory(index, widget.categoryId);
       final similar = catalogFuzzyRank(
         n,
         types,

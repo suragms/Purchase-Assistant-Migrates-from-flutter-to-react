@@ -51,8 +51,9 @@ Also: in-app AI assistant (`/ai` → `POST .../ai/chat`), profit clarity, and Pr
    .venv\Scripts\pip install -r requirements.txt
    .venv\Scripts\python -m uvicorn app.main:app --reload
    ```
-4. **Admin:** `cd admin_web && npm install && npm run dev` → http://localhost:5173  
-5. **Flutter:** install Flutter SDK, then `cd flutter_app && flutter create . && flutter pub get && flutter run`
+4. **Flutter:** install Flutter SDK, then `cd flutter_app && flutter create . && flutter pub get && flutter run`
+
+> **Note:** The former `admin_web/` super-admin SPA was removed (never deployed to Vercel). Use backend `admin` routes only if you maintain a separate admin client.
 
 ## Environment
 
@@ -77,7 +78,6 @@ intended place for a future Excel-to-catalog script.
 
 - `flutter_app/` — Flutter client (run `flutter create .` after installing Flutter — see `flutter_app/README.md`)
 - `backend/` — FastAPI API (`backend/.venv`, `uvicorn app.main:app --reload`)
-- `admin_web/` — Super admin (`npm run dev` in `admin_web/`)
 - `docker-compose.yml` — local PostgreSQL + Redis
 
 ## Principles

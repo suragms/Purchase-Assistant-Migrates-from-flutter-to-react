@@ -7,7 +7,7 @@ import '../auth/session_notifier.dart'
     show activeSessionProvider, hexaApiProvider;
 import '../json_coerce.dart';
 import 'home_dashboard_provider.dart'
-    show homeDashboardDataProvider, homeTabHasOperationalBundle;
+    show homeDashboardDataProvider, homeOverviewReadyForSatellites, homeTabHasOperationalBundle;
 
 /// Owner dashboard: counts per delivery_status from API.
 final deliveryPipelineProvider =
@@ -17,6 +17,9 @@ final deliveryPipelineProvider =
     return Map<String, dynamic>.from(
       ref.watch(homeDashboardDataProvider).snapshot.data.operational!.deliveryPipeline,
     );
+  }
+  if (!homeOverviewReadyForSatellites(ref)) {
+    return {};
   }
   final disposed = registerProviderDisposeGuard(ref);
   registerProviderKeepAliveTimer(ref, const Duration(minutes: 3));

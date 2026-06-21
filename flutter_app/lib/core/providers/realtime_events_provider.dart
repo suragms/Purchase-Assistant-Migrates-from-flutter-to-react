@@ -4,11 +4,13 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../auth/auth_error_messages.dart' show dioIsAutoRetryableTransport;
 import '../auth/auth_failure_policy.dart';
 import '../auth/provider_api_guard.dart';
 import '../auth/session_notifier.dart';
 import '../platform/app_foreground_provider.dart';
 import 'business_aggregates_invalidation.dart';
+import 'home_dashboard_provider.dart';
 import 'low_stock_providers.dart';
 import 'stock_providers.dart';
 import 'trade_purchases_provider.dart';
@@ -57,6 +59,18 @@ class RealtimeInvalidationSignal {
   final Set<String> affectedItemIds;
 }
 
+const _pollIntervalForeground = Duration(seconds: 60);
+const _backoffSteps = [
+  Duration(seconds: 60),
+  Duration(seconds: 120),
+  Duration(seconds: 300),
+];
+
+bool _pollTransportFailure(DioException e) {
+  final sc = e.response?.statusCode;
+  return sc == 503 || sc == 502 || sc == 504 || dioIsAutoRetryableTransport(e);
+}
+
 /// Polls server events; does **not** invalidate providers itself (avoids double-refresh).
 final realtimeInvalidationProvider =
     StreamProvider<RealtimeInvalidationSignal>((ref) async* {
@@ -70,6 +84,9 @@ final realtimeInvalidationProvider =
   final api = ref.read(hexaApiProvider);
   final seen = <String>{};
   var tick = 0;
+  var pollInFlight = false;
+  var backoffStep = 0;
+  var homeWarm = false;
 
   Future<RealtimeInvalidationSignal> poll({required bool initial}) async {
     if (providerSkipApi(ref)) {
@@ -81,10 +98,13 @@ final realtimeInvalidationProvider =
         businessId: session.primaryBusiness.id,
         limit: 40,
       );
+      backoffStep = 0;
     } on DioException catch (e) {
       final sc = e.response?.statusCode;
       if (sc == 401) {
         ref.read(authApiGateProvider.notifier).suspendFor401();
+      } else if (!initial && _pollTransportFailure(e)) {
+        backoffStep = (backoffStep + 1).clamp(0, _backoffSteps.length);
       }
       return RealtimeInvalidationSignal(tick: tick);
     }
@@ -120,14 +140,40 @@ final realtimeInvalidationProvider =
   }
 
   yield await poll(initial: true);
-  final timer = Stream.periodic(const Duration(seconds: 15));
-  await for (final _ in timer) {
+
+  while (true) {
+    await Future<void>.delayed(_pollIntervalForeground);
+
     if (ref.read(sessionProvider) == null ||
         ref.read(authSessionExpiredProvider) ||
         !ref.read(appForegroundProvider)) {
       continue;
     }
+
+    if (!homeWarm) {
+      final dash = ref.read(homeDashboardDataProvider);
+      if (dash.refreshing) continue;
+      homeWarm = true;
+    }
+
+    if (pollInFlight) continue;
+
+    if (backoffStep > 0) {
+      final wait = _backoffSteps[(backoffStep - 1).clamp(0, _backoffSteps.length - 1)];
+      await Future<void>.delayed(wait);
+      if (ref.read(sessionProvider) == null ||
+          ref.read(authSessionExpiredProvider) ||
+          !ref.read(appForegroundProvider)) {
+        continue;
+      }
+    }
+
+    pollInFlight = true;
     tick++;
-    yield await poll(initial: false);
+    try {
+      yield await poll(initial: false);
+    } finally {
+      pollInFlight = false;
+    }
   }
 });

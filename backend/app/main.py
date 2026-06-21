@@ -28,8 +28,6 @@ from app.db_resilience import is_sa_infrastructure_failure
 from app.database import async_session_factory, engine, is_sqlite_runtime
 from app.sqlite_bootstrap import apply_sqlite_bootstrap
 from app.routers import (
-    admin,
-    analytics,
     auth,
     catalog,
     contacts,
@@ -37,9 +35,7 @@ from app.routers import (
     health,
     me,
     media,
-    price_intelligence,
     public_items,
-    public_barcode,
     realtime,
     reports_trade,
     report_views,
@@ -677,18 +673,13 @@ app.include_router(damage_reports.router)
 app.include_router(reports_trade.router)
 app.include_router(report_views.router)
 app.include_router(search.router)
-app.include_router(analytics.router)
-# Trade SQL analytics — not gated on ENABLE_AI (assistant/chat only).
-app.include_router(price_intelligence.router)
 app.include_router(catalog.router)
 app.include_router(contacts.router)
 if settings.s3_bucket:
     app.include_router(media.router)
 app.include_router(public_items.router)
-app.include_router(public_barcode.router)
 app.include_router(realtime.router)
 app.include_router(notifications.router)
-app.include_router(admin.router)
 app.include_router(stock_audits.router)
 app.include_router(stock.router)
 app.include_router(operations.router)
