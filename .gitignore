@@ -97,6 +97,7 @@ purhcaseappss.zip
 # Dev credentials / MCP scratch (never commit)
 login-test.json
 mcp_query.json
+config/github.pat.local
 
 # Local scratch / debug dumps
 build,md/
