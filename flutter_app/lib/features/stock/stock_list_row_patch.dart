@@ -3,6 +3,9 @@ import '../../core/json_coerce.dart';
 /// Internal metadata on optimistic patches — stripped before list render.
 const kStockListPatchAtKey = '_patchedAt';
 
+/// Keep optimistic qty overlay briefly when list timestamps race ahead of qty.
+const Duration kStockPatchStaleQtyGrace = Duration(seconds: 45);
+
 DateTime? _parsePatchOrRowTimestamp(String? raw) {
   if (raw == null || raw.isEmpty) return null;
   return DateTime.tryParse(raw);
@@ -41,6 +44,39 @@ bool serverRowNewerThanPatch(
   return false;
 }
 
+bool _patchStockQtyDiffersFromServer(
+  Map<String, dynamic> serverRow,
+  Map<String, dynamic> patch,
+) {
+  final pQty = coerceToDoubleNullable(patch['current_stock']);
+  final sQty = coerceToDoubleNullable(serverRow['current_stock']);
+  if (pQty != null &&
+      sQty != null &&
+      (pQty - sQty).abs() > 1e-6) {
+    return true;
+  }
+  final pPhys = coerceToDoubleNullable(patch['physical_stock_qty']);
+  final sPhys = coerceToDoubleNullable(serverRow['physical_stock_qty']);
+  if (pPhys != null &&
+      sPhys != null &&
+      (pPhys - sPhys).abs() > 1e-6) {
+    return true;
+  }
+  return false;
+}
+
+bool shouldKeepStockPatchDespiteServerTimestamp(
+  Map<String, dynamic> serverRow,
+  Map<String, dynamic> patch,
+) {
+  if (!_patchStockQtyDiffersFromServer(serverRow, patch)) return false;
+  final patchedAt = _parsePatchOrRowTimestamp(
+    patch[kStockListPatchAtKey]?.toString(),
+  );
+  if (patchedAt == null) return false;
+  return DateTime.now().toUtc().difference(patchedAt) < kStockPatchStaleQtyGrace;
+}
+
 /// Merges optimistic row fields into a stock list payload (items + total).
 Map<String, dynamic> mergeStockListRowMaps(
   Map<String, dynamic> data,
@@ -67,7 +103,11 @@ Map<String, dynamic> mergeStockListRowMap(
   final patch = patches[id];
   if (patch == null || patch.isEmpty) return row;
   final hasTimestamp = patch.containsKey(kStockListPatchAtKey);
-  if (hasTimestamp && serverRowNewerThanPatch(row, patch)) return row;
+  if (hasTimestamp &&
+      serverRowNewerThanPatch(row, patch) &&
+      !shouldKeepStockPatchDespiteServerTimestamp(row, patch)) {
+    return row;
+  }
   final visible = Map<String, dynamic>.from(patch)
     ..remove(kStockListPatchAtKey);
   if (visible.isEmpty) return row;

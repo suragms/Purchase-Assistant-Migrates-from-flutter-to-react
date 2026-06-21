@@ -88,7 +88,12 @@ class _ShellRealtimeListenerState extends ConsumerState<ShellRealtimeListener> {
           _scheduleWarehouseInvalidate(signal);
         }
       }
-      if (signal.notifications || signal.delivery || signal.warehouse) {
+      final singleItemWarehouseOnly = signal.warehouse &&
+          !signal.notifications &&
+          !signal.delivery &&
+          signal.affectedItemIds.length == 1;
+      if (!singleItemWarehouseOnly &&
+          (signal.notifications || signal.delivery || signal.warehouse)) {
         bumpRemoteBusinessDataRevision(ref);
       }
   }

@@ -18,6 +18,7 @@ import '../../features/stock/stock_list_row_patch.dart'
     show
         kStockListPatchAtKey,
         serverRowNewerThanPatch,
+        shouldKeepStockPatchDespiteServerTimestamp,
         stockListPatchFromPhysicalCount,
         stockListPatchFromStockDetail;
 import 'app_period_provider.dart';
@@ -557,9 +558,27 @@ final stockListProvider = FutureProvider<Map<String, dynamic>>((ref) async {
       ref.read(stockOperationalFiltersProvider).purchasedInPeriodOnly;
 
   if (query.page == 1) {
-    final bundle = ref.watch(stockShellBundleProvider);
-    if (bundle.hasValue) {
-      final list = bundle.value?['list'];
+    final bundleAsync = ref.watch(stockShellBundleProvider);
+    if (bundleAsync.isLoading) {
+      try {
+        final bundle = await ref.read(stockShellBundleProvider.future);
+        final list = bundle['list'];
+        if (list is Map) {
+          final res = Map<String, dynamic>.from(list);
+          _writeStockListRamCache(
+            ref,
+            next: res,
+            query: query,
+            queryKey: queryKey,
+            res: res,
+          );
+          return res;
+        }
+      } catch (_) {
+        // Fall through to direct list fetch.
+      }
+    } else if (bundleAsync.hasValue) {
+      final list = bundleAsync.value?['list'];
       if (list is Map) {
         final res = Map<String, dynamic>.from(list);
         _writeStockListRamCache(
@@ -832,7 +851,10 @@ void reconcileStockListRowPatches(
     if (id == null || id.isEmpty) continue;
     final patch = patches[id];
     if (patch == null) continue;
-    if (serverRowNewerThanPatch(row, patch)) staleIds.add(id);
+    if (serverRowNewerThanPatch(row, patch) &&
+        !shouldKeepStockPatchDespiteServerTimestamp(row, patch)) {
+      staleIds.add(id);
+    }
   }
   if (staleIds.isNotEmpty) {
     clearStockListRowPatchesForIds(ref, staleIds);

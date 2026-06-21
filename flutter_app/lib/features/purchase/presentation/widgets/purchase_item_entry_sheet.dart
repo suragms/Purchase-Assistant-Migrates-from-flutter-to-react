@@ -128,7 +128,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
   final _kgPerBagKey = GlobalKey();
   final _taxKey = GlobalKey();
 
-  /// Discount / tax % / freight / notes â€” expanded when user opens or when save needs Tax %.
+  /// Discount / tax % / freight / notes —” expanded when user opens or when save needs Tax %.
   bool _moreSectionExpanded = false;
 
   /// Primary UX: [TaxMode.none] forces `tax_percent = 0` on save; other modes use item/catalog %.
@@ -167,7 +167,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
   /// Persisted catalog row id for the line (`catalog_item_id` on save).
   String? _selectedCatalogItemId;
 
-  /// When true: bag with kg snapshot â€” user enters landing & selling per kg.
+  /// When true: bag with kg snapshot —” user enters landing & selling per kg.
   bool _weightPricing = false;
 
   /// kg per bag (from `default_kg_per_bag` or saved line).
@@ -178,7 +178,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
   /// For bag lines: allow qty entry as **bags** or **kg** (converted to bags on save).
   String _qtyEntryMode = 'bags'; // 'bags' | 'kg'
 
-  /// For weight-bag â‚¹/kg economics: text fields hold **per kg** vs **per bag** amounts.
+  /// For weight-bag ₹/kg economics: text fields hold **per kg** vs **per bag** amounts.
   bool _rateFieldsPerKg = true;
 
   String? _errItem;
@@ -212,7 +212,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
   /// Short hint driven by [_activeClassification()] after catalog/name changes.
   String? _unitDetectHint;
 
-  /// Snapshot of text fields after init / reset â€” for unsaved-change guard (full-page).
+  /// Snapshot of text fields after init / reset —” for unsaved-change guard (full-page).
   Map<String, String>? _fieldBaseline;
 
   /// Indian grouping for weight line (display only).
@@ -226,9 +226,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     // Without this, selecting "Rice" then typing "Rice123" would silently save
     // the line against the Rice catalog id.
     if (_selectedCatalogItemId != null && _selectedCatalogItemId!.isNotEmpty) {
-      final row = _catalogRowById(_selectedCatalogItemId!);
-      final selectedLabel = (row?['name']?.toString() ?? '').trim();
-      if (_itemCtrl.text.trim() != selectedLabel) {
+      if (!_itemTextMatchesSelectedCatalog(_itemCtrl.text)) {
         setState(() {
           _catalogPickSeq++;
           _selectedCatalogItemId = null;
@@ -247,7 +245,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
 
   /// [Bug 2 fix] When unit is `bag` and the item label contains "NN KG"
   /// (e.g. "SUGAR 50 KG"), auto-populate `_kgPerUnit` and the kg-per-bag input
-  /// so 100 bags Ã— 50kg = 5000 kg renders correctly without a manual entry.
+  /// so 100 bags × 50kg = 5000 kg renders correctly without a manual entry.
   /// Catalog kg/bag (when present) wins over name parsing.
   void _maybeAutoSeedKgFromName() {
     if (_kgPerUnit != null && _kgPerUnit! > 0) return;
@@ -833,7 +831,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     );
   }
 
-  /// Weight bags: â‚¹/kg landing Ã— total kg purchased.
+  /// Weight bags: ₹/kg landing × total kg purchased.
   bool get _ratesPerKgEconomics {
     return _activeClassification().type == UnitType.weightBag &&
         _kgPer() != null &&
@@ -871,7 +869,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     });
   }
 
-  /// Landing field interpreted as **â‚¹/kg** for wire when [_ratesPerKgEconomics].
+  /// Landing field interpreted as **₹/kg** for wire when [_ratesPerKgEconomics].
   double? _landingParsedAsPerKg() {
     final raw = _parseD(_landingCtrl.text);
     if (raw == null) return null;
@@ -882,7 +880,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     return raw / k;
   }
 
-  /// Selling field interpreted as **â‚¹/kg** for wire when [_ratesPerKgEconomics].
+  /// Selling field interpreted as **₹/kg** for wire when [_ratesPerKgEconomics].
   double? _sellingParsedAsPerKg() {
     final raw = _parseD(_sellingCtrl.text);
     if (raw == null) return null;
@@ -1082,7 +1080,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
   String _qtyAndUnitWeightSummaryLine() {
     final q = _qtyVal();
     final u = _unitCtrl.text.trim();
-    if (q <= 0 || u.isEmpty) return 'â€”';
+    if (q <= 0 || u.isEmpty) return '—”';
     final c = _activeClassification();
 
     if (c.type == UnitType.multiPackBox) {
@@ -1093,7 +1091,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
         itemsPerBox: _parseD(_itemsPerBoxCtrl.text),
       );
       final boxWord = _capitalUnitWord('box');
-      return '$qtyTxt $boxWord â€¢ ${_inQtyWtFmt.format(items)} Items';
+      return '$qtyTxt $boxWord • ${_inQtyWtFmt.format(items)} Items';
     }
 
     final totalKg = _sheetPhysicalKgTotal();
@@ -1182,7 +1180,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
               child: Text(
                 '$kgTxt kg â†’ $bagsTxt ${_unitCtrl.text.trim()}'
                 '${needsWhole ? ' (needs whole bags)' : ''}'
-                '  Â·  $bagsTxt Ã— ${_fmtQty(k)} kg/bag = $totalKgTxt kg',
+                '  ·  $bagsTxt × ${_fmtQty(k)} kg/bag = $totalKgTxt kg',
                 style: theme.textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: needsWhole
@@ -1411,11 +1409,10 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
       final blob = _catalogSearchBlob(row);
       final sub = _catalogSearchSuggestionSubtitle(row).trim();
       final name = row['name']?.toString() ?? '';
-      final chip = _catalogUnitChipLabel(row);
       out.add(
         InlineSearchItem(
           id: row['id']?.toString() ?? '',
-          label: name.isEmpty ? name : '$name Â· $chip',
+          label: name.isEmpty ? name : _catalogSearchLabelForRow(row),
           subtitle: sub.isEmpty ? null : sub,
           searchText: blob.isEmpty ? null : blob,
           sortBoost: boost,
@@ -1651,7 +1648,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     );
   }
 
-  /// Bag qty Ã— kg/bag implies a huge total â€” user may have meant **kg** as the unit.
+  /// Bag qty × kg/bag implies a huge total —” user may have meant **kg** as the unit.
   Widget? _didYouMeanKgNotBagsBanner() {
     final u = _unitCtrl.text.trim().toLowerCase();
     if (u != 'bag' && u != 'sack') return null;
@@ -1672,7 +1669,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
           children: [
             Expanded(
               child: Text(
-                'Did you mean ${_inQtyWtFmt.format(q)} kg (not ${_inQtyWtFmt.format(q)} bags Ã— ${_fmtQty(k)} kg)?',
+                'Did you mean ${_inQtyWtFmt.format(q)} kg (not ${_inQtyWtFmt.format(q)} bags × ${_fmtQty(k)} kg)?',
                 style: theme.textTheme.bodySmall?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: const Color(0xFF9A3412),
@@ -1699,7 +1696,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     );
   }
 
-  /// Catalog saved as loose kg but name/weight imply bag â€” link to item edit.
+  /// Catalog saved as loose kg but name/weight imply bag —” link to item edit.
   Widget? _catalogLooseKgMisconfigFixBanner() {
     final id = _selectedCatalogItemId?.trim();
     if (id == null || id.isEmpty) return null;
@@ -1741,7 +1738,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     );
   }
 
-  /// Name encodes a weight bag but unit is kg â€” qty is **kg**, not bag count.
+  /// Name encodes a weight bag but unit is kg —” qty is **kg**, not bag count.
   Widget? _nameImpliesBagButKgUnitBanner() {
     final c = _activeClassification();
     if (c.type != UnitType.weightBag ||
@@ -1761,7 +1758,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         child: Text(
-          'Name looks like a $knLabel kg/bag item â€” quantity is in **kg**, not bags. Switch unit to bag to count bags.',
+          'Name looks like a $knLabel kg/bag item —” quantity is in **kg**, not bags. Switch unit to bag to count bags.',
           style: theme.textTheme.bodySmall?.copyWith(
             fontWeight: FontWeight.w700,
             color: const Color(0xFF065F46),
@@ -1772,7 +1769,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     );
   }
 
-  /// Selling stored per line unit on the wire; weight mode: multiply per-kg Ã— kg_per_unit.
+  /// Selling stored per line unit on the wire; weight mode: multiply per-kg × kg_per_unit.
   /// Call only after validation; [sell] must be non-null and >= 0.
   double _sellingForPayloadForWire(double sell) {
     if (_ratesPerKgEconomics) {
@@ -1922,7 +1919,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     }
     if (_ratesPerKgEconomics) m['purchase_rate'] = m['landing_cost'];
     final unitLow = unit.toLowerCase();
-    // [Bug 1 fix] Default wholesale mode: BOX/TIN are count-only â€” never write
+    // [Bug 1 fix] Default wholesale mode: BOX/TIN are count-only —” never write
     // weight fields, items_per_box, kg_per_box, weight_per_tin, or
     // weight_per_unit. The advanced inventory escape hatch is intentionally
     // off (_advancedInventoryEnabled = false in master rebuild).
@@ -2109,9 +2106,9 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     }
     final sfx = unit_lbl.purchaseRateSuffix(_draftLineForLabelsOnly());
     if (widget.fullPage) {
-      return 'Purchase Rate (â‚¹/$sfx) *';
+      return 'Purchase Rate (₹/$sfx) *';
     }
-    return 'Landing cost (â‚¹/$sfx) *';
+    return 'Landing cost (₹/$sfx) *';
   }
 
   String _sellingRateLabel(bool _) {
@@ -2122,9 +2119,9 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     }
     final sfx = unit_lbl.sellingRateSuffix(_draftLineForLabelsOnly());
     if (widget.fullPage) {
-      return 'Selling rate (optional) (â‚¹/$sfx)';
+      return 'Selling rate (optional) (₹/$sfx)';
     }
-    return 'Selling rate (optional) (â‚¹/$sfx)';
+    return 'Selling rate (optional) (₹/$sfx)';
   }
 
   String _catalogUnitChipLabel(Map<String, dynamic> row) {
@@ -2145,6 +2142,34 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
       }
     }
     return 'Kg';
+  }
+
+  static const _kCatalogLabelSep = ' · ';
+
+  String _catalogSearchLabelForRow(Map<String, dynamic> row) {
+    final name = row['name']?.toString().trim() ?? '';
+    if (name.isEmpty) return name;
+    final chip = _catalogUnitChipLabel(row);
+    return chip.isEmpty ? name : '$name$_kCatalogLabelSep$chip';
+  }
+
+  String _catalogNameFromPickerLabel(String label) {
+    final t = label.trim();
+    final i = t.lastIndexOf(_kCatalogLabelSep);
+    if (i > 0) return t.substring(0, i).trim();
+    return t;
+  }
+
+  bool _itemTextMatchesSelectedCatalog(String text) {
+    if (_selectedCatalogItemId == null || _selectedCatalogItemId!.isEmpty) {
+      return false;
+    }
+    final row = _catalogRowById(_selectedCatalogItemId!);
+    if (row == null) return false;
+    final t = text.trim();
+    final name = (row['name']?.toString() ?? '').trim();
+    if (t == name) return true;
+    return t == _catalogSearchLabelForRow(row);
   }
 
   String _catalogSearchSuggestionSubtitle(Map<String, dynamic> row) {
@@ -2171,9 +2196,9 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
       headParts.add('Stock ${stockDisplayPrimary(stockQty, unit ?? '')}');
     }
     if (price != null && price > 0) {
-      headParts.add('Last buy â‚¹${_fmtMoney(price)}');
+      headParts.add('Last buy ₹${_fmtMoney(price)}');
     }
-    if (headParts.isNotEmpty) lines.add(headParts.join(' Â· '));
+    if (headParts.isNotEmpty) lines.add(headParts.join(' · '));
 
     final rawDate = row['last_purchase_date']?.toString();
     DateTime? pd;
@@ -2187,7 +2212,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
           : days == 1
               ? 'yesterday'
               : '$days days ago';
-      lines.add('Last buy ${DateFormat('d MMM yyyy').format(pd)} Â· $ago');
+      lines.add('Last buy ${DateFormat('d MMM yyyy').format(pd)} · $ago');
     }
 
     final del = row['last_purchase_delivered'];
@@ -2255,7 +2280,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
 
   /// Picks line unit: when the item has a bag weight but purchase unit is
   /// `kg` in the catalog, prefer the physical [default_unit] (bag) so
-  /// per-kg Ã— kg/bag math applies.
+  /// per-kg × kg/bag math applies.
   String _lineUnitForCatalog(
     Map<String, dynamic> row, {
     required double? kpbD,
@@ -2533,7 +2558,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     );
   }
 
-  /// Seeds â‚¹/kg + bag totals from catalog default landing/selling vs [kg].
+  /// Seeds ₹/kg + bag totals from catalog default landing/selling vs [kg].
   void _applyBagKgFromCatalog(Map<String, dynamic> row, double kg) {
     _weightPricing = true;
     _kgPerUnit = kg;
@@ -2560,7 +2585,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     }
   }
 
-  /// Per-line-unit rates from catalog when not using bag â‚¹/kg snapshot.
+  /// Per-line-unit rates from catalog when not using bag ₹/kg snapshot.
   void _applyFlatUnitFromCatalog(Map<String, dynamic> row) {
     _clearKgIfNotDerivedFromName();
     var rate = 0.0;
@@ -2577,7 +2602,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     }
   }
 
-  /// Applies [row] only â€” no merge with a prior line (call after fresh fetch or list row).
+  /// Applies [row] only — no merge with a prior line (call after fresh fetch or list row).
   void _applyCatalogRowToLineState(
     Map<String, dynamic> row, {
     required String catalogId,
@@ -2687,15 +2712,15 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     final pr = _numD(d['purchase_rate'] ?? d['landing_cost']);
     final buf = StringBuffer('Filled from last purchase');
     if (pr != null && pr > 0) {
-      buf.write(' Â· rate â‚¹');
+      buf.write(' · rate ₹');
       buf.write(pr.toStringAsFixed(2));
     }
     if (supplier != null && supplier.isNotEmpty) {
-      buf.write(' Â· ');
+      buf.write(' · ');
       buf.write(supplier);
     }
     if (dateShort != null && dateShort.isNotEmpty) {
-      buf.write(' Â· ');
+      buf.write(' · ');
       buf.write(dateShort);
     }
     buf.write('.');
@@ -2891,14 +2916,17 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     }
 
     final seq = ++_catalogPickSeq;
+    final nameOnly = _catalogNameFromPickerLabel(it.label);
 
-    // Id + visible label committed before catalog resolve/network.
+    // Id + catalog name committed before catalog resolve/network.
     if (mounted) {
       setState(() {
         _selectedCatalogItemId = it.id;
         _itemCtrl.value = TextEditingValue(
-          text: it.label,
-          selection: TextSelection.collapsed(offset: it.label.length),
+          text: nameOnly.isNotEmpty ? nameOnly : it.label,
+          selection: TextSelection.collapsed(
+            offset: (nameOnly.isNotEmpty ? nameOnly : it.label).length,
+          ),
         );
         _errItem = null;
       });
@@ -2937,7 +2965,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
 
       setState(() {
         _selectedCatalogItemId = it.id;
-        _itemCtrl.text = it.label;
+        _itemCtrl.text = nameOnly.isNotEmpty ? nameOnly : it.label;
         _lastPurchaseAutofillHint = null;
         _errItem = null;
         _hsnCode = null;
@@ -3017,7 +3045,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
       final fv = _parseD(_freightCtrl.text) ?? 0;
       if (_freightType == 'included' && fv > 1e-9) {
         out.add(
-          'Freight is set to Included â€” the freight value may not add to the line total. Use Separate if you need to add it.',
+          'Freight is set to Included —” the freight value may not add to the line total. Use Separate if you need to add it.',
         );
       }
     }
@@ -3031,7 +3059,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
       final threshold = math.max(50.0, lm * 0.01);
       if (profit < threshold) {
         out.add(
-          'Profit looks unusually low after tax and charges â€” check Tax % and rates.',
+          'Profit looks unusually low after tax and charges —” check Tax % and rates.',
         );
       }
     }
@@ -3129,14 +3157,14 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
                 children: [
                   SheetMetric(
                     label: 'TAX',
-                    value: gst > 1e-6 ? formatRupee(gst, decimals: true) : 'â€”',
+                    value: gst > 1e-6 ? formatRupee(gst, decimals: true) : '—”',
                     color: const Color(0xFF64748B),
                   ),
                   SheetMetric(
                     label: 'PROFIT',
                     value: sell != null && sell > 0
                         ? formatRupee(profit, decimals: true)
-                        : 'â€”',
+                        : '—”',
                     color: (profit >= 0)
                         ? const Color(0xFF10B981)
                         : const Color(0xFFEF4444),
@@ -3191,7 +3219,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
               Expanded(
                 child: Text(
                   addQty > 0
-                      ? 'Stock now ${_fmtQty(cur)} $unit Â· after purchase ~${_fmtQty(after)} $unit'
+                      ? 'Stock now ${_fmtQty(cur)} $unit · after purchase ~${_fmtQty(after)} $unit'
                       : 'Stock now ${_fmtQty(cur)} $unit',
                   style: const TextStyle(
                     fontSize: 12,
@@ -3243,7 +3271,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
     final showManualKgField =
         cRow.type == UnitType.weightBag && !_hasCatalogKg();
     final unitLow = _unitCtrl.text.trim().toLowerCase();
-    // Compact, stable fields â€” Tally-style density.
+    // Compact, stable fields —” Tally-style density.
     final sheetTheme = theme.copyWith(visualDensity: VisualDensity.compact);
 
     const teal = Color(0xFF17A8A7);
@@ -3277,8 +3305,8 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
               border: Border.all(color: const Color(0xFF99F6E4)),
             ),
             child: Text(
-              'Live preview Â· Net ${formatRupee(net, decimals: true)} Â· '
-              'GST ${formatRupee(tax, decimals: true)} Â· '
+              'Live preview · Net ${formatRupee(net, decimals: true)} · '
+              'GST ${formatRupee(tax, decimals: true)} · '
               'Line total ${formatRupee(tot, decimals: true)}',
               style: const TextStyle(
                 fontSize: 12,
@@ -3334,7 +3362,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
                   focusNode: _itemFocus,
                   focusAfterSelection: _qtyFocus,
                   debugLabel: 'catalogItem',
-                  hintText: 'Search item (name, code, HSN)â€¦',
+                  hintText: 'Search item (name, code, HSN)…',
                   hintStyle: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -3353,7 +3381,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
                   onSubmitted: () =>
                       FocusScope.of(context).requestFocus(_qtyFocus),
                   showAddRow: widget.navigateCatalogQuickAddItem != null,
-                  addRowLabel: 'New catalog itemâ€¦',
+                  addRowLabel: 'New catalog item…',
                   onAddRow: widget.navigateCatalogQuickAddItem == null
                       ? null
                       : () async {
@@ -3494,7 +3522,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Unit, bags vs kg, and quantity â€” tap to edit',
+                      tooltip: 'Unit, bags vs kg, and quantity —” tap to edit',
                       icon: const Icon(Icons.swap_vert_outlined, size: 22),
                       visualDensity: VisualDensity.compact,
                       onPressed: _focusQtyUnitEntry,
@@ -3572,7 +3600,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Unit, bags vs kg, and quantity â€” tap to edit',
+                    tooltip: 'Unit, bags vs kg, and quantity —” tap to edit',
                     icon: const Icon(Icons.swap_vert_outlined, size: 22),
                     visualDensity: VisualDensity.compact,
                     onPressed: _focusQtyUnitEntry,
@@ -4292,7 +4320,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
                         color: Color(0xFF0F172A))),
                 Row(
                   children: [
-                    Text('PROFIT: ${s != null && s > 0 ? formatRupee(p) : "â€”"}',
+                    Text('PROFIT: ${s != null && s > 0 ? formatRupee(p) : "—”"}',
                         style: TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w800,
@@ -4306,7 +4334,7 @@ class _PurchaseItemEntrySheetState extends ConsumerState<PurchaseItemEntrySheet>
                               .toDouble();
                       final tax = lineTaxAmount(l, taxMode: _taxMode);
                       return Text(
-                        'NET ${formatRupee(taxable)} Â· TAX ${formatRupee(tax)}',
+                        'NET ${formatRupee(taxable)} · TAX ${formatRupee(tax)}',
                         style: const TextStyle(
                             fontSize: 9,
                             fontWeight: FontWeight.w800,

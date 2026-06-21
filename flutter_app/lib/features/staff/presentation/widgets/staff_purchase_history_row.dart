@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../core/models/trade_purchase_models.dart';
 import '../../../../core/theme/hexa_colors.dart';
@@ -22,8 +21,8 @@ class StaffPurchaseHistoryRow extends StatelessWidget {
     final sup = (purchase.supplierName ?? 'Supplier').toUpperCase();
     final headline = purchaseHistoryItemHeadline(purchase);
     final pack = purchaseHistoryPackSummary(purchase);
-    final df = DateFormat('d MMM yyyy');
     final st = purchase.statusEnum;
+    final broker = (purchase.brokerName ?? '').trim();
 
     return Material(
       color: Colors.white,
@@ -51,37 +50,31 @@ class StaffPurchaseHistoryRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 2),
-              Text(
-                headline,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF1E293B),
-                  fontWeight: FontWeight.w700,
+              if (headline.isNotEmpty)
+                Text(
+                  headline,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF1E293B),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
+              if (headline.isNotEmpty) const SizedBox(height: 4),
               Row(
                 children: [
-                  Text(
-                    pack,
-                    style: const TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0D9488),
+                  if (pack.isNotEmpty) ...[
+                    Text(
+                      pack,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0D9488),
+                      ),
                     ),
-                  ),
-                  const _Dot(),
-                  Text(
-                    df.format(purchase.purchaseDate),
-                    style: const TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF64748B),
-                    ),
-                  ),
-                  const _Dot(),
+                    const _Dot(),
+                  ],
                   Text(
                     purchase.humanId,
                     style: const TextStyle(
@@ -90,6 +83,19 @@ class StaffPurchaseHistoryRow extends StatelessWidget {
                       color: Color(0xFF64748B),
                     ),
                   ),
+                  if (broker.isNotEmpty) ...[
+                    const _Dot(),
+                    Text(
+                      broker,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                  ],
                 ],
               ),
               const SizedBox(height: 6),

@@ -47,10 +47,10 @@ class _ShellTabAutoRefreshListenerState
         }
       case ShellBranch.stock:
         final stockFetched = ref.read(stockListLastFetchedAtProvider);
-        if (reason != 'remote' &&
-            stockFetched != null &&
+        if (stockFetched != null &&
             now.difference(stockFetched) < kStockListCacheTtl) {
-          return;
+          if (reason != 'remote') return;
+          if (ref.read(stockListRowPatchProvider).isNotEmpty) return;
         }
       case ShellBranch.reports:
         if (reason != 'remote' &&

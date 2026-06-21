@@ -378,14 +378,19 @@ String purchaseHistoryPackSummary(TradePurchase p) {
   if (t.tins > 1e-6) {
     parts.add(formatPackagedQty(unit: 'tin', pieces: t.tins));
   }
-  if (parts.isEmpty) return '—';
+  if (parts.isEmpty) return '';
   return parts.join(' • ');
 }
 
 String purchaseHistoryItemHeadline(TradePurchase p) {
-  if (p.lines.isEmpty) return '—';
-  if (p.lines.length == 1) return p.lines.first.itemName;
-  return '${p.lines.length} items';
+  if (p.lines.isNotEmpty) {
+    if (p.lines.length == 1) return p.lines.first.itemName;
+    return '${p.lines.length} items';
+  }
+  if (p.itemsCount > 0) {
+    return p.itemsCount == 1 ? '1 item' : '${p.itemsCount} items';
+  }
+  return '';
 }
 
 /// Calendar-month aggregates for the history header strip (kg = bags + loose kg only).

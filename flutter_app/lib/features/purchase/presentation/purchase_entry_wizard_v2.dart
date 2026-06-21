@@ -281,7 +281,10 @@ class _PurchaseEntryWizardV2State extends ConsumerState<PurchaseEntryWizardV2>
       _syncControllersFromDraft();
       Future.microtask(() {
         if (!mounted) return;
-        ref.invalidate(catalogItemsListProvider);
+        final catalog = ref.read(catalogItemsListProvider);
+        if (!catalog.hasValue) {
+          unawaited(ref.read(catalogItemsListProvider.future));
+        }
       });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         // Removed redundant MaterialBanner prompt — user has home page banner

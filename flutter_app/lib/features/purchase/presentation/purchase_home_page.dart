@@ -2740,6 +2740,7 @@ class _PurchaseRow extends StatelessWidget {
     final supp = p.supplierName ?? p.supplierId?.toString() ?? '—';
     final headline = purchaseHistoryItemHeadline(p);
     final pack = purchaseHistoryPackSummary(p);
+    final broker = (p.brokerName ?? '').trim();
     final daysChip = _purchaseHistoryDaysChip(p);
     final agingBand = undeliveredAgingBandForPurchase(p);
     final ds = p.deliveryStatusEnum;
@@ -2750,7 +2751,7 @@ class _PurchaseRow extends StatelessWidget {
       onLongPress: onLongPress,
       borderRadius: BorderRadius.circular(0),
       child: Container(
-        constraints: const BoxConstraints(minHeight: 80),
+        constraints: const BoxConstraints(minHeight: 64),
         decoration: deliveryStatusRowDecoration(
           deliveryStatus: ds,
           background: listHighlighted
@@ -2802,34 +2803,38 @@ class _PurchaseRow extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    headline,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Color(0xFF1E293B),
-                      fontWeight: FontWeight.w700,
+                  if (headline.isNotEmpty)
+                    Text(
+                      headline,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF1E293B),
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
+                  if (headline.isNotEmpty) const SizedBox(height: 4),
                   Row(
                     children: [
-                      Text(
-                        pack,
-                        style: const TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF0D9488),
-                          letterSpacing: 0.1,
+                      if (pack.isNotEmpty) ...[
+                        Text(
+                          pack,
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF0D9488),
+                            letterSpacing: 0.1,
+                          ),
                         ),
-                      ),
-                      const _Dot(),
-                      _CompactDetailLabel(
-                        label: formatPurchaseHumanDate(p.purchaseDate),
-                      ),
-                      const _Dot(),
-                      _CompactDetailLabel(label: p.humanId),
+                        const _Dot(),
+                      ],
+                      if (p.humanId.isNotEmpty)
+                        _CompactDetailLabel(label: p.humanId),
+                      if (broker.isNotEmpty) ...[
+                        const _Dot(),
+                        _CompactDetailLabel(label: broker),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 6),
