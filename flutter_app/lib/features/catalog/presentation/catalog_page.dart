@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/auth/auth_error_messages.dart';
 import '../../../core/auth/session_notifier.dart';
+import '../../../core/providers/catalog_providers.dart';
 import '../../../core/router/navigation_ext.dart';
 import '../catalog_taxonomy_utils.dart';
 import '../../../core/search/catalog_fuzzy.dart';
