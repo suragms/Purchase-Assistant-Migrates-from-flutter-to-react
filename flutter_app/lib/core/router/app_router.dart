@@ -53,14 +53,12 @@ import '../../features/purchase/domain/purchase_draft.dart';
 import '../../features/purchase/presentation/purchase_detail_page.dart';
 import '../../features/purchase/presentation/purchase_home_page.dart';
 import '../../features/purchase/presentation/purchase_entry_wizard_v2.dart';
-import '../../features/reports/presentation/reports_category_drill_page.dart';
-import '../../features/reports/presentation/reports_subcategory_drill_page.dart';
 import '../../features/notifications/presentation/notifications_page.dart';
 import '../../features/settings/presentation/business_profile_page.dart';
 import '../../features/settings/presentation/settings_page.dart';
 import '../../features/settings/presentation/user_management_page.dart';
 import '../../features/settings/presentation/user_profile_page.dart';
-import '../../features/staff/presentation/staff_dashboard_page.dart';
+import '../../features/staff/presentation/staff_home_page.dart';
 import '../../features/settings/presentation/backup_page.dart';
 import '../../features/settings/presentation/help_guide_page.dart';
 import '../../features/search/presentation/search_page.dart';
@@ -984,40 +982,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         redirect: (_, __) => '/reports?tab=stock&section=slow',
       ),
       GoRoute(
-        path: '/reports/category-drill',
-        name: 'reports_category_drill',
-        pageBuilder: (context, state) {
-          final extra = state.extra;
-          if (extra is ReportsCategoryDrillPage) {
-            return iosPushPage(key: state.pageKey, child: extra);
-          }
-          final name = Uri.decodeComponent(
-            state.uri.queryParameters['name'] ?? 'Category',
-          );
-          return iosPushPage(
-            key: state.pageKey,
-            child: ReportsCategoryDrillPage(categoryName: name),
-          );
-        },
-      ),
-      GoRoute(
-        path: '/reports/subcategory-drill',
-        name: 'reports_subcategory_drill',
-        pageBuilder: (context, state) {
-          final extra = state.extra;
-          if (extra is ReportsSubcategoryDrillPage) {
-            return iosPushPage(key: state.pageKey, child: extra);
-          }
-          final name = Uri.decodeComponent(
-            state.uri.queryParameters['name'] ?? 'Subcategory',
-          );
-          return iosPushPage(
-            key: state.pageKey,
-            child: ReportsSubcategoryDrillPage(subcategoryName: name),
-          );
-        },
-      ),
-      GoRoute(
         path: '/reports/item/:catalogItemId',
         name: 'reports_item_bi',
         pageBuilder: (context, state) {
@@ -1208,7 +1172,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   title: 'Staff home could not load',
                   fallbackRoute: '/login',
                   shellBranchIndex: StaffShellBranch.home,
-                  child: const StaffDashboardPage(),
+                  child: const StaffHomePage(),
                 ),
               ),
             ],
