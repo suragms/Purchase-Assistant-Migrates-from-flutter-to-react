@@ -10,14 +10,12 @@ import '../../../../core/providers/home_owner_dashboard_providers.dart'
     show
         homeLowStockAttentionCountProvider,
         homePendingDeliveryCountProvider,
-        homeStaffReorderRequestCountProvider,
-        stockVariancesTodayProvider;
+        homeStaffReorderRequestCountProvider;
 import '../../../../core/providers/notification_center_provider.dart'
     show homeWarehouseAlertsProvider, notificationCenterCoordinatorProvider;
 import '../../../../core/providers/warehouse_alerts_provider.dart'
     show WarehouseAlerts;
 import '../../../../core/theme/hexa_colors.dart';
-import 'home_formatters.dart';
 
 /// Single-row operational status: sync, refresh time, alerts, deliveries.
 class HomeLiveStatusBar extends ConsumerWidget {
@@ -34,103 +32,90 @@ class HomeLiveStatusBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final attention = ref.watch(homeLowStockAttentionCountProvider);
-    final pendingDel = ref.watch(homePendingDeliveryCountProvider);
-    final reorderN = ref.watch(homeStaffReorderRequestCountProvider);
-    final warehouse = ref.watch(homeWarehouseAlertsProvider);
-
     if (!isOwner) return const SizedBox.shrink();
 
-    final mismatchN =
-        warehouse?.pendingVerifications ??
-        ref.watch(stockVariancesTodayProvider).valueOrNull?.length ??
-        0;
-    final ago = homeRefreshAgo(lastRefreshedAt);
+    final syncColor = offline ? const Color(0xFFC62828) : HexaColors.profit;
+    final syncLabel = offline ? 'Offline' : 'Synced';
 
-    final attentionLabel = attention == 1
-        ? '1 need attention'
-        : '$attention need attention';
-
-    final statusLine = offline
-        ? 'OFFLINE • Showing cached data • Last synced $ago'
-        : 'LIVE • Updated $ago • $attentionLabel • $pendingDel pending delivery'
-            '${mismatchN > 0 ? ' • $mismatchN stock mismatch' : ''}'
-            '${reorderN > 0 ? ' • $reorderN staff requests' : ''}';
-
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
+    return Container(
+      height: 36,
+      decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(10),
-        onTap: () {
-          ref.read(homeLowStockDetailFetchEnabledProvider.notifier).state = true;
-          ref.invalidate(homeDashboardDataProvider);
-          ref.invalidate(notificationCenterCoordinatorProvider);
-          _showHealthCenter(context);
-        },
-        child: Container(
-          height: 36,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFE2E8F0)),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                offline ? Icons.cloud_off_outlined : Icons.cloud_done_outlined,
-                size: 16,
-                color: offline ? const Color(0xFFC62828) : HexaColors.profit,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  statusLine,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: HexaDsType.bodySm(context).copyWith(
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () {
+            ref.read(homeLowStockDetailFetchEnabledProvider.notifier).state = true;
+            ref.invalidate(homeDashboardDataProvider);
+            ref.invalidate(notificationCenterCoordinatorProvider);
+            _showHealthCenter(context);
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                // 1. Cloud Sync Status Icon & Label
+                Icon(
+                  offline ? Icons.cloud_off_outlined : Icons.cloud_done_outlined,
+                  size: 16,
+                  color: syncColor,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Cloud Sync Status',
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: HexaDsColors.textPrimary,
+                    color: Color(0xFF64748B),
                   ),
                 ),
-              ),
-              if (attention > 0 || pendingDel > 0 || reorderN > 0) ...[
-                const SizedBox(width: 6),
-                _miniPill(
-                  attention,
-                  attention > 0 ? const Color(0xFFDC2626) : const Color(0xFF94A3B8),
-                ),
-                if (pendingDel > 0) ...[
-                  const SizedBox(width: 4),
-                  _miniPill(pendingDel, const Color(0xFFEA580C)),
-                ],
-                if (reorderN > 0) ...[
-                  const SizedBox(width: 4),
-                  _miniPill(reorderN, const Color(0xFF7C3AED)),
-                ],
-              ],
-              const Icon(Icons.chevron_right_rounded, size: 18),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+                const SizedBox(width: 8),
 
-  Widget _miniPill(int n, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        n > 99 ? '99+' : '$n',
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
+                // 2. Status Chip
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: syncColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    syncLabel,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: syncColor,
+                    ),
+                  ),
+                ),
+
+                const Spacer(),
+
+                // 3. Retry Button
+                TextButton.icon(
+                  onPressed: () {
+                    ref.read(homeLowStockDetailFetchEnabledProvider.notifier).state = true;
+                    ref.invalidate(homeDashboardDataProvider);
+                    ref.invalidate(notificationCenterCoordinatorProvider);
+                  },
+                  icon: const Icon(Icons.refresh_rounded, size: 14),
+                  label: const Text(
+                    'Retry',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

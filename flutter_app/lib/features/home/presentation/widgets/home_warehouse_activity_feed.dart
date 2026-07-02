@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../core/design_system/hexa_ds_tokens.dart';
-import '../../../../core/design_system/hexa_operational_tokens.dart';
 import '../../../../core/providers/home_dashboard_provider.dart';
 import '../../../../core/providers/home_owner_dashboard_providers.dart';
-import '../../../../shared/widgets/hexa_empty_state.dart';
 import '../../../../shared/widgets/operational_ui.dart';
 import 'home_recent_changes_section.dart' show HomeSectionSkeleton;
 import 'home_warehouse_activity_row.dart';
@@ -68,13 +65,60 @@ class _HomeWarehouseActivityFeedState
       ),
       data: (items) {
         if (items.isEmpty) {
-          return OperationalSection(
-            title: title,
-            dense: true,
-            child: HexaEmptyState(
-              icon: Icons.history_rounded,
-              title: 'No activity in this period',
-              subtitle: 'Stock updates and purchases will appear here.',
+          return Card(
+            margin: EdgeInsets.zero,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(20), // Card padding: 20
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 18, // Section Titles: 18 Bold
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.history_rounded,
+                          size: 40,
+                          color: const Color(0xFF94A3B8).withValues(alpha: 0.5),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No activity in this period',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF475569),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Stock updates and purchases will appear here.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
           );
         }
@@ -84,49 +128,89 @@ class _HomeWarehouseActivityFeedState
 
         return Card(
           margin: EdgeInsets.zero,
+          elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Color(0xFFE2E8F0), width: 1),
           ),
-          child: Column(
-            children: [
-              ListTile(
-                title: Text(title, style: HexaOp.cardTitle(context)),
-                subtitle: Text(
-                  '${items.length} events in period',
-                  style: HexaDsType.label(11, color: HexaDsColors.textMuted),
-                ),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
+          child: Padding(
+            padding: const EdgeInsets.all(20), // Card padding: 20
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    TextButton(
-                      onPressed: _openFullPage,
-                      child: const Text('View all', style: TextStyle(fontSize: 12)),
-                    ),
-                    if (items.length > cap)
-                      IconButton(
-                        icon: Icon(
-                          _expanded
-                              ? Icons.expand_less_rounded
-                              : Icons.expand_more_rounded,
-                        ),
-                        onPressed: () =>
-                            setState(() => _expanded = !_expanded),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 18, // Section Titles: 18 Bold
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${items.length} events in period',
+                            style: const TextStyle(
+                              fontSize: 12, // Subtitle: 12
+                              color: Color(0xFF94A3B8),
+                            ),
+                          ),
+                        ],
                       ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton(
+                          onPressed: _openFullPage,
+                          child: const Text(
+                            'View all',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        if (items.length > cap)
+                          IconButton(
+                            icon: Icon(
+                              _expanded
+                                  ? Icons.expand_less_rounded
+                                  : Icons.expand_more_rounded,
+                            ),
+                            onPressed: () =>
+                                setState(() => _expanded = !_expanded),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
-              ),
-              const Divider(height: 1),
-              for (var i = 0; i < visible.length; i++) ...[
-                WarehouseActivityCompactRow(item: visible[i]),
-                if (i < visible.length - 1)
-                  const Divider(height: 1, indent: 12, endIndent: 12),
+                const SizedBox(height: 16),
+                for (var i = 0; i < visible.length; i++) ...[
+                  WarehouseActivityCompactRow(item: visible[i]),
+                  if (i < visible.length - 1) ...[
+                    const SizedBox(height: 8),
+                    const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                    const SizedBox(height: 8),
+                  ],
+                ],
+                if (!_expanded && items.length > cap) ...[
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: _openFullPage,
+                    child: Text(
+                      'Show ${items.length - cap} more',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
               ],
-              if (!_expanded && items.length > cap)
-                TextButton(
-                  onPressed: _openFullPage,
-                  child: Text('Show ${items.length - cap} more'),
-                ),
-            ],
+            ),
           ),
         );
       },

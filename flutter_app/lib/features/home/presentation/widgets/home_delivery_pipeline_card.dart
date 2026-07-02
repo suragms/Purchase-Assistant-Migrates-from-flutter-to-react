@@ -61,7 +61,7 @@ class HomeDeliveryPipelineCard extends ConsumerWidget {
             borderRadius: BorderRadius.circular(16),
             onTap: () => context.go('/purchase?filter=pending_delivery'),
             child: Padding(
-              padding: const EdgeInsets.all(HexaOp.cardPadding),
+              padding: const EdgeInsets.all(20), // Increased internal padding to 20
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -77,24 +77,25 @@ class HomeDeliveryPipelineCard extends ConsumerWidget {
                         child: Text(
                           'Delivery pipeline',
                           style: TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18, // Section Title: 18 Bold
+                            color: Color(0xFF0F172A),
                           ),
                         ),
                       ),
                       const Icon(Icons.chevron_right_rounded, size: 22),
                     ],
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 8), // Spacing: 8
                   Text(
                     'Not yet in system stock until staff verify and commit',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 12, // Subtitle: 12
                       fontWeight: FontWeight.w600,
                       color: HexaColors.brandPrimary.withValues(alpha: 0.7),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 16), // Spacing: 16
                   if (dispatched > 0)
                     _line(
                       context,

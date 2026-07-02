@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/hexa_colors.dart';
+import '../../../../core/design_system/hexa_responsive.dart';
 import '../../../../core/widgets/hexa_count_badge.dart';
 
 /// Owner dashboard quick actions (2×4 grid, ~56dp tiles).
@@ -44,29 +45,37 @@ class HomeOwnerQuickActions extends StatelessWidget {
       _Spec('Daily log', Icons.history_rounded, const Color(0xFF0D9488), onDailyLog),
     ];
 
-    final cols = MediaQuery.sizeOf(context).width < 360 ? 3 : 4;
+    final width = MediaQuery.sizeOf(context).width;
+    final cols = width < 360 ? 2 : 4;
+    const double spacing = 8.0;
+    final double gutter = HexaResponsive.pageGutter(context, operational: true);
+    
+    final double itemWidth = (width - (gutter * 2) - ((cols - 1) * spacing)) / cols;
+    final childAspectRatio = itemWidth / 72.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
+        const Text(
           'Tools',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+          style: TextStyle(
+            fontSize: 18, // Section Titles: 18 Bold
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF0F172A),
+          ),
         ),
         const SizedBox(height: 8),
         GridView.count(
-      crossAxisCount: cols,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      childAspectRatio: cols == 3 ? 1.1 : 1.35,
-      children: [
-        for (final a in actions) _Tile(spec: a),
-      ],
-    ),
+          crossAxisCount: cols,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: spacing,
+          crossAxisSpacing: spacing,
+          childAspectRatio: childAspectRatio,
+          children: [
+            for (final a in actions) _Tile(spec: a),
+          ],
+        ),
       ],
     );
   }
@@ -98,22 +107,26 @@ class _Tile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               HexaCountBadge(
                 count: badge,
                 maxDisplay: 999,
-                child: Icon(spec.icon, color: spec.color, size: 22),
+                child: Icon(spec.icon, color: spec.color, size: 20),
               ),
               const SizedBox(height: 4),
-              Text(
-                spec.label,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  color: spec.color,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: Text(
+                  spec.label,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: spec.color,
+                  ),
                 ),
               ),
             ],

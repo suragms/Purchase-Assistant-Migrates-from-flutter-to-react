@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
@@ -11,7 +10,6 @@ import '../../core/providers/notification_center_provider.dart'
 import '../../core/providers/notifications_provider.dart'
     show notificationsUnreadCountProvider;
 import '../../core/design_system/hexa_ds_tokens.dart';
-import '../../core/design_system/hexa_operational_tokens.dart';
 import '../../core/auth/session_notifier.dart';
 import '../../core/auth/provider_api_guard.dart';
 import '../../core/router/navigation_ext.dart';
@@ -309,105 +307,85 @@ class _ShellBottomBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final bottomPad =
-        8.0 + math.max(8.0, MediaQuery.viewPaddingOf(context).bottom);
-    return Padding(
-      padding: EdgeInsets.fromLTRB(10, 0, 10, bottomPad),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Material(
-            elevation: 8,
-            shadowColor: Colors.black26,
-            color: cs.surface.withValues(alpha: 0.90),
-            child: SafeArea(
-              top: false,
+    
+    return SafeArea(
+      top: false,
+      bottom: true,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+            child: Material(
+              elevation: 8,
+              shadowColor: Colors.black26,
+              color: cs.surface.withValues(alpha: 0.90),
               child: SizedBox(
-                height: HexaOp.bottomNavMax,
+                height: 76, // Height set to 76 (between 72 and 80)
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            final maxW = constraints.maxWidth;
-                            const nTabs = 5;
-                            final per = maxW > 0 ? maxW / nTabs : 0.0;
-                            var w = math.max(42.0, per);
-                            if (w * nTabs > maxW) {
-                              w = per;
-                            }
-                            return Row(
-                              children: [
-                                SizedBox(
-                                  width: w,
-                                  child: _ShellNavTile(
-                                    selected: selectedIndex == 0,
-                                    icon: Icons.grid_view_outlined,
-                                    selectedIcon: Icons.grid_view_rounded,
-                                    label: 'Home',
-                                    badgeCount: stockBadgeCount,
-                                    dotOnly: true,
-                                    onTap: () => onDestinationSelected(0),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: w,
-                                  child: _ShellNavTile(
-                                    selected: selectedIndex == 1,
-                                    icon: Icons.inventory_2_outlined,
-                                    selectedIcon: Icons.inventory_2_rounded,
-                                    label: 'Stock',
-                                    onTap: () => onDestinationSelected(1),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: w,
-                                  child: _ShellNavTile(
-                                    selected: selectedIndex == 2,
-                                    icon: Icons.bar_chart_outlined,
-                                    selectedIcon: Icons.bar_chart_rounded,
-                                    label: 'Reports',
-                                    onTap: () => onDestinationSelected(2),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: w,
-                                  child: _ShellNavTile(
-                                    selected: selectedIndex == 3,
-                                    icon: Icons.receipt_long_outlined,
-                                    selectedIcon: Icons.receipt_long_rounded,
-                                    label: 'History',
-                                    onTap: () => onDestinationSelected(3),
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: w,
-                                  child: _ShellNavTile(
-                                    selected: selectedIndex == 4,
-                                    icon: Icons.search_rounded,
-                                    selectedIcon: Icons.manage_search_rounded,
-                                    label: 'Search',
-                                    onTap: () => onDestinationSelected(4),
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
+                        child: _ShellNavTile(
+                          selected: selectedIndex == 0,
+                          icon: Icons.grid_view_outlined,
+                          selectedIcon: Icons.grid_view_rounded,
+                          label: 'Home',
+                          badgeCount: stockBadgeCount,
+                          dotOnly: true,
+                          onTap: () => onDestinationSelected(0),
+                        ),
+                      ),
+                      Expanded(
+                        child: _ShellNavTile(
+                          selected: selectedIndex == 1,
+                          icon: Icons.inventory_2_outlined,
+                          selectedIcon: Icons.inventory_2_rounded,
+                          label: 'Stock',
+                          onTap: () => onDestinationSelected(1),
+                        ),
+                      ),
+                      Expanded(
+                        child: _ShellNavTile(
+                          selected: selectedIndex == 2,
+                          icon: Icons.bar_chart_outlined,
+                          selectedIcon: Icons.bar_chart_rounded,
+                          label: 'Reports',
+                          onTap: () => onDestinationSelected(2),
                         ),
                       ),
                       if (showFab) ...[
                         const SizedBox(width: 4),
-                        SizedBox(
+                        const SizedBox(
                           width: _fabOuter,
-                          child: const Center(
+                          child: Center(
                             child: _FabButton(),
                           ),
                         ),
+                        const SizedBox(width: 4),
                       ],
+                      Expanded(
+                        child: _ShellNavTile(
+                          selected: selectedIndex == 3,
+                          icon: Icons.receipt_long_outlined,
+                          selectedIcon: Icons.receipt_long_rounded,
+                          label: 'History',
+                          onTap: () => onDestinationSelected(3),
+                        ),
+                      ),
+                      Expanded(
+                        child: _ShellNavTile(
+                          selected: selectedIndex == 4,
+                          icon: Icons.search_rounded,
+                          selectedIcon: Icons.manage_search_rounded,
+                          label: 'Search',
+                          onTap: () => onDestinationSelected(4),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -453,6 +431,8 @@ class _ShellNavTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
@@ -509,16 +489,20 @@ class _ShellNavTile extends StatelessWidget {
                         ),
                       ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                  color:
-                      selected ? HexaColors.brandPrimary : cs.onSurfaceVariant,
+              const SizedBox(height: 4),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color:
+                        selected ? HexaColors.brandPrimary : cs.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],

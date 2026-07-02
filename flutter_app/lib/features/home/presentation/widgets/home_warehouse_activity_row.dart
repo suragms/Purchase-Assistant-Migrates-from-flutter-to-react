@@ -168,19 +168,32 @@ class WarehouseActivityCompactRow extends StatelessWidget {
 
     return ListTile(
       dense: true,
+      contentPadding: EdgeInsets.zero,
       onTap: () => showWarehouseActivityDetailSheet(context, item),
-      leading: Icon(icon, size: 20, color: color),
+      leading: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, size: 18, color: color),
+      ),
       title: Text(
         title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14), // Card Title: 14
       ),
-      subtitle: Text(
-        subtitle,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          subtitle,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)), // Subtitle: 12
+        ),
       ),
     );
   }
