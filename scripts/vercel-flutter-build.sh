@@ -33,7 +33,7 @@ fi
 
 # dart2js OOM on Vercel often exits with code 1 and no clear "Error:" line.
 export BUILD_MAX_WORKERS_PER_TASK="${BUILD_MAX_WORKERS_PER_TASK:-1}"
-export DART_VM_OPTIONS="${DART_VM_OPTIONS:---max-old-space-size=4096}"
+export DART_VM_OPTIONS="${DART_VM_OPTIONS:---max-old-space-size=3072}"
 
 flutter config --no-analytics
 flutter --version
@@ -43,7 +43,7 @@ flutter pub get
 echo "Analyzing (fail fast before dart2js)..."
 flutter analyze --no-fatal-infos --no-fatal-warnings
 
-echo "Clean + build web (-O4 for maximum tree shaking)..."
+echo "Clean + build web (-O2 lowers dart2js memory vs default -O4)..."
 flutter clean
 flutter pub get
 
@@ -58,7 +58,7 @@ fi
 
 echo "Building web (API=${API_URL}, BUILD_SHA=${BUILD_SHA}, SOURCE_MAPS=${ENABLE_SOURCE_MAPS:-0})..."
 flutter build web --release \
-  -O4 \
+  -O2 \
   --pwa-strategy=none \
   --no-web-resources-cdn \
   $SOURCE_MAPS_FLAG \

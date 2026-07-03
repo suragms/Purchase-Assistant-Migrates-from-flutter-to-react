@@ -7,7 +7,7 @@
     "env": {
       "FLUTTER_VERSION": "3.41.6",
       "BUILD_MAX_WORKERS_PER_TASK": "1",
-      "DART_VM_OPTIONS": "--max-old-space-size=4096",
+      "DART_VM_OPTIONS": "--max-old-space-size=3072",
       "API_BASE_URL": "https://my-purchases-api.onrender.com"
     }
   },
