@@ -25,9 +25,13 @@ if ! command -v flutter >/dev/null 2>&1; then
   export PATH="${PATH}:${FLUTTER_ROOT}/bin"
 fi
 if ! command -v flutter >/dev/null 2>&1; then
-  echo "Installing Flutter ${FLUTTER_VERSION}..."
-  git clone https://github.com/flutter/flutter.git -b "${FLUTTER_VERSION}" --depth 1 "${FLUTTER_ROOT}" \
-    || git clone https://github.com/flutter/flutter.git -b stable --depth 1 "${FLUTTER_ROOT}"
+  if [ -d "${FLUTTER_ROOT}" ]; then
+    echo "Flutter directory ${FLUTTER_ROOT} already exists, skipping installation clone."
+  else
+    echo "Installing Flutter ${FLUTTER_VERSION}..."
+    git clone https://github.com/flutter/flutter.git -b "${FLUTTER_VERSION}" --depth 1 "${FLUTTER_ROOT}" \
+      || git clone https://github.com/flutter/flutter.git -b stable --depth 1 "${FLUTTER_ROOT}"
+  fi
   export PATH="${PATH}:${FLUTTER_ROOT}/bin"
 fi
 
