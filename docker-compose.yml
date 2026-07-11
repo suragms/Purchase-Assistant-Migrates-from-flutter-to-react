@@ -16,5 +16,18 @@ services:
     ports:
       - "6379:6379"
 
+  backend-dotnet:
+    build:
+      context: ./backend-dotnet
+      dockerfile: Dockerfile
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=hexa;Username=hexa;Password=hexa
+      - ConnectionStrings__Redis=redis:6379
+    ports:
+      - "5131:8080"
+    depends_on:
+      - postgres
+      - redis
+
 volumes:
   hexa_pg:

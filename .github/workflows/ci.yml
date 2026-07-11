@@ -1,102 +1,75 @@
-# Phased recovery — Phase 7: CI smoke (analyze, unit tests, backend pytest)
 name: CI
 
 on:
   push:
-    branches: [main, master, develop]
+    branches: [main, develop]
+    paths:
+      - 'backend-dotnet/**'
+      - 'frontend-react/**'
+      - '.github/workflows/ci.yml'
   pull_request:
-    branches: [main, master, develop]
+    branches: [main, develop]
+    paths:
+      - 'backend-dotnet/**'
+      - 'frontend-react/**'
 
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '22'
 
 jobs:
-  flutter-ssot:
-    name: Flutter SSOT smoke (money + reports + classifier)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: flutter_app
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - name: Get packages
-        run: flutter pub get
-      - name: SSOT regression tests
-        run: flutter test test/trade_purchase_line_money_contract_test.dart test/trade_report_aggregate_test.dart test/smart_unit_classifier_test.dart test/purchase_draft_calc_test.dart test/calc_line_freight_parity_test.dart test/calc_header_parity_test.dart
-
   backend:
-    name: Backend pytest
+    name: Backend (.NET)
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend
+        working-directory: backend-dotnet
+
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
         with:
-          python-version: "3.12"
-          cache: pip
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release --verbosity normal
+        env:
+          UseInMemoryDatabase: 'true'
+          Jwt__Secret: 'ci-test-secret-key-min-32-chars-long!!!!!'
+          Jwt__RefreshSecret: 'ci-test-refresh-secret-key-min-32-chars!!'
+
+  frontend:
+    name: Frontend (React)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend-react
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend-react/package-lock.json
+
       - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Alembic migrations (SQLite smoke)
-        env:
-          HEXA_USE_SQLITE: "1"
-        run: alembic upgrade head
-      - name: Test
-        run: python -m pytest -q
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
-  flutter:
-    name: Flutter analyze & test
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: flutter_app
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - name: Get packages
-        run: flutter pub get
-      # Optional stricter gate (not enforced): ripgrep `\blineMoney\b` under lib with an allowlist
-      # for display-only paths, if you want CI to catch new client-side money calculations.
-      - name: Analyze
-        run: flutter analyze
-      - name: Test
-        run: flutter test
+      - name: Lint
+        run: npm run lint
 
-  flutter-web:
-    name: Flutter web release build (Vercel parity)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: flutter_app
-    steps:
-      - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-      - name: Get packages
-        run: flutter pub get
-      - name: Build web (Vercel parity)
+      - name: Type-check & Build
+        run: npm run build
         env:
-          BUILD_MAX_WORKERS_PER_TASK: "1"
-          DART_VM_OPTIONS: "--max-old-space-size=3072"
-        run: |
-          flutter analyze --no-fatal-infos --no-fatal-warnings
-          flutter clean
-          flutter pub get
-          flutter build web --release \
-            -O2 \
-            --no-web-resources-cdn \
-            --no-source-maps \
-            --no-wasm-dry-run \
-            --dart-define=API_BASE_URL=https://my-purchases-api.onrender.com \
-            --dart-define=GOOGLE_OAUTH_CLIENT_ID=
+          VITE_API_BASE_URL: 'https://my-purchases-api.onrender.com'

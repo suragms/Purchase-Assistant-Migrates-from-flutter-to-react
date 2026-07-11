@@ -1,89 +1,29 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm install --ignore-scripts --no-audit --no-fund",
-  "buildCommand": "bash scripts/vercel-flutter-build.sh",
-  "outputDirectory": "flutter_app/build/web",
+  "installCommand": "cd frontend-react && npm install --ignore-scripts --no-audit --no-fund",
+  "buildCommand": "cd frontend-react && npx vite build",
+  "outputDirectory": "frontend-react/dist",
   "build": {
     "env": {
-      "FLUTTER_VERSION": "3.41.6",
-      "BUILD_MAX_WORKERS_PER_TASK": "1",
-      "DART_VM_OPTIONS": "--max-old-space-size=3072",
-      "API_BASE_URL": "https://my-purchases-api.onrender.com"
+      "VITE_API_BASE_URL": "https://my-purchases-api.onrender.com"
     }
   },
-  "_comment_preview_source_maps": "For debug stack traces on preview deploys only, set ENABLE_SOURCE_MAPS=1 in Vercel Preview env — not Production.",
   "headers": [
     {
       "source": "/index.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
     },
     {
-      "source": "/main.dart.js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    },
-    {
-      "source": "/flutter.js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    },
-    {
-      "source": "/flutter_bootstrap.js",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/canvaskit/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
-    },
-    {
-      "source": "/icons/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=604800"
-        }
-      ]
+      "source": "/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     },
     {
       "source": "/favicon.png",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=604800"
-        }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=604800" }]
     },
     {
       "source": "/manifest.json",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=86400"
-        }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
     }
   ],
   "redirects": [

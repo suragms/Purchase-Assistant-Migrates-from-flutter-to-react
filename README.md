@@ -1,28 +1,26 @@
 # HEXA Purchase Assistant
 
-Warehouse ERP for **New Harisree Agency** — trade purchases, stock ledger, barcode ops, and owner reports. Flutter (Riverpod) + FastAPI + PostgreSQL, deployed as a **PWA** (Vercel) with API on **Render**.
+Warehouse ERP for **New Harisree Agency** — trade purchases, stock ledger, barcode ops, and owner reports.
+**React (Vite) + ASP.NET Core (.NET 10) + PostgreSQL**, deployed as a **PWA** (Vercel) with API on **Render**.
 
 ## Product overview
 
 | Area | Detail |
 |------|--------|
-| **Stack** | Flutter client · FastAPI · Postgres (Render) · optional Redis · GitHub Actions (CI, DB backup, API keep-alive) |
-| **Platforms** | iOS/Android **PWA** (Safari/Chrome), **desktop/tablet Chrome** (NavigationRail shell), native builds optional |
+| **Stack** | React 19 (Vite + TypeScript + Tailwind v4) . ASP.NET Core 10 Web API . PostgreSQL 16 (Render) . optional Redis . GitHub Actions (CI, DB backup, API keep-alive) |
+| **Platforms** | **PWA** (Chrome/Safari/Firefox), **desktop/tablet** (responsive NavigationRail shell), native pending |
+| **State** | Zustand (business state) + TanStack Query v5 (server cache) + react-router v7 (data router) |
+| **UI** | Tailwind CSS v4 with extracted Flutter design tokens (PlusJakartaSans, 8px grid, brand palette `#0E4F46`) |
+| **Auth** | JWT (access + refresh tokens), WebAuthn biometric login, email+password, Google OAuth stub |
 | **Purchases** | Trade purchases (`trade_purchases` + `trade_purchase_lines`) — preview → confirm save; delivery pipeline; damage reports |
 | **Stock** | Catalog-linked qty, physical count vs system ledger, optimistic version + 409 retry, low-stock alerts |
-| **Barcode** | Camera scan, manual search, unknown code → create item or assign barcode |
-| **Reports** | Trade-backed KPIs (`/reports/trade-*`) — not legacy `entries` analytics |
-| **Sharing** | Purchase PDF + WhatsApp summary to accounts staff (number in Business Profile) |
-| **Backup** | Weekly `pg_dump` (GitHub Actions) + in-app Export & Backup (stock Excel, monthly purchases PDF, ZIP) |
+| **Barcode** | Camera scan (WASM), manual search, unknown code → create item or assign barcode |
+| **Reports** | Trade-backed KPIs (`/reports/trade-*`) — **not** legacy `entries` analytics |
 | **Roles** | Owner, manager, staff — permissions on stock edit, export, reports |
 
 **Data truth:** Spend KPIs and report tables use **trade** endpoints. Line money: weight lines → `qty × kg_per_unit × landing_cost_per_kg`; else `qty × landing_cost`.
 
-**Ops:** [Backup setup](docs/backup/BACKUP_SETUP.md) · [Migration index](backend/sql/MIGRATION_INDEX.md) · [Pre-client audit](PRE_CLIENT_AUDIT_RESULT.md) · [TASKS.md](TASKS.md) · [Harisree master reference](docs/harisree/MASTER_REFERENCE.md)
-
-**Scaling (production):** Render keep-alive cron (~10 min), stock list pagination + cache headers, home overview bundle cache, debounced search — see `PRE_CLIENT_AUDIT_RESULT.md` for handoff checklist.
-
-Also: in-app AI assistant (`/ai` → `POST .../ai/chat`), profit clarity, and Price Intelligence (PIP).
+**Ops:** [Backup setup](docs/backup/BACKUP_SETUP.md) . [Migration index](backend/sql/MIGRATION_INDEX.md) . [Pre-client audit](PRE_CLIENT_AUDIT_RESULT.md) . [TASKS.md](TASKS.md) . [Harisree master reference](docs/harisree/MASTER_REFERENCE.md) . [Cutover plan](docs/cutover-plan.md)
 
 ## Docs
 
@@ -31,61 +29,137 @@ Also: in-app AI assistant (`/ai` → `POST .../ai/chat`), profit clarity, and Pr
 | [Master PRD](docs/master-prd.md) | Product scope, roles, non-goals |
 | [Architecture](docs/architecture.md) | System diagram and modules |
 | [Data model](docs/data-model.md) | Entities and relationships |
-| [OpenAPI](docs/api/openapi.yaml) | API contract (v0.1) |
-| [Flutter architecture](docs/flutter-architecture.md) | App structure, state, offline |
-| [Screen map & UX](docs/ux/screen-map.md) | Pages and Figma workflow |
-| [WhatsApp flows](docs/ux/whatsapp-flows.md) | Legacy webhook notes (optional forks) |
-| [Super Admin](docs/admin-panel.md) | Admin surface plan |
-| [Ops](docs/ops.md) | Rate limits, webhooks, monitoring |
+| [API contract](docs/migration/api-contract.md) | All endpoints, request/response shapes, business rules |
+| [Screen map & UX](docs/ux/screen-map.md) | Routes, implementation status, Flutter comparison |
+| [Design tokens](docs/migration/design-tokens.md) | Extracted Flutter → React theme |
+| [Cutover plan](docs/cutover-plan.md) | Phased migration from FastAPI + Flutter |
 | [Delivery phases](docs/delivery-phases.md) | MVP → Phase 4 + testing |
 
 ## Quick start
 
-1. **Database:** `docker compose up -d` (or use your own Postgres).
-2. **Env:** copy [.env.example](.env.example) to `backend/.env` and set `DATABASE_URL`, e.g.  
-   `postgresql+asyncpg://hexa:hexa@localhost:5432/hexa` when using the compose Postgres.
-3. **API:**
-   ```bash
-   cd backend
-   python -m venv .venv
-   .venv\Scripts\pip install -r requirements.txt
-   .venv\Scripts\python -m uvicorn app.main:app --reload
-   ```
-4. **Flutter:** install Flutter SDK, then `cd flutter_app && flutter create . && flutter pub get && flutter run`
+### Prerequisites
+- .NET 10 SDK
+- Node.js 22+
+- PostgreSQL 16 (or `docker compose up -d`)
 
-> **Note:** The former `admin_web/` super-admin SPA was removed (never deployed to Vercel). Use backend `admin` routes only if you maintain a separate admin client.
+### Database
+```bash
+docker compose up -d  # starts Postgres on port 5432 + Redis on 6379
+```
 
-## Environment
+### API
+```bash
+cd backend-dotnet
+dotnet restore
+# Set connection string (default: Host=localhost;Database=hexa;Username=hexa;Password=hexa)
+dotnet run --project src/Api/PurchaseAssistant.Api.csproj
+# API at http://localhost:5131, Swagger at http://localhost:5131/swagger
+```
 
-Copy [.env.example](.env.example) to `backend/.env` and fill secrets. Never commit real keys.
+### Frontend
+```bash
+cd frontend-react
+npm install
+npx vite --host
+# App at http://localhost:5173
+```
 
-## API base URL and reports routes
+### Run tests
 
-The Flutter app resolves the API host via `API_BASE_URL` (default `http://127.0.0.1:8000`); on web, see [flutter_app/lib/core/config/app_config.dart](flutter_app/lib/core/config/app_config.dart) for `resolvedApiBaseUrl` so the page origin and API origin line up. Trade reports (`GET /v1/businesses/{id}/reports/trade-suppliers` and related breakdowns) are registered in the FastAPI `main` module. If the client shows **404** on `/reports/*` while the code in this repo includes those routers, the running `uvicorn` process is likely an older build or a different port—restart the API from this branch and point the app at the same base URL. A one-time `debugPrint` may appear in the console on the first 404 to `/reports/*` (Dio layer).
+**Backend (.NET):**
+```bash
+cd backend-dotnet
+dotnet test tests/PurchaseAssistant.Tests.csproj
+```
 
-## First deploy and seed data
+**Frontend (React):**
+```bash
+cd frontend-react
+npm run lint
+npm run build      # type-check + production build
+```
 
-After migrations and a fresh database, you can load baseline catalog and GST suppliers from JSON
-(`python -m scripts.seed_catalog_and_suppliers --business-id=<uuid>`, see
-[backend/scripts/README.md](backend/scripts/README.md)), then optionally bulk-import additional
-suppliers from your CSV: `python -m scripts.seed_suppliers_from_csv --business-id=<uuid>`.
-Re-running these scripts is safe: they skip rows that already match (GST, or name + phone).
-When you add `data/products_categories_items/Products list.xlsx`, use
-[data/products_categories_items/README.txt](data/products_categories_items/README.txt) as the
-intended place for a future Excel-to-catalog script.
+**Contract tests (requires both APIs running):**
+```bash
+node scripts/contract-tests.js --old-api http://localhost:8000 --new-api http://localhost:5131
+```
+
+## Migration Status
+
+### API Implementation (21 controller groups)
+
+| Group | Status | Endpoints |
+|-------|--------|-----------|
+| Auth | ✅ Live | 6/6 |
+| Me/Profile | ✅ Live | 6/6 |
+| Catalog | ✅ Live | 25/25 |
+| Users | ✅ Live | 14/14 |
+| Trade Purchases | ✅ Live | 27/27 |
+| Health | 🟡 Live | 5/5 (returns 501) |
+| Businesses | 🟡 Stub | 4/4 |
+| Contacts | 🟡 Stub | 11/11 |
+| Stock | 🟡 Stub | 38/38 |
+| Stock Audits | 🟡 Stub | 7/7 |
+| Dashboard | 🟡 Stub | 1/1 |
+| Reports Trade | 🟡 Stub | 3/3 |
+| Reports | 🟡 Stub | 6/6 |
+| Damage Reports | 🟡 Stub | 2/2 |
+| Exports | 🟡 Stub | 4/4 |
+| Notifications | 🟡 Stub | 7/7 |
+| Operations | 🟡 Stub | 5/5 |
+| Media/OCR | 🟡 Stub | 1/1 |
+| Public Items | 🟡 Stub | 1/1 |
+| Search | 🟡 Stub | 1/1 |
+| Realtime | 🟡 Stub | 1/1 |
+| **Total** | **5/21 live** | **140 open endpoints** |
+
+### Frontend Implementation (101 routes)
+
+| Category | Total | ✅ Live | 🟡 Stub | 🔄 Redirect | ❌ Missing |
+|----------|-------|---------|---------|-------------|------------|
+| Public | 8 | 6 | 1 | 1 | 0 |
+| Owner Shell | 7 | — | 7 | — | — |
+| Staff Shell | 7 | — | 5 | — | 1 |
+| All others | 79 | — | 62 | 17 | — |
+| **Total** | **101** | **6** | **75** | **18** | **1** |
+
+See [Screen map & UX](docs/ux/screen-map.md) for full route-by-route comparison.
 
 ## Repo layout
 
-- `flutter_app/` — Flutter client (run `flutter create .` after installing Flutter — see `flutter_app/README.md`)
-- `backend/` — FastAPI API (`backend/.venv`, `uvicorn app.main:app --reload`)
-- `docker-compose.yml` — local PostgreSQL + Redis
+```
+backend-dotnet/       ASP.NET Core Web API (.NET 10)
+├── src/
+│   ├── Api/          Controllers, middleware, Program.cs
+│   ├── Application/  DTOs, interfaces, services, validators
+│   ├── Domain/       Entities, enums, value objects
+│   └── Infrastructure/ DbContext, JWT, OAuth, background services
+└── tests/
+    └── PurchaseAssistant.Tests.csproj  41 xUnit integration tests
+
+frontend-react/       React SPA (Vite + TypeScript + Tailwind)
+├── src/
+│   ├── components/   UI primitives + shell layout
+│   ├── features/     Feature modules (auth, catalog, purchase, ...)
+│   ├── lib/          API client, Zustand stores, calc engine, types
+│   ├── pages/        101 route pages (4 live, 75 stubs, 18 redirects)
+│   └── router.tsx    React Router data router (all routes)
+
+flutter_app/          LEGACY Flutter client (being retired, keep until cutover stable)
+backend/              LEGACY FastAPI server (being retired, keep until cutover stable)
+```
+
+## Stack migration
+
+The app is being migrated from **Flutter + FastAPI** to **React + ASP.NET Core**.
+Both stacks run against the same PostgreSQL schema. See [cutover plan](docs/cutover-plan.md) for the
+6-phase approach: deploy → verify → parallel stacks → contract test → DNS cutover → retire.
+
+**Current phase:** Phase 3 (Parallel Stacks). 5 of 21 API controllers are live. ~75 frontend routes are stubs.
 
 ## Principles
 
 - **Landing cost** is always **manual** at entry.
-- **AI** parses and formats only; **backend** owns logic and profit math.
 - **Preview → confirm** before persisting any entry.
-
-## Figma
-
-UI work follows `.cursor/rules/figma-design-system.mdc` and the UX docs above.
+- **No toast/snackbar** for field validation — use inline error text instead.
+- **Currency** formatted as ₹ with Indian digit grouping (#,##,###).

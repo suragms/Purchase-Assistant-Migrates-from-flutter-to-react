@@ -1,15 +1,27 @@
-# Manual / scheduled production health check (web + API + DB schema).
-name: Production smoke
+name: Production Smoke Tests
 
 on:
+  deployment_status:
   workflow_dispatch:
-  schedule:
-    - cron: "0 4 * * *" # 04:00 UTC daily
 
 jobs:
   smoke:
+    if: github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Production smoke
-        run: bash scripts/production-smoke.sh
+      - name: Root endpoint returns service info
+        run: curl -sSf --max-time 10 "${{ secrets.PRODUCTION_API_URL }}/" | grep -q 'purchase-assistant-dotnet'
+
+      - name: Unauthenticated catalog returns 401
+        run: |
+          STATUS=$(curl -sSf --max-time 10 -o /dev/null -w "%{http_code}" \
+            "${{ secrets.PRODUCTION_API_URL }}/v1/businesses/00000000-0000-0000-0000-000000000000/catalog-items")
+          [ "$STATUS" = "401" ] || exit 1
+
+      - name: Auth login with bad credentials returns 401
+        run: |
+          STATUS=$(curl -sSf --max-time 10 -o /dev/null -w "%{http_code}" \
+            -X POST "${{ secrets.PRODUCTION_API_URL }}/v1/auth/login" \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"nonexistent@test.com","password":"wrong"}')
+          [ "$STATUS" = "401" ] || [ "$STATUS" = "422" ] || exit 1

@@ -1,40 +1,24 @@
 # Render Blueprint reference — mirror these in the Dashboard if not using Blueprint sync.
-# my-purchases-api → rootDir backend, healthCheckPath /health/live (no DB on platform probe)
-#
-# PRODUCTION UPGRADE PATH:
-# Current: Render Starter ($7/mo) — spins down after inactivity
-# Recommended: Render Individual ($25/mo) — always-on, no spin-down
-# This single change eliminates most cold-start complaints.
-# For Supabase: upgrade to Pro ($25/mo) to remove pause-on-inactivity behavior.
+# my-purchases-api -> rootDir backend-dotnet, healthCheckPath /health/live
 services:
   - type: web
     name: my-purchases-api
-    runtime: python
-    rootDir: backend
+    runtime: docker
+    rootDir: backend-dotnet
     autoDeploy: true
     autoDeployTrigger: commit
     branch: main
-    buildCommand: pip install -r requirements.txt
-    # Run migrations BEFORE the new instance binds $PORT (avoids 503 / port-scan timeout).
-    # Applies all pending revisions in backend/alembic/versions/ (e.g. 060_stock_list_performance_indexes).
-    preDeployCommand: alembic upgrade head
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --log-level info
+    buildCommand: dotnet restore src/Api/PurchaseAssistant.Api.csproj && dotnet publish src/Api/PurchaseAssistant.Api.csproj -c Release -o out
+    startCommand: dotnet out/PurchaseAssistant.Api.dll
     healthCheckPath: /health/live
     envVars:
       - key: APP_ENV
         value: production
-      # Migrations run in preDeployCommand — do not block uvicorn boot.
-      - key: AUTO_MIGRATE
-        value: "0"
-      # Heavy repair script; run manually after deploy if needed (see scripts/README).
-      - key: AUTO_STOCK_BACKFILL_ON_START
-        value: "false"
-      # Concurrent home/stock fetches — match backend/app/config.py defaults.
-      - key: DATABASE_POOL_SIZE
-        value: "10"
-      - key: DATABASE_MAX_OVERFLOW
-        value: "15"
-      - key: DATABASE_POOL_TIMEOUT
-        value: "15"
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ConnectionStrings__DefaultConnection
+        fromDatabase:
+          name: harisree-db
+          property: connectionString
       # Set in dashboard (never commit secrets):
-      # DATABASE_URL, JWT_SECRET, CORS_ORIGINS, OPENAI_API_KEY, SENTRY_DSN
+      # Jwt__Secret, CORS_ORIGINS, etc.

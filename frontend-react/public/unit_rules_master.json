@@ -1,0 +1,82 @@
+{
+  "version": "10.0",
+  "master_units": [
+    "BAG", "KG", "BOX", "PCS", "TIN", "PACK", "SACK", "LTR", "ML", "GM",
+    "CAN", "BOTTLE", "CASE", "ROLL", "TRAY"
+  ],
+  "package_aliases": {
+    "BAG": ["SACK", "BAG", "SCK"],
+    "PCS": ["PIECE", "PIECES", "PCS", "PKT", "PACKET"],
+    "BOX": ["BOX", "CARTON", "CASE"],
+    "TIN": ["TIN", "CAN"],
+    "BOTTLE": ["BOT", "BOTTLE"]
+  },
+  "category_rules": {
+    "RICE": {
+      "default_unit": "BAG",
+      "patterns": ["25KG", "30KG", "50KG"],
+      "package_type": "SACK"
+    },
+    "SUGAR": {
+      "default_unit": "BAG",
+      "patterns": ["25KG", "50KG"],
+      "package_type": "SACK"
+    },
+    "FLOUR": {
+      "default_unit": "BAG",
+      "patterns": ["25KG", "50KG"],
+      "package_type": "SACK"
+    },
+    "SPICES": {
+      "default_unit": "KG",
+      "loose_default": true
+    },
+    "BRANDED_GROCERY": {
+      "default_unit": "BOX",
+      "patterns": ["GM", "ML", "LTR", "PACK", "PKT"]
+    },
+    "OIL": {
+      "default_unit": "TIN",
+      "patterns": ["15LTR", "10LTR", "5LTR"]
+    }
+  },
+  "smart_detection_rules": [
+    {
+      "condition": {
+        "contains_any": ["50KG", "30KG", "25KG"],
+        "category_any": ["RICE", "SUGAR", "FLOUR", "GRAIN", "MAIDA ATTA SOOJI", "PULSES"]
+      },
+      "result": {
+        "selling_unit": "BAG",
+        "package_type": "SACK"
+      }
+    },
+    {
+      "condition": {
+        "contains_any": ["850GM", "500GM", "425GM", "1LTR", "500ML"],
+        "brand_detected": true
+      },
+      "result": {
+        "selling_unit": "BOX",
+        "package_type": "BOX"
+      }
+    },
+    {
+      "condition": { "contains_any": ["TIN", "CAN"] },
+      "result": { "selling_unit": "TIN", "package_type": "TIN" }
+    },
+    {
+      "condition": { "contains_any": ["PCS", "PIECE"] },
+      "result": { "selling_unit": "PCS" }
+    },
+    {
+      "condition": { "contains_any": ["LOOSE"] },
+      "result": {
+        "selling_unit": "KG",
+        "package_type": "LOOSE",
+        "stock_unit": "KG",
+        "conversion_factor": 1
+      }
+    }
+  ]
+}

@@ -1,39 +1,39 @@
-# Runs after each main push — waits for Vercel, then checks production + key Flutter tests.
-name: Post-deploy smoke
+name: Post-Deploy Smoke Tests
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'flutter_app/**'
-      - 'backend/**'
-      - 'scripts/production-smoke.sh'
-      - 'vercel.json'
-      - '.github/workflows/post-deploy-smoke.yml'
-
-concurrency:
-  group: post-deploy-smoke-${{ github.ref }}
-  cancel-in-progress: true
+  workflow_run:
+    workflows: ['Deploy API to Render']
+    types:
+      - completed
+  workflow_dispatch:
 
 jobs:
-  wait-and-verify:
+  post-deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - name: Wait for deployment to settle
+        run: sleep 15
 
-      - name: Wait for Vercel Flutter build (~8 min)
-        run: sleep 480
-
-      - name: Production smoke (web + API + DB schema)
-        run: bash scripts/production-smoke.sh
-
-      - uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-          cache: true
-
-      - name: Flutter commit-stock regression
-        working-directory: flutter_app
+      - name: Root endpoint is reachable
         run: |
-          flutter pub get
-          flutter test test/purchase_stock_commit_preflight_test.dart
+          URL="${{ secrets.PRODUCTION_API_URL }}/"
+          HTTP_CODE=$(curl -sSf --max-time 15 -o /tmp/smoke_response.json -w "%{http_code}" "$URL")
+          echo "HTTP $HTTP_CODE ← $URL"
+          [ "$HTTP_CODE" = "200" ] || exit 1
+          echo "OK: $(head -c 200 /tmp/smoke_response.json)"
+
+      - name: Catalog endpoint returns 401 (auth required)
+        run: |
+          URL="${{ secrets.PRODUCTION_API_URL }}/v1/businesses/00000000-0000-0000-0000-000000000000/catalog-items"
+          HTTP_CODE=$(curl -sSf --max-time 15 -o /tmp/smoke_auth.json -w "%{http_code}" "$URL")
+          echo "HTTP $HTTP_CODE ← $URL"
+          [ "$HTTP_CODE" = "401" ] || exit 1
+
+      - name: Swagger spec is accessible
+        run: |
+          URL="${{ secrets.PRODUCTION_API_URL }}/swagger/v1/swagger.json"
+          HTTP_CODE=$(curl -sSf --max-time 15 -o /tmp/swagger.json -w "%{http_code}" "$URL")
+          echo "HTTP $HTTP_CODE ← $URL"
+          [ "$HTTP_CODE" = "200" ] || exit 1

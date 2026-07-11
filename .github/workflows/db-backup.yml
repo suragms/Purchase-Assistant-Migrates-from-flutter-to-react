@@ -1,58 +1,38 @@
-# Weekly logical backup of Render Postgres (harisree-db).
-# Schedule: Sundays 03:00 UTC. Manual run: Actions → db-backup → Run workflow.
-#
-# Required repo secret (Settings → Secrets → Actions):
-#   RENDER_DB_EXTERNAL_URL — external postgresql://… from Render Dashboard → harisree-db → Connect
-name: db-backup
+name: Weekly DB Backup
 
 on:
   schedule:
-    - cron: "0 3 * * 0"
+    # Weekly: Sunday 03:00 UTC
+    - cron: '0 3 * * 0'
   workflow_dispatch:
-    inputs:
-      note:
-        description: "Optional label for this manual run (logged only)"
-        required: false
-        default: "manual"
+
+env:
+  PG_VERSION: '16'
 
 jobs:
   backup:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
     steps:
-      - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Install pg_dump
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client-${{ env.PG_VERSION }}
 
-      - name: Verify database URL secret
-        env:
-          RENDER_DB_EXTERNAL_URL: ${{ secrets.RENDER_DB_EXTERNAL_URL }}
+      - name: Dump database
         run: |
-          if [ -z "$RENDER_DB_EXTERNAL_URL" ]; then
-            echo "::error::RENDER_DB_EXTERNAL_URL secret is not set in GitHub repo settings."
-            exit 1
-          fi
-          echo "RENDER_DB_EXTERNAL_URL is configured (host redacted)."
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          FILENAME="hexa_backup_${TIMESTAMP}.sql.gz"
+          PGPASSWORD="${{ secrets.DB_PASSWORD }}" pg_dump \
+            --host="${{ secrets.DB_HOST }}" \
+            --port="${{ secrets.DB_PORT }}" \
+            --username="${{ secrets.DB_USER }}" \
+            --dbname="${{ secrets.DB_NAME }}" \
+            --no-owner \
+            --no-acl \
+            --verbose \
+            | gzip > /tmp/${FILENAME}
+          echo "Backup created: ${FILENAME} ($(stat -c%s /tmp/${FILENAME}) bytes)"
 
-      - name: pg_dump (custom + plain SQL)
-        env:
-          RENDER_DB_EXTERNAL_URL: ${{ secrets.RENDER_DB_EXTERNAL_URL }}
+      - name: Upload backup to external storage
         run: |
-          STAMP=$(date -u +%Y%m%d)
-          echo "Backup stamp: ${STAMP} (trigger: ${{ github.event_name }})"
-          pg_dump "$RENDER_DB_EXTERNAL_URL" \
-            --no-owner --no-acl --schema=public --format=custom \
-            --file="harisree_render_${STAMP}.pgdump"
-          pg_dump "$RENDER_DB_EXTERNAL_URL" \
-            --no-owner --no-acl --schema=public --format=plain \
-            --file="harisree_render_${STAMP}.sql"
-          ls -lh "harisree_render_${STAMP}.pgdump" "harisree_render_${STAMP}.sql"
-
-      - name: Upload backup artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: harisree-db-backup-${{ github.run_number }}
-          path: |
-            harisree_render_*.pgdump
-            harisree_render_*.sql
-          retention-days: 90
-          if-no-files-found: error
+          echo "Upload backup placeholder — replace with S3/SFTP/Blob storage upload"
+          # Example (uncomment and configure secrets):
+          # aws s3 cp /tmp/hexa_backup_*.sql.gz s3://${{ secrets.BACKUP_BUCKET }}/db-backups/

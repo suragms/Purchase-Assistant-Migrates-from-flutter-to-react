@@ -1,0 +1,182 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand palette */
+  --color-brand-primary: #0E4F46;
+  --color-brand-secondary: #065F4F;
+  --color-brand-accent: #159A8A;
+  --color-brand-gold: #D4AF37;
+  --color-brand-gold-light: #F5E4A0;
+  --color-brand-background: #F7F9F6;
+  --color-brand-card: #FFFFFF;
+  --color-brand-border: #E2E8E6;
+  --color-brand-disabled-bg: #D1E8E3;
+  --color-brand-disabled-text: #9CA3AF;
+  --color-brand-hover: #0A3D36;
+
+  /* Input */
+  --color-input-border: #E5E7EB;
+  --color-input-text: #111111;
+  --color-input-hint: #9CA3AF;
+
+  /* Text */
+  --color-text-primary: #0F172A;
+  --color-text-body: #475569;
+  --color-text-muted: #64748B;
+
+  /* Semantic */
+  --color-profit: #16A34A;
+  --color-loss: #E53935;
+  --color-warning: #F0A500;
+  --color-amber: #F59E0B;
+
+  /* Dark surfaces */
+  --color-dark-card: #141929;
+  --color-dark-elevated: #1C2235;
+  --color-dark-muted: #232A3E;
+  --color-dark-canvas: #0B0F1A;
+  --color-dark-text-primary: #F0F4FF;
+  --color-dark-text-secondary: #5C6578;
+
+  /* Status tints */
+  --color-success-tint: #E8F5F0;
+  --color-warning-tint: #FFF8E6;
+  --color-error-tint: #FFF0F0;
+  --color-info-tint: #EFF6FF;
+
+  /* Delivery status */
+  --color-status-pending: #94A3B8;
+  --color-status-dispatched: #3B82F6;
+  --color-status-arrived: #F59E0B;
+  --color-status-verified: #8B5CF6;
+  --color-status-committed: #10B981;
+  --color-status-partial: #EA580C;
+  --color-status-info: #2563EB;
+  --color-low-stock: #DC2626;
+  --color-out-stock: #6B7280;
+
+  /* Charts */
+  --color-chart-landing: #159A8A;
+  --color-chart-selling: #16A34A;
+  --color-chart-profit: #D4AF37;
+  --color-chart-purple: #9B79E8;
+  --color-chart-orange: #FB923C;
+  --color-chart-pink: #F472B6;
+
+  /* Spacing (8px grid, extras) */
+  --spacing-xs: 4px;
+  --spacing-s1: 8px;
+  --spacing-s2: 16px;
+  --spacing-s3: 24px;
+  --spacing-s4: 32px;
+  --spacing-s5: 40px;
+  --spacing-s6: 48px;
+
+  /* Radii */
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+  --radius-card: 18px;
+  --radius-glass: 20px;
+  --radius-dialog: 28px;
+
+  /* Font family */
+  --font-plus-jakarta: "Plus Jakarta Sans", "Inter", "NotoSans", system-ui, sans-serif;
+  --font-inter: "Inter", "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-noto-sans: "NotoSans", "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-noto-malayalam: "NotoSansMalayalam", "NotoSans", "Plus Jakarta Sans", system-ui, sans-serif;
+
+  /* Animations */
+  --ease-out-expo: cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/fonts/PlusJakartaSans-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/fonts/PlusJakartaSans-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/fonts/PlusJakartaSans-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/fonts/PlusJakartaSans-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/fonts/PlusJakartaSans-ExtraBold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "NotoSans";
+  src: url("/fonts/NotoSans-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "NotoSans";
+  src: url("/fonts/NotoSans-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "NotoSansMalayalam";
+  src: url("/fonts/NotoSansMalayalam-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+body {
+  font-family: "Plus Jakarta Sans", "Inter", "NotoSans", system-ui, sans-serif;
+  background-color: var(--color-brand-background);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Shimmer animation */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, #EFF2F1 25%, #f0f0f0 50%, #EFF2F1 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}

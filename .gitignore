@@ -123,3 +123,10 @@ backend/schema_audit_chunk_*.sql
 
 # Python bytecode accidentally committed
 **/__pycache__/
+
+# .NET
+**/bin/
+**/obj/
+
+# Mimocode agent metadata
+.mimocode/
