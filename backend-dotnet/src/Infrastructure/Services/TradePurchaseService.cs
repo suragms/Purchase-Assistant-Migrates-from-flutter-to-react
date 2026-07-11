@@ -360,6 +360,11 @@ public class TradePurchaseService : ITradePurchaseService
             .FirstOrDefaultAsync(tp => tp.Id == purchaseId && tp.BusinessId == businessId && tp.DeletedAt == null, ct)
             ?? throw new KeyNotFoundException("Purchase not found");
 
+        if (purchase.Status == "stock_committed" || purchase.Status == "completed")
+            throw new InvalidOperationException("Cannot edit a purchase that has been committed to stock.");
+        if (purchase.DeletedAt != null || purchase.Status == "cancelled")
+            throw new InvalidOperationException("Cannot edit a deleted or cancelled purchase.");
+
         if (request.PurchaseDate.HasValue) purchase.PurchaseDate = request.PurchaseDate.Value;
         if (request.SupplierId.HasValue) purchase.SupplierId = request.SupplierId.Value;
         if (request.BrokerId != null) purchase.BrokerId = request.BrokerId;

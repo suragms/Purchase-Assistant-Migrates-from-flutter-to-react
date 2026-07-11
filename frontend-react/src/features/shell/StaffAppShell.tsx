@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
-  LuHouse, LuPackage, LuScanLine, LuSearch,
-  LuTruck, LuClipboardList, LuSettings, LuLogOut,
+  LuHouse, LuPackage, LuScanLine, LuSearch, LuBell,
+  LuTruck, LuClipboardList, LuSettings2, LuLogOut,
 } from "react-icons/lu";
 import { BottomNav } from "../../components/ui";
 import { useState, useEffect } from "react";
@@ -13,7 +13,8 @@ const STAFF_BRANCHES = [
   { label: "Stock", icon: LuPackage, activeIcon: LuPackage, path: "/staff/stock" },
   { label: "Scan", icon: LuScanLine, activeIcon: LuScanLine, path: "/staff/scan" },
   { label: "Search", icon: LuSearch, activeIcon: LuSearch, path: "/staff/search" },
-  { label: "Deliver", icon: LuTruck, activeIcon: LuTruck, path: "/staff/deliveries" },
+  { label: "Notifications", icon: LuBell, activeIcon: LuBell, path: "/notifications" },
+  { label: "Receive", icon: LuTruck, activeIcon: LuTruck, path: "/staff/receive" },
   { label: "Tasks", icon: LuClipboardList, activeIcon: LuClipboardList, path: "/staff/tasks" },
 ];
 
@@ -98,16 +99,16 @@ export function StaffAppShell() {
               })}
             </div>
             <div className="border-t border-brand-border px-1 py-2">
-              <button
-                onClick={() => navigate("/staff/settings")}
-                className={`flex items-center gap-3 rounded-xl text-text-muted hover:bg-black/5 ${
-                  railExtended ? "w-full px-3 py-2.5" : "w-full justify-center py-3"
-                }`}
-                title={railExtended ? undefined : "Settings"}
-              >
-                <LuSettings size={22} />
-                {railExtended && <span className="text-[13px] font-medium">Settings</span>}
-              </button>
+               <button
+                 onClick={() => navigate("/settings")}
+                 className={`flex items-center gap-3 rounded-xl text-text-muted hover:bg-black/5 $
+                   railExtended ? "w-full px-3 py-2.5" : "w-full justify-center py-3"
+                 }`}
+                 title={railExtended ? undefined : "Settings"}
+               >
+                 <LuSettings2 size={22} />
+                 {railExtended && <span className="text-[13px] font-medium">Settings</span>}
+               </button>
               <button
                 onClick={handleLogout}
                 className={`flex items-center gap-3 rounded-xl text-loss hover:bg-loss/10 ${
@@ -142,7 +143,7 @@ export function StaffAppShell() {
               onChange={handleTabChange}
             />
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <button className="h-10 rounded-xl bg-white text-sm font-bold text-brand-primary shadow" onClick={() => navigate("/staff/settings")}>Settings</button>
+               <button className="h-10 rounded-xl bg-white text-sm font-bold text-brand-primary shadow" onClick={() => navigate("/settings")}>Settings</button>
               <button className="h-10 rounded-xl bg-white text-sm font-bold text-loss shadow" onClick={handleLogout}>Logout</button>
             </div>
           </div>

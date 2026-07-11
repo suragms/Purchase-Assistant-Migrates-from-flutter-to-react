@@ -1,7 +1,7 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import {
-  LuLayoutGrid, LuPackage, LuChartBar, LuReceipt, LuSearch, LuPlus,
-  LuSettings, LuLogOut,
+  LuLayoutGrid, LuPackage, LuChartBar, LuReceipt, LuSearch, LuBell, LuPlus,
+  LuSettings2, LuLogOut,
 } from "react-icons/lu";
 import { BottomNav, Fab } from "../../components/ui";
 import { useState, useEffect } from "react";
@@ -14,6 +14,7 @@ const SHELL_BRANCHES = [
   { label: "Reports", icon: LuChartBar, activeIcon: LuChartBar, path: "/reports" },
   { label: "History", icon: LuReceipt, activeIcon: LuReceipt, path: "/purchase" },
   { label: "Search", icon: LuSearch, activeIcon: LuSearch, path: "/search" },
+  { label: "Notifications", icon: LuBell, activeIcon: LuBell, path: "/notifications" },
 ];
 
 const kShellRailMin = 600;
@@ -101,16 +102,16 @@ export function OwnerAppShell() {
               })}
             </div>
             <div className="border-t border-brand-border px-1 py-2">
-              <button
-                onClick={() => navigate("/settings")}
-                className={`flex items-center gap-3 rounded-xl text-text-muted hover:bg-black/5 ${
-                  railExtended ? "w-full px-3 py-2.5" : "w-full justify-center py-3"
-                }`}
-                title={railExtended ? undefined : "Settings"}
-              >
-                <LuSettings size={22} />
-                {railExtended && <span className="text-[13px] font-medium">Settings</span>}
-              </button>
+               <button
+                 onClick={() => navigate("/settings")}
+                 className={`flex items-center gap-3 rounded-xl text-text-muted hover:bg-black/5 $
+                   railExtended ? "w-full px-3 py-2.5" : "w-full justify-center py-3"
+                 }`}
+                 title={railExtended ? undefined : "Settings"}
+               >
+                 <LuSettings2 size={22} />
+                 {railExtended && <span className="text-[13px] font-medium">Settings</span>}
+               </button>
               <button
                 onClick={handleLogout}
                 className={`flex items-center gap-3 rounded-xl text-loss hover:bg-loss/10 ${
