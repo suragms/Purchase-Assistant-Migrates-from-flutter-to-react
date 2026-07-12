@@ -1041,6 +1041,137 @@ async def supplier_metrics(
     )
 
 
+class SupplierLedgerRowOut(BaseModel):
+    purchase_id: uuid.UUID
+    human_id: str
+    purchase_date: date
+    invoice_number: str | None = None
+    status: str
+    total_amount: float
+    paid_amount: float
+    balance: float
+    due_date: date | None = None
+
+
+class SupplierLedgerOut(BaseModel):
+    supplier_id: uuid.UUID
+    supplier_name: str
+    phone: str | None = None
+    rows: list[SupplierLedgerRowOut]
+    total_amount: float
+    total_paid: float
+    total_balance: float
+
+
+@router.get("/suppliers/{supplier_id}/ledger", response_model=SupplierLedgerOut)
+async def supplier_ledger(
+    business_id: uuid.UUID,
+    supplier_id: uuid.UUID,
+    _m: Annotated[Membership, Depends(require_membership)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    del _m
+    r = await db.execute(
+        select(Supplier).where(Supplier.id == supplier_id, Supplier.business_id == business_id)
+    )
+    sup = r.scalar_one_or_none()
+    if sup is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
+
+    tf = (
+        TradePurchase.business_id == business_id,
+        TradePurchase.supplier_id == supplier_id,
+        trade_purchase_status_in_reports(),
+    )
+    q = (
+        select(TradePurchase)
+        .where(*tf)
+        .order_by(TradePurchase.purchase_date.desc(), TradePurchase.created_at.desc())
+    )
+    result = await db.execute(q)
+    purchases = list(result.scalars().all())
+
+    rows: list[SupplierLedgerRowOut] = []
+    total_amount = 0.0
+    total_paid = 0.0
+    for p in purchases:
+        ta = float(p.total_amount or 0)
+        pa = float(p.paid_amount or 0)
+        bal = ta - pa
+        total_amount += ta
+        total_paid += pa
+        rows.append(
+            SupplierLedgerRowOut(
+                purchase_id=p.id,
+                human_id=p.human_id,
+                purchase_date=p.purchase_date,
+                invoice_number=p.invoice_number,
+                status=p.status,
+                total_amount=ta,
+                paid_amount=pa,
+                balance=bal,
+                due_date=p.due_date,
+            )
+        )
+
+    return SupplierLedgerOut(
+        supplier_id=supplier_id,
+        supplier_name=sup.name or "",
+        phone=sup.phone,
+        rows=rows,
+        total_amount=total_amount,
+        total_paid=total_paid,
+        total_balance=total_amount - total_paid,
+    )
+
+
+@router.get("/suppliers/{supplier_id}/ledger/pdf")
+async def supplier_ledger_pdf(
+    business_id: uuid.UUID,
+    supplier_id: uuid.UUID,
+    _m: Annotated[Membership, Depends(require_membership)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    from fastapi.responses import Response
+    from app.services.export_files import build_supplier_ledger_pdf
+    from datetime import date as _date
+
+    del _m
+    r = await db.execute(
+        select(Supplier).where(Supplier.id == supplier_id, Supplier.business_id == business_id)
+    )
+    sup = r.scalar_one_or_none()
+    if sup is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Supplier not found")
+
+    tf = (
+        TradePurchase.business_id == business_id,
+        TradePurchase.supplier_id == supplier_id,
+        trade_purchase_status_in_reports(),
+    )
+    q = select(TradePurchase).where(*tf).order_by(TradePurchase.purchase_date.desc())
+    result = await db.execute(q)
+    purchases = list(result.scalars().all())
+
+    range_start = min((p.purchase_date for p in purchases), default=_date.today())
+    range_end = max((p.purchase_date for p in purchases), default=_date.today())
+
+    pdf_bytes = build_supplier_ledger_pdf(
+        business_label="Business",
+        supplier_name=sup.name or str(supplier_id),
+        range_start=range_start,
+        range_end=range_end,
+        purchases=purchases,
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="supplier-ledger-{sup.name or supplier_id}.pdf"'
+        },
+    )
+
+
 class BrokerMetricsOut(BaseModel):
     deals: int
     total_commission: float

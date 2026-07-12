@@ -101,7 +101,7 @@ export const router = createBrowserRouter([
       { path: "/stock/missing-barcodes", element: migratedPage("MissingLabelsPage") },
       { path: "/stock/reorder", element: migratedPage("ReorderListPage") },
           { path: "/stock/item/:itemId", lazy: lazyPage(() => import("./pages/stock/StockDetailPage")) },
-          { path: "/stock/opening-setup", element: migratedPage("OpeningStockSetupPage") },
+          { path: "/stock/opening-setup", lazy: lazyPage(() => import("./pages/stock/OpeningStockSetupPage")) },
           { path: "/stock/staff-purchases", element: migratedPage("StaffPurchaseLogsPage") },
       { path: "/stock/low-stock", element: migratedPage("LowStockDashboardPage") },
 
@@ -109,8 +109,8 @@ export const router = createBrowserRouter([
       { path: "/purchase/edit/:purchaseId", element: migratedPage("PurchaseEditPage") },
       { path: "/purchase/detail/:purchaseId", element: migratedPage("PurchaseDetailPage") },
 
-      { path: "/supplier/:supplierId", element: migratedPage("SupplierDetailPage") },
-      { path: "/supplier/:supplierId/ledger", element: migratedPage("SupplierLedgerPage") },
+      { path: "/supplier/:supplierId", lazy: lazyPage(() => import("./pages/supplier/SupplierDetailPage")) },
+      { path: "/supplier/:supplierId/ledger", lazy: lazyPage(() => import("./pages/supplier/SupplierLedgerPage")) },
       { path: "/supplier/:supplierId/batch-items", element: migratedPage("BatchItemCreatePage") },
       { path: "/suppliers/quick-create", element: migratedPage("SupplierQuickCreatePage") },
 
@@ -124,12 +124,13 @@ export const router = createBrowserRouter([
 
       { path: "/item-analytics/:itemKey", element: migratedPage("ItemAnalyticsRedirectPage") },
 
-      { path: "/settings", element: migratedPage("SettingsPage") },
-      { path: "/settings/business", element: migratedPage("BusinessProfilePage") },
-      { path: "/settings/backup", element: migratedPage("BackupPage") },
-      { path: "/settings/help", element: migratedPage("HelpGuidePage") },
-      { path: "/settings/users", element: migratedPage("UserManagementPage") },
-      { path: "/settings/users/:userId", element: migratedPage("UserProfilePage") },
+      { path: "/settings", lazy: lazyPage(() => import("./pages/settings/SettingsPage")) },
+      { path: "/settings/business", lazy: lazyPage(() => import("./pages/settings/BusinessProfilePage")) },
+      { path: "/settings/backup", lazy: lazyPage(() => import("./pages/settings/BackupPage")) },
+      { path: "/settings/help", lazy: lazyPage(() => import("./pages/settings/HelpGuidePage")) },
+      { path: "/settings/users", lazy: lazyPage(() => import("./pages/settings/UserManagementPage")) },
+      { path: "/settings/users/:userId", lazy: lazyPage(() => import("./pages/settings/UserProfilePage")) },
+      { path: "/settings/profile", lazy: lazyPage(() => import("./pages/settings/UserProfilePage")) },
 
       { path: "/staff/receive", element: migratedPage("StaffReceivePage") },
       { path: "/staff/receive/:purchaseId", element: migratedPage("StaffReceiveShipmentPage") },

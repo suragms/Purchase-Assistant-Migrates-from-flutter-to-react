@@ -1,4 +1,5 @@
 import { api } from "./client";
+import type { OpeningStockSetupResponse } from "./types";
 
 export interface StockListItem {
   id: string;
@@ -129,6 +130,46 @@ export async function recordPhysicalCount(
   const res = await api.post(
     `/businesses/${businessId}/stock/${itemId}/physical-count`,
     { ...payload, itemId }
+  );
+  return res.data;
+}
+
+export interface OpeningStockParams {
+  page?: number;
+  per_page?: number;
+  q?: string;
+  status?: "all" | "pending" | "completed";
+  stock_status?: string;
+  category?: string;
+  subcategory?: string;
+  missing_barcode?: boolean;
+  missing_item_code?: boolean;
+}
+
+export async function getOpeningStockSetup(
+  businessId: string,
+  params: OpeningStockParams = {}
+): Promise<OpeningStockSetupResponse> {
+  const res = await api.get(`/businesses/${businessId}/stock/opening/setup`, { params });
+  return res.data;
+}
+
+export interface SetOpeningStockPayload {
+  qty: number;
+  override?: boolean;
+  reason?: string;
+  notes?: string;
+  idempotency_key?: string;
+}
+
+export async function setOpeningStock(
+  businessId: string,
+  itemId: string,
+  payload: SetOpeningStockPayload
+): Promise<StockDetailResponse> {
+  const res = await api.post(
+    `/businesses/${businessId}/stock/${itemId}/opening-stock`,
+    payload
   );
   return res.data;
 }
